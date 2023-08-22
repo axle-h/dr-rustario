@@ -79,3 +79,10 @@ input:
 All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
 
 There are no default player 2 controls.
+
+## TODO
+* change colours on low, medium & high
+* themes
+  * snes
+  * n64
+  * wii

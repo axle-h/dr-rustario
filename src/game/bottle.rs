@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
+use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand::seq::SliceRandom;
-use crate::game::block::Block;
+use crate::game::block::{Block, block_partner_offset};
+use crate::game::event::ColoredBlock;
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{Garbage, Pill, PillShape, VirusColor, Vitamin, Vitamins};
 use crate::game::random::BottleSeed;
@@ -17,8 +19,8 @@ fn index_at(x: u32, y: u32) -> usize {
     (y * BOTTLE_WIDTH + x) as usize
 }
 
-fn xy_at(index: u32) -> (u32, u32) {
-    (index % BOTTLE_WIDTH, index / BOTTLE_WIDTH)
+fn index_to_point(index: usize) -> BottlePoint {
+    BottlePoint::new((index % BOTTLE_WIDTH as usize) as i32, (index / BOTTLE_WIDTH as usize) as i32)
 }
 
 fn index(point: BottlePoint) -> usize {
@@ -40,12 +42,13 @@ struct PatternMatchContext {
     is_vertical: bool,
     result: HashSet<BottlePoint>,
     last_color: Option<VirusColor>,
-    count: u32
+    count: u32,
+    patterns: Vec<VirusColor>
 }
 
 impl PatternMatchContext {
     fn new(is_vertical: bool) -> Self {
-        Self { is_vertical, count: 0, last_color: None, result: HashSet::new() }
+        Self { is_vertical, count: 0, last_color: None, result: HashSet::new(), patterns: vec![] }
     }
 
     fn reset(&mut self, is_vertical: bool) {
@@ -60,38 +63,42 @@ impl PatternMatchContext {
                 self.count += 1;
             }
             Some(color) => {
-                self.maybe_add_result(x, y);
+                self.maybe_pattern(x, y, -1);
                 self.count = 1;
                 self.last_color = Some(color);
             }
             None => {
-                self.maybe_add_result(x, y);
+                self.maybe_pattern(x, y, -1);
                 self.count = 0;
                 self.last_color = None;
             }
         }
     }
 
-    fn maybe_add_result(&mut self, x: u32, y: u32) {
+    fn maybe_pattern(&mut self, x: u32, y: u32, offset: i32) {
         if self.count > 3 {
+            self.patterns.push(self.last_color.unwrap());
             let x = x as i32;
             let y = y as i32;
-            for i in (1..=self.count as i32).rev() {
+            for i in 0..self.count as i32 {
                 if self.is_vertical {
-                    self.result.insert(BottlePoint::new(x, y - i));
+                    self.result.insert(BottlePoint::new(x, y - i + offset));
                 } else {
-                    self.result.insert(BottlePoint::new(x - i, y));
+                    self.result.insert(BottlePoint::new(x - i + offset, y));
                 }
             }
+            self.count = 0;
+            self.last_color = None;
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Bottle {
     blocks: [Block; TOTAL_BLOCKS as usize],
     pill: Option<Pill>,
-    viruses: u32
+    viruses: u32,
+    rng: ThreadRng
 }
 
 impl Bottle {
@@ -100,6 +107,7 @@ impl Bottle {
             blocks: [Block::Empty; TOTAL_BLOCKS as usize],
             pill: None,
             viruses: 0,
+            rng: thread_rng()
         }
     }
 
@@ -108,6 +116,7 @@ impl Bottle {
             viruses: seed.count(),
             blocks: seed.into_blocks(),
             pill: None,
+            rng: thread_rng()
         }
     }
 
@@ -123,8 +132,8 @@ impl Bottle {
         &self.blocks[row_range(y)]
     }
 
-    pub fn block<P : Into<BottlePoint>>(&self, point: P) -> Block {
-        self.blocks[index(point.into())]
+    pub fn block(&self, point: BottlePoint) -> Block {
+        self.blocks[index(point)]
     }
 
     pub fn block_at(&self, x: u32, y: u32) -> Block {
@@ -157,6 +166,13 @@ impl Bottle {
 
     pub fn virus_count(&self) -> u32 {
         self.blocks.iter().filter(|b| b.is_virus()).count() as u32
+    }
+
+    pub fn viruses(&self) -> Vec<ColoredBlock> {
+        self.blocks.iter().enumerate()
+            .filter(|(_, b)| b.is_virus())
+            .map(|(index, b)| ColoredBlock::from_block(index_to_point(index), *b))
+            .collect()
     }
 
     pub fn try_spawn(&mut self, shape: PillShape) -> Option<Vitamins> {
@@ -264,7 +280,7 @@ impl Bottle {
         Some(vitamins)
     }
 
-    pub fn pattern(&self) -> HashSet<BottlePoint> {
+    pub fn pattern(&self) -> (Vec<ColoredBlock>, Vec<VirusColor>) {
         let mut context = PatternMatchContext::new(false);
 
         // by rows
@@ -273,6 +289,7 @@ impl Bottle {
             for x in 0..BOTTLE_WIDTH {
                 context.block(x, y, self.block_at(x, y));
             }
+            context.maybe_pattern(BOTTLE_WIDTH - 1, y, 0);
         }
 
         // by cols
@@ -281,13 +298,19 @@ impl Bottle {
             for y in 0..BOTTLE_HEIGHT {
                 context.block(x, y, self.block_at(x, y));
             }
+            context.maybe_pattern(x, BOTTLE_FLOOR, 0);
         }
 
-        context.result
+        let blocks = context.result.into_iter()
+            .map(|p| ColoredBlock::from_block(p, self.block(p)))
+            .collect();
+
+        (blocks, context.patterns)
     }
 
-    pub fn destroy(&mut self, points: HashSet<BottlePoint>) {
-        for point in points {
+    pub fn destroy(&mut self, blocks: Vec<ColoredBlock>) {
+        for block in blocks {
+            let point = block.position;
             let block = self.block(point);
             debug_assert!(block.is_destructible());
 
@@ -295,31 +318,75 @@ impl Bottle {
             self.set_block(point, Block::Empty);
 
             // 2. check if this created any garbage
-            if let Some(partner) = block.find_stack_partner(point) {
-                self.set_garbage(partner);
+            if let Some(partner_offset) = block.find_stack_partner_offset() {
+                self.set_garbage(point + partner_offset);
             }
         }
     }
 
     pub fn step_down_garbage(&mut self) -> bool {
-        let mut success = false;
+        let mut to_fall = HashSet::new();
         for x in 0..BOTTLE_WIDTH {
-            let mut is_free = self.block_at(x, BOTTLE_FLOOR).is_empty();
-            for y in (0..BOTTLE_HEIGHT - 1).rev() {
-                let block = self.block_at(x, y);
-                match block {
-                    Block::Empty => is_free = true,
-                    Block::Garbage(_) if is_free => {
-                        self.set_block_at(x, y + 1, block);
-                        self.set_block_at(x, y, Block::Empty);
-                        success = true;
-                    }
-                    _ => is_free = false
+            for y in 0..BOTTLE_FLOOR {
+                let point = BottlePoint::new(x as i32, y as i32);
+                if to_fall.contains(&point) {
+                    continue;
                 }
-
+                if let Some(group) = self.get_falling_group(point) {
+                    for falling_block in group {
+                        to_fall.insert(falling_block);
+                    }
+                }
             }
         }
-        success
+
+        if to_fall.is_empty() {
+            return false;
+        }
+
+        for x in 0..BOTTLE_WIDTH {
+            for y in (0..BOTTLE_FLOOR).rev() {
+                let point = BottlePoint::new(x as i32, y as i32);
+                if to_fall.contains(&point) {
+                    let block = self.block(point);
+                    self.set_block(point.translate(0, 1), block);
+                    self.set_block(point, Block::Empty);
+                }
+            }
+        }
+
+        true
+    }
+
+    fn get_falling_group(&self, point: BottlePoint) -> Option<HashSet<BottlePoint>> {
+        let mut result = HashSet::new();
+        let mut queue = vec![point];
+        while let Some(point) = queue.pop() {
+            if result.contains(&point) {
+                continue;
+            }
+            let is_floor = point.y() == BOTTLE_FLOOR as i32;
+            let block = self.block(point);
+            match block {
+                Block::Empty => { continue; },
+                Block::Stack(_, rotation, ordinal) if !is_floor => {
+                    queue.push(point.translate(0, 1));
+                    queue.push(point + block_partner_offset(rotation, ordinal));
+                    result.insert(point);
+                }
+                Block::Garbage(_) if !is_floor => {
+                    result.insert(point);
+                    queue.push(point.translate(0, 1));
+                }
+                _ => return None
+            }
+        }
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
     }
 
     pub fn hold(&mut self) -> Option<PillShape> {
@@ -342,7 +409,7 @@ impl Bottle {
             .filter(|(_, b)| b.is_empty())
             .map(|(x, _)| x as u32)
             .collect::<Vec<u32>>();
-        available_x.shuffle(&mut thread_rng());
+        available_x.shuffle(&mut self.rng);
 
         let mut sent = vec![];
         for color in garbage.into_iter() {
@@ -476,7 +543,9 @@ impl Debug for Bottle {
 
             for x in 0..BOTTLE_WIDTH {
                 match self.block_at(x, y) {
-                    Block::Vitamin(color, _, _) | Block::Stack(color, _, _) => write!(f, "{}", color.to_char())?,
+                    Block::Vitamin(color, _, _)
+                     | Block::Stack(color, _, _)
+                     | Block::Garbage(color) => write!(f, "{}", color.to_char())?,
                     Block::Virus(color) => write!(f, "{}", color.to_char().to_ascii_uppercase())?,
                     Block::Ghost(_, _, _) => write!(f, "G")?,
                     _ => write!(f, " ")?,
@@ -491,6 +560,7 @@ impl Debug for Bottle {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::hash_map::RandomState;
     use crate::game::geometry::Rotation;
     use crate::game::pill::VitaminOrdinal;
     use super::*;
@@ -682,7 +752,9 @@ mod tests {
     #[test]
     fn empty_patterns() {
         let bottle = Bottle::new();
-        assert!(bottle.pattern().is_empty());
+        let (pattern, patterns) = bottle.pattern();
+        assert_eq!(pattern, vec![]);
+        assert_eq!(patterns.len(), 0);
     }
 
     #[test]
@@ -699,7 +771,10 @@ mod tests {
         bottle.having_garbage(3, 12, VirusColor::Red);
         bottle.having_garbage(4, 12, VirusColor::Red);
         bottle.having_garbage(5, 12, VirusColor::Red);
-        assert!(bottle.pattern().is_empty());
+
+        let (pattern, patterns) = bottle.pattern();
+        assert_eq!(pattern, vec![]);
+        assert_eq!(patterns.len(), 0);
     }
 
     #[test]
@@ -711,12 +786,18 @@ mod tests {
         bottle.having_stack(4, 10, VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right);
         bottle.having_garbage(5, 10, VirusColor::Red);
         bottle.having_garbage(1, 11, VirusColor::Yellow);
+        let (pattern, patterns) = bottle.pattern();
+        let observed: HashSet<ColoredBlock, RandomState> = HashSet::from_iter(pattern.into_iter());
         assert_eq!(
-            bottle.pattern(),
-            HashSet::from_iter(
-                [BottlePoint::new(1, 10), BottlePoint::new(2, 10), BottlePoint::new(3, 10), BottlePoint::new(4, 10)]
-            )
+            observed,
+            HashSet::from_iter([
+                ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)),
+                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right))
+            ])
         );
+        assert_eq!(patterns.len(), 1);
     }
 
     #[test]
@@ -728,12 +809,18 @@ mod tests {
         bottle.having_garbage(5, 13, VirusColor::Yellow);
         bottle.having_garbage(5, 14, VirusColor::Red);
         bottle.having_garbage(4, 10, VirusColor::Yellow);
+        let (pattern, patterns) = bottle.pattern();
+        let observed: HashSet<ColoredBlock, RandomState> = HashSet::from_iter(pattern.into_iter());
         assert_eq!(
-            bottle.pattern(),
-            HashSet::from_iter(
-                [BottlePoint::new(5, 10), BottlePoint::new(5, 11), BottlePoint::new(5, 12), BottlePoint::new(5, 13)]
-            )
+            observed,
+            HashSet::from_iter([
+                ColoredBlock::from_block(BottlePoint::new(5, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(5, 11), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(5, 12), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(5, 13), Block::Garbage(VirusColor::Yellow))
+            ])
         );
+        assert_eq!(patterns.len(), 1);
     }
 
     #[test]
@@ -744,12 +831,19 @@ mod tests {
         bottle.having_garbage(3, 10, VirusColor::Yellow);
         bottle.having_garbage(4, 10, VirusColor::Yellow);
         bottle.having_garbage(5, 10, VirusColor::Yellow);
+        let (pattern, patterns) = bottle.pattern();
+        let observed: HashSet<ColoredBlock, RandomState> = HashSet::from_iter(pattern.into_iter());
         assert_eq!(
-            bottle.pattern(),
-            HashSet::from_iter(
-                [BottlePoint::new(1, 10), BottlePoint::new(2, 10), BottlePoint::new(3, 10), BottlePoint::new(4, 10), BottlePoint::new(5, 10)]
-            )
+            observed,
+            HashSet::from_iter([
+                ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(5, 10), Block::Garbage(VirusColor::Yellow))
+            ])
         );
+        assert_eq!(patterns.len(), 1);
     }
 
     #[test]
@@ -762,15 +856,37 @@ mod tests {
         bottle.having_garbage(4, 11, VirusColor::Yellow);
         bottle.having_garbage(4, 12, VirusColor::Yellow);
         bottle.having_garbage(4, 13, VirusColor::Yellow);
+
+        let (pattern, patterns) = bottle.pattern();
+        let observed: HashSet<ColoredBlock, RandomState> = HashSet::from_iter(pattern.into_iter());
         assert_eq!(
-            bottle.pattern(),
-            HashSet::from_iter(
-                [
-                    BottlePoint::new(1, 10), BottlePoint::new(2, 10), BottlePoint::new(3, 10), BottlePoint::new(4, 10),
-                    BottlePoint::new(4, 11), BottlePoint::new(4, 12), BottlePoint::new(4, 13)
-                ]
-            )
+            observed,
+            HashSet::from_iter([
+                ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)),
+                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right)),
+                ColoredBlock::from_block(BottlePoint::new(4, 11), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(4, 12), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(BottlePoint::new(4, 13), Block::Garbage(VirusColor::Yellow)),
+            ])
         );
+        assert_eq!(patterns.len(), 2);
+    }
+
+    #[test]
+    fn pattern_with_repeating_block_on_bottom_of_bottle() {
+        let mut bottle = Bottle::new();
+        bottle.having_garbage(7, 12, VirusColor::Red);
+        bottle.having_garbage(7, 13, VirusColor::Red);
+        bottle.having_garbage(7, 14, VirusColor::Red);
+        bottle.having_virus(7, 15, VirusColor::Red);
+        bottle.having_garbage(6, 15, VirusColor::Red);
+        bottle.having_garbage(5, 15, VirusColor::Red);
+        bottle.having_garbage(4, 15, VirusColor::Red);
+        let (pattern, patterns) = bottle.pattern();
+        assert_eq!(pattern.len(), 7, "{:?}", pattern);
+        assert_eq!(patterns.len(), 2);
     }
 
     #[test]
@@ -781,7 +897,7 @@ mod tests {
         bottle.having_garbage(2, 10, VirusColor::Yellow);
         bottle.having_garbage(3, 10, VirusColor::Yellow);
         bottle.having_virus(0, 11, VirusColor::Yellow);
-        let pattern = bottle.pattern();
+        let (pattern, _) = bottle.pattern();
         bottle.destroy(pattern);
         bottle.is_empty_at(0, 10);
         bottle.is_empty_at(1, 10);
@@ -795,7 +911,7 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.having_stack(5, BOTTLE_FLOOR, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
         bottle.having_stack(6, BOTTLE_FLOOR, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
-        bottle.destroy(HashSet::from_iter([BottlePoint::new(5, BOTTLE_FLOOR as i32)]));
+        bottle.destroy(vec![ColoredBlock::from_block(BottlePoint::new(5, BOTTLE_FLOOR as i32), Block::Stack(VirusColor::Red, Rotation::North, VitaminOrdinal::Left))]);
         bottle.is_empty_at(5, BOTTLE_FLOOR);
         bottle.is_garbage_at(6, BOTTLE_FLOOR, VirusColor::Blue);
     }
@@ -826,6 +942,22 @@ mod tests {
         assert!(bottle.step_down_garbage());
         bottle.has_garbage_at(0, 9, VirusColor::Yellow);
         bottle.has_garbage_at(0, 8, VirusColor::Yellow);
+    }
+
+    #[test]
+    fn step_down_kitchen_sink() {
+        let mut bottle = Bottle::new();
+        bottle.having_garbage(0, 14, VirusColor::Yellow);
+        bottle.having_stack(0, 13, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
+        bottle.having_stack(1, 13, VirusColor::Red, Rotation::North, VitaminOrdinal::Right);
+        bottle.having_stack(1, 12, VirusColor::Blue, Rotation::North, VitaminOrdinal::Left);
+        bottle.having_stack(2, 12, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        assert!(bottle.step_down_garbage());
+        bottle.has_garbage_at(0, 15, VirusColor::Yellow);
+        bottle.has_stack_at(0, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
+        bottle.has_stack_at(1, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_stack_at(1, 13, VirusColor::Blue, Rotation::North, VitaminOrdinal::Left);
+        bottle.has_stack_at(2, 13, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
     }
 
     #[test]

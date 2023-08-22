@@ -17,8 +17,23 @@ pub enum GameInputKey {
     RotateAnticlockwise { player: u32 },
     Hold { player: u32 },
     Pause,
+    ReturnToMenu,
     Quit,
     NextTheme,
+}
+
+impl GameInputKey {
+    pub fn player(&self) -> Option<u32> {
+        match self {
+            GameInputKey::MoveLeft { player } | GameInputKey::MoveRight { player }
+                | GameInputKey::SoftDrop { player }
+                | GameInputKey::HardDrop { player }
+                | GameInputKey::RotateClockwise { player }
+                | GameInputKey::RotateAnticlockwise { player }
+                | GameInputKey::Hold { player } => Some(*player),
+            _ => None
+        }
+    }
 }
 
 #[derive(Hash, Clone, Copy, Debug, PartialEq, Eq)]

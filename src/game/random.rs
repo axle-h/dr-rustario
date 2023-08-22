@@ -13,16 +13,6 @@ use crate::game::pill::{PillShape, VirusColor};
 pub const PEEK_SIZE: usize = 5;
 pub const MAX_BOTTLE_SEED_ATTEMPTS: usize = 100_000;
 
-fn maximum_virus_row(virus_level: u32) -> u32 {
-    // https://tetris.wiki/Dr._Mario
-    match virus_level {
-        0..=14 => 10,
-        15 | 16 => 11,
-        17 | 18 => 12,
-        _ => 13
-    }
-}
-
 type Seed = <ChaCha8Rng as SeedableRng>::Seed;
 
 impl Distribution<VirusColor> for Standard {
@@ -37,7 +27,7 @@ impl Distribution<PillShape> for Standard {
     }
 }
 
-fn random(count: usize) -> Vec<GameRandom> {
+pub fn random(count: usize) -> Vec<GameRandom> {
     let mut seed: Seed = Default::default();
     thread_rng().fill(&mut seed);
     (0..count)
@@ -131,7 +121,8 @@ impl Debug for BottleSeed {
 }
 
 pub struct GameRandom {
-    rng: ChaChaRng,
+    pill_rng: ChaChaRng,
+    bottle_rng: ChaChaRng,
     queue: VecDeque<PillShape>
 }
 
@@ -145,15 +136,27 @@ impl GameRandom {
         Self::new(ChaChaRng::seed_from_u64(seed))
     }
 
-    pub fn new(mut rng: ChaChaRng) -> Self {
+    pub fn new(rng: ChaChaRng) -> Self {
+        let bottle_rng = rng.clone();
+        let mut pill_rng = rng;
         let queue = (0..PEEK_SIZE)
-            .map(|_| rng.gen())
+            .map(|_| pill_rng.gen())
             .collect();
-        Self { rng, queue }
+        Self { pill_rng, bottle_rng, queue }
+    }
+
+    pub fn peek(&self) -> [PillShape; PEEK_SIZE] {
+        self.queue
+            .iter()
+            .take(PEEK_SIZE)
+            .copied()
+            .collect::<Vec<PillShape>>()
+            .try_into()
+            .unwrap()
     }
 
     pub fn next_pill(&mut self) -> PillShape {
-        self.queue.push_back(self.rng.gen());
+        self.queue.push_back(self.pill_rng.gen());
         self.queue.pop_front().unwrap()
     }
 
@@ -170,15 +173,15 @@ impl GameRandom {
         let mut bottle = BottleSeed::new();
         let target = (virus_level * 4 + 4).min(99);
         let max_virus_row = match virus_level {
-            0..=14 => 5,
-            15 | 16 => 4,
-            17 | 18 => 3,
-            _ => 2
+            0..=14 => 6,
+            15 | 16 => 5,
+            17 | 18 => 4,
+            _ => 3
         };
         let mut available = (max_virus_row..BOTTLE_HEIGHT)
             .flat_map(|y| (0..BOTTLE_WIDTH).map(move |x| BottlePoint::new(x as i32, y as i32)))
             .collect::<Vec<BottlePoint>>();
-        available.shuffle(&mut self.rng);
+        available.shuffle(&mut self.pill_rng);
 
         for i in 0..target {
             let point = available.pop()?;
@@ -188,7 +191,7 @@ impl GameRandom {
             }
             let mut color: VirusColor = match (i as usize % 4).try_into() {
                 Ok(color) => color,
-                _ => self.rng.gen()
+                _ => self.pill_rng.gen()
             };
             while !available_colors.contains(&color) {
                 color = color.next();

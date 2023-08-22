@@ -1,17 +1,56 @@
-use sdl2::rect::Point;
+use std::collections::HashMap;
+use sdl2::pixels::Color;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
+use crate::config::Config;
 use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockPoints, VitaminSpriteSheetData};
+use crate::theme::sprite_sheet::{BlockPoints, pills, VitaminSpriteSheetData};
 use crate::theme::{Theme, ThemeName};
+use crate::theme::font::{alpha_sprites, FontRenderOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::scene::SceneType;
+use crate::theme::sound::AudioTheme;
 
-const SPRITES: &[u8] = include_bytes!("sprites.png");
-const BOTTLE_MEDIUM: &[u8] = include_bytes!("bottle-medium.png");
-const BLOCK_SIZE: u32 = 9;
+mod sprites {
+    pub const SPRITES: &[u8] = include_bytes!("sprites.png");
+    pub const BACKGROUND: &[u8] = include_bytes!("background.png");
+    pub const BOTTLES: &[u8] = include_bytes!("bottles.png");
+    pub const FONT: &[u8] = include_bytes!("font.png");
+    pub const MATCH_END: &[u8] = include_bytes!("match-end.png");
+}
+mod sound {
+    pub const CHILL_INTRO: &[u8] = include_bytes!("chill-intro.ogg");
+    pub const CHILL_REPEATING: &[u8] = include_bytes!("chill-repeating.ogg");
+    pub const CHILL_VICTORY_INTRO: &[u8] = include_bytes!("chill-victory-intro.ogg");
+    pub const CHILL_VICTORY_REPEATING: &[u8] = include_bytes!("chill-victory-repeating.ogg");
+    pub const DESTROY_VIRUS: &[u8] = include_bytes!("destroy-virus.ogg");
+    pub const DESTROY_VIRUS_COMBO: &[u8] = include_bytes!("destroy-virus-combo.ogg");
+    pub const DESTROY_VITAMIN: &[u8] = include_bytes!("destroy-vitamin.ogg");
+    pub const DESTROY_VITAMIN_COMBO: &[u8] = include_bytes!("destroy-vitamin-combo.ogg");
+    pub const GAME_OVER_INTRO: &[u8] = include_bytes!("game-over-intro.ogg");
+    pub const GAME_OVER_REPEAT: &[u8] = include_bytes!("game-over-repeat.ogg");
+    pub const RECEIVE_GARBAGE: &[u8] = include_bytes!("garbage.ogg");
+    pub const SPEED_LEVEL_UP: &[u8] = include_bytes!("speed-level-up.ogg");
+    pub const DROP: &[u8] = include_bytes!("drop.ogg");
+    pub const MOVE_PILL: &[u8] = include_bytes!("move.ogg");
+    pub const PAUSE: &[u8] = include_bytes!("pause.ogg");
+    pub const ROTATE: &[u8] = include_bytes!("rotate.ogg");
+    // const VIRUS_DEAD: &[u8] = include_bytes!("virus-dead.ogg");
+    pub const VS_GAME_OVER_INTRO: &[u8] = include_bytes!("vs-game-over-intro.ogg");
+    pub const VS_GAME_OVER_REPEAT: &[u8] = include_bytes!("vs-game-over-repeat.ogg");
+}
+
+const BLOCK_SIZE: u32 = 7;
+const DR_NORMAL_WIDTH: u32 = 32;
+const DR_NORMAL_HEIGHT: u32 = 40;
+const ALPHA_PIXELS: u32 = 7;
 
 fn block(i: i32, j: i32) -> Point {
     Point::new(i * BLOCK_SIZE as i32, j * BLOCK_SIZE as i32)
+}
+fn dr_normal(i: i32) -> Point {
+    Point::new(i * (DR_NORMAL_WIDTH as i32 + 1), 102)
 }
 
 fn color(j: i32) -> BlockPoints {
@@ -27,24 +66,89 @@ fn color(j: i32) -> BlockPoints {
     )
 }
 
+fn pill(i: i32, j: i32) -> Point {
+    Point::new(57 + i * 17, j * 9)
+}
+
+fn char_snip(col: i32) -> Point {
+    Point::new(col * (ALPHA_PIXELS as i32 + 1), 0)
+}
+
 pub fn nes_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
+    config: Config
 ) -> Result<Theme<'a>, String> {
-    let options = RetroThemeOptions::new(
-        ThemeName::Nes,
-        VitaminSpriteSheetData::new(
-            SPRITES,
+    let options = RetroThemeOptions {
+        name: ThemeName::Nes,
+        scene_low: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x00, 0x3f, 0x00)] },
+        scene_medium: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x2d, 0x05, 0x85)] },
+        scene_high: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x58, 0x58, 0x58)] },
+        sprites: VitaminSpriteSheetData::new(
+            sprites::SPRITES,
+            pills(
+                pill(0, 0), pill(1, 0), pill(2, 0),
+                pill(0, 1), pill(1, 1), pill(2, 1),
+                pill(0, 2), pill(1, 2), pill(2, 2)
+            ),
             color(0),
             color(2),
             color(1),
             BLOCK_SIZE,
-            0x60
+            0x40,
+            vec![dr_normal(0), dr_normal(1), dr_normal(2)],
+            (DR_NORMAL_WIDTH, DR_NORMAL_HEIGHT),
+            vec![Point::new(100, 104)],
+            (38, 38),
+            vec![Point::new(139, 104), Point::new(179, 104)],
+            (38, 38),
+            vec![Point::new(153, 62), Point::new(186, 62)],
+            (38, 38)
         ),
-        BottleGeometry::new(9, -1, (0, 0)),
-        BOTTLE_MEDIUM,
-Point::new(0, 0), // TODO
-    );
+        geometry: BottleGeometry::new(7, 1, (8, 40)),
+        audio: AudioTheme::new(
+            config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
+            sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
+            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE
+            )?
+            .with_game_music(sound::CHILL_INTRO, sound::CHILL_REPEATING)?
+            .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
+            .with_next_level_music(sound::CHILL_VICTORY_INTRO, sound::CHILL_VICTORY_REPEATING)?
+            .with_victory_music(sound::VS_GAME_OVER_INTRO, sound::VS_GAME_OVER_REPEAT)?,
+        font: FontRenderOptions::Sprites {
+            file_bytes: sprites::FONT,
+            sprites: alpha_sprites(
+                (0..10)
+                    .map(|i| char_snip(i))
+                    .collect::<Vec<Point>>()
+                    .try_into()
+                    .unwrap(),
+                ALPHA_PIXELS,
+                ALPHA_PIXELS,
+            ),
+            spacing: 1,
+        },
+        bottles_file: sprites::BOTTLES,
+        bottle_low: Point::new(81, 0),
+        bottle_medium: Point::new(0, 0),
+        bottle_high: Point::new(162, 0),
+        bottle_width: 80,
+        bottle_height: 176,
+        background_file: sprites::BACKGROUND,
+        bottle_point: Point::new(0, 0),
+        match_end_file: sprites::MATCH_END,
+        game_over_points: vec![Point::new(65, 0), Point::new(65, 129)],
+        next_level_points: vec![Point::new(0, 0), Point::new(0, 129)],
+        dr_point: Point::new(97, 37),
+        dr_hand_point: Point::new(102, 30),
+        peek_point: Point::new(94, 55),
+        peek_offset: 10,
+        peek_max: 2,
+        peek_scale: Some(0.75),
+        score: MetricSnips::zero_fill((92, 113), 9999999),
+        virus_level: MetricSnips::zero_fill((123, 134), 99),
+        virus_count: MetricSnips::zero_fill((123, 155), 99),
+    };
 
     retro_theme(canvas, texture_creator, options)
 }

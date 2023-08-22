@@ -5,6 +5,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mixer::MAX_VOLUME;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::game::GameSpeed;
 
 pub const APP_CONFIG_ROOT: &str = APP_NAME;
 
@@ -20,7 +21,6 @@ pub struct Config {
     pub video: VideoConfig,
     pub audio: AudioConfig,
     pub input: InputConfig,
-    pub game: GameplayConfig,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -79,49 +79,49 @@ impl InputConfig {
             (self.menu.right, MenuInputKey::Right),
             (self.menu.start, MenuInputKey::Start),
             (self.menu.select, MenuInputKey::Select),
-            (self.quit, MenuInputKey::Quit),
+            (self.quit, MenuInputKey::Back),
         ])
     }
 
     pub fn game_map(&self) -> HashMap<Keycode, GameInputKey> {
         let mut result = HashMap::from([
-            (self.quit, GameInputKey::Quit),
+            (self.quit, GameInputKey::ReturnToMenu),
             (self.pause, GameInputKey::Pause),
             (self.next_theme, GameInputKey::NextTheme),
-            (self.player1.move_left, GameInputKey::MoveLeft { player: 1 }),
+            (self.player1.move_left, GameInputKey::MoveLeft { player: 0 }),
             (
                 self.player1.move_right,
-                GameInputKey::MoveRight { player: 1 },
+                GameInputKey::MoveRight { player: 0 },
             ),
-            (self.player1.soft_drop, GameInputKey::SoftDrop { player: 1 }),
-            (self.player1.hard_drop, GameInputKey::HardDrop { player: 1 }),
+            (self.player1.soft_drop, GameInputKey::SoftDrop { player: 0 }),
+            (self.player1.hard_drop, GameInputKey::HardDrop { player: 0 }),
             (
                 self.player1.rotate_anticlockwise,
-                GameInputKey::RotateAnticlockwise { player: 1 },
+                GameInputKey::RotateAnticlockwise { player: 0 },
             ),
             (
                 self.player1.rotate_clockwise,
-                GameInputKey::RotateClockwise { player: 1 },
+                GameInputKey::RotateClockwise { player: 0 },
             ),
-            (self.player1.hold, GameInputKey::Hold { player: 1 }),
+            (self.player1.hold, GameInputKey::Hold { player: 0 }),
         ]);
 
         match self.player2 {
             None => {}
             Some(p2) => {
-                result.insert(p2.move_left, GameInputKey::MoveLeft { player: 2 });
-                result.insert(p2.move_right, GameInputKey::MoveRight { player: 2 });
-                result.insert(p2.soft_drop, GameInputKey::SoftDrop { player: 2 });
-                result.insert(p2.hard_drop, GameInputKey::HardDrop { player: 2 });
+                result.insert(p2.move_left, GameInputKey::MoveLeft { player: 1 });
+                result.insert(p2.move_right, GameInputKey::MoveRight { player: 1 });
+                result.insert(p2.soft_drop, GameInputKey::SoftDrop { player: 1 });
+                result.insert(p2.hard_drop, GameInputKey::HardDrop { player: 1 });
                 result.insert(
                     p2.rotate_anticlockwise,
-                    GameInputKey::RotateAnticlockwise { player: 2 },
+                    GameInputKey::RotateAnticlockwise { player: 1 },
                 );
                 result.insert(
                     p2.rotate_clockwise,
-                    GameInputKey::RotateClockwise { player: 2 },
+                    GameInputKey::RotateClockwise { player: 1 },
                 );
-                result.insert(p2.hold, GameInputKey::Hold { player: 2 });
+                result.insert(p2.hold, GameInputKey::Hold { player: 1 });
             }
         }
 
@@ -152,12 +152,6 @@ pub struct VideoConfig {
     pub disable_screensaver: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct GameplayConfig {
-    pub random_mode: RandomMode,
-    pub min_garbage_per_hole: u32,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -170,7 +164,7 @@ impl Default for Config {
                 disable_screensaver: true,
             },
             audio: AudioConfig {
-                music_volume: 1.0,
+                music_volume: 0.5,
                 effects_volume: 1.0,
             },
             input: InputConfig {
@@ -196,10 +190,6 @@ impl Default for Config {
                 quit: Keycode::Escape,
                 next_theme: Keycode::F2,
             },
-            game: GameplayConfig {
-                random_mode: RandomMode::Bag,
-                min_garbage_per_hole: 10,
-            },
         }
     }
 }
@@ -207,53 +197,6 @@ impl Default for Config {
 impl Config {
     pub fn load() -> Result<Self, String> {
         confy::load(APP_CONFIG_ROOT, "config").map_err(|e| e.to_string())
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatchRules {
-    /// Endless game with garbage
-    Battle,
-    /// First to some score
-    ScoreSprint { score: u32 },
-    /// First to some number of lines
-    LineSprint { lines: u32 },
-    /// Endless game
-    Marathon,
-}
-
-impl MatchRules {
-    pub fn garbage_enabled(&self) -> bool {
-        self == &MatchRules::Battle
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatchThemes {
-    /// Run themes in order, switching at the next level
-    All,
-    GameBoy,
-    Nes,
-    Snes,
-    Modern,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GameConfig {
-    pub players: u32,
-    pub level: u32,
-    pub rules: MatchRules,
-    pub themes: MatchThemes,
-}
-
-impl GameConfig {
-    pub fn new(players: u32, level: u32, rules: MatchRules, themes: MatchThemes) -> Self {
-        Self {
-            players,
-            level,
-            rules,
-            themes,
-        }
     }
 }
 

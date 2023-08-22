@@ -1,7 +1,8 @@
+use std::ops::Neg;
 use crate::game::geometry::{BottlePoint, Rotation};
 use crate::game::pill::{VirusColor, VitaminOrdinal};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Block {
     Empty,
     /// vitamin on the active pill
@@ -18,6 +19,20 @@ pub enum Block {
 
     /// active vitamin ghost
     Ghost(VirusColor, Rotation, VitaminOrdinal),
+}
+
+pub fn block_partner_offset(rotation: Rotation, ordinal: VitaminOrdinal) -> BottlePoint {
+    let offset = match rotation {
+        Rotation::North => BottlePoint::new(1, 0),
+        Rotation::East => BottlePoint::new(0, 1),
+        Rotation::South => BottlePoint::new(-1, 0),
+        Rotation::West => BottlePoint::new(0, -1),
+    };
+
+    match ordinal {
+        VitaminOrdinal::Left => offset,
+        VitaminOrdinal::Right => offset.neg()
+    }
 }
 
 impl Block {
@@ -47,21 +62,9 @@ impl Block {
         }
     }
 
-    pub fn find_stack_partner(&self, point: BottlePoint) -> Option<BottlePoint> {
+    pub fn find_stack_partner_offset(&self) -> Option<BottlePoint> {
         if let Block::Stack(_, rotation, ordinal) = self {
-            let offset = match rotation {
-                Rotation::North => BottlePoint::new(1, 0),
-                Rotation::East => BottlePoint::new(0, 1),
-                Rotation::South => BottlePoint::new(-1, 0),
-                Rotation::West => BottlePoint::new(0, -1),
-            };
-
-            Some(
-                match ordinal {
-                    VitaminOrdinal::Left => point + offset,
-                    VitaminOrdinal::Right => point - offset
-                }
-            )
+            Some(block_partner_offset(*rotation, *ordinal))
         } else {
             None
         }

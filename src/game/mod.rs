@@ -1,31 +1,38 @@
 use std::collections::HashSet;
 use std::time::Duration;
+use strum::IntoEnumIterator;
 use crate::game::block::Block;
 use crate::game::bottle::SendGarbage;
-use crate::game::event::GameEvent;
+use crate::game::event::{ColoredBlock, GameEvent};
 use crate::game::geometry::BottlePoint;
-use crate::game::pill::{PillShape, VirusColor};
+use crate::game::pill::{Pill, PillShape, VirusColor, Vitamins};
 use crate::game::random::GameRandom;
 
-#[cfg(not(test))]
-use crate::game::bottle::Bottle;
+use crate::game::metrics::GameMetrics;
+
 #[cfg(test)]
 use crate::game::tests::MockBottle as Bottle;
+#[cfg(not(test))]
+use crate::game::bottle::Bottle;
+
 
 pub mod pill;
 pub mod geometry;
 pub mod bottle;
 pub mod block;
 pub mod random;
-mod event;
+pub mod event;
+pub mod metrics;
+pub mod rules;
 
 const SOFT_DROP_STEP_FACTOR: u32 = 20;
 const SOFT_DROP_SPAWN_FACTOR: u32 = 10;
 const GARBAGE_DROP_DURATION: Duration = Duration::from_millis(200);
 const MIN_SPAWN_DELAY: Duration = Duration::from_millis(500);
-const LOCK_DURATION: Duration = Duration::from_millis(500);
-const SOFT_DROP_LOCK_DURATION: Duration = Duration::from_millis(500 / 2);
+const LOCK_DURATION: Duration = Duration::from_millis(300);
+const SOFT_DROP_LOCK_DURATION: Duration = Duration::from_millis(300 / 2);
 const MAX_LOCK_PLACEMENTS: u32 = 15;
+const PILLS_PER_SPEED_LEVEL: usize = 10;
 
 const SPEED_TABLE: [Duration; 81] = [
     Duration::from_nanos(1166666667),
@@ -111,18 +118,28 @@ const SPEED_TABLE: [Duration; 81] = [
     Duration::from_nanos(16666667),
 ];
 
+const BASE_SCORE_LOW: u32 = 100;
+const BASE_SCORE_MEDIUM: u32 = 200;
+const BASE_SCORE_HIGH: u32 = 300;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter, strum::EnumString)]
 pub enum GameSpeed {
-    Low,
-    Medium,
-    High
+    #[strum(serialize = "low")]
+    Low = 0,
+    #[strum(serialize = "medium")]
+    Medium = 1,
+    #[strum(serialize = "high")]
+    High = 2
+}
+
+impl GameSpeed {
+    pub fn names() -> Vec<&'static str> {
+        Self::iter().map(|e| e.into()).collect()
+    }
 }
 
 impl GameSpeed {
     const MAX_LEVEL: usize = 49;
-
-    fn drop_duration(&self, total_pills: usize) -> Duration {
-        self.duration_of_level(total_pills / 10)
-    }
 
     fn min_drop_duration(&self) -> Duration {
         self.duration_of_level(Self::MAX_LEVEL)
@@ -144,20 +161,29 @@ impl GameSpeed {
             GameSpeed::High => 31,
         }
     }
+
+    fn base_score(&self) -> u32 {
+        match self {
+            GameSpeed::Low => BASE_SCORE_LOW,
+            GameSpeed::Medium => BASE_SCORE_MEDIUM,
+            GameSpeed::High => BASE_SCORE_HIGH
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GameState {
     Spawn(Duration),
-    SpawnHold(PillShape),
+    SpawnHold(Option<PillShape>),
     Fall(Duration),
     Lock(Duration),
     /// check the bottle for patterns to destroy
-    Pattern,
+    Pattern(Combo),
     /// destroy marked patterns
-    Destroy(HashSet<BottlePoint>),
+    Destroy(Vec<ColoredBlock>, Combo),
+    DropGarbage(Duration, Combo),
     GameOver,
-    DropGarbage(Duration),
+    LevelComplete
 }
 
 impl GameState {
@@ -165,7 +191,15 @@ impl GameState {
     const LOCK_NOW: Self = Self::Lock(LOCK_DURATION);
     const NEW_FALL: Self = Self::Fall(Duration::ZERO);
     const NEW_SPAWN: Self = Self::Spawn(Duration::ZERO);
-    const NEW_DROP_GARBAGE: Self = Self::DropGarbage(Duration::ZERO);
+    const NEW_PATTERN: Self = Self::Pattern(Combo::empty());
+
+    fn drop_garbage(combo: Combo) -> Self {
+        Self::DropGarbage(Duration::ZERO, combo)
+    }
+
+    pub fn is_game_over(&self) -> bool {
+        self == &Self::GameOver
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -180,42 +214,137 @@ impl HoldState {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Combo {
+    patterns: Vec<VirusColor>,
+    viruses: u32
+}
+
+impl Combo {
+    const fn empty() -> Self {
+        Self { patterns: vec![], viruses: 0 }
+    }
+
+    fn new(patterns: Vec<VirusColor>, viruses: u32) -> Self {
+        Self { patterns, viruses }
+    }
+
+    fn into_updated(mut self, patterns: Vec<VirusColor>, viruses: u32) -> Self {
+        for color in patterns {
+            self.patterns.push(color);
+        }
+        self.viruses += viruses;
+        self
+    }
+
+    fn is_combo(&self) -> bool {
+        self.patterns.len() > 1
+    }
+
+    fn score(&self, speed: GameSpeed) -> u32 {
+        if self.viruses == 0 {
+            return 0;
+        }
+        // |NUMBER OF VIRUSES |   LOW   |   MED   |   HIGH   |
+        // |   ELIMINATED     |  SPEED  |  SPEED  |  SPEED   |
+        // |¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯|
+        // |	    1		  |   100   |   200   |   300    |
+        // |        2         |   200   |   400   |   600    |
+        // |        3         |   400   |   800   |  1200    |
+        // |        4         |   800   |  1600   |  2400    |
+        // |        5         |  1600   |  3200   |  4800    |
+        // |        6         |  3200   |  6400   |  9600    |
+        let base_score = speed.base_score();
+        (0..self.viruses)
+            .map(|i| base_score * 2_u32.pow(i))
+            .sum()
+    }
+
+    fn garbage(&self) -> SendGarbage {
+        if self.is_combo() {
+            self.patterns.clone()
+        } else {
+            vec![]
+        }
+    }
+}
+
 pub struct Game {
     player: u32,
     virus_level: u32,
-    speed_level: GameSpeed,
+    speed: GameSpeed,
     random: GameRandom,
     events: Vec<GameEvent>,
     bottle: Bottle,
     state: GameState,
+    score: u32,
     total_pills: usize,
     soft_drop: bool,
     hard_dropped: bool,
     hold: Option<HoldState>,
-    garbage_buffer: Vec<SendGarbage>,
+    garbage_buffer: Vec<SendGarbage>
 }
 
 impl Game {
-    pub fn new(player: u32, virus_level: u32, speed_level: GameSpeed, mut random: GameRandom) -> Result<Self, String> {
+    pub fn new(player: u32, virus_level: u32, speed: GameSpeed, mut random: GameRandom) -> Result<Self, String> {
         let bottle = Bottle::from_seed(random.bottle_seed(virus_level)?);
-        Ok(Self::from_bottle(player, virus_level, speed_level, random, bottle))
+        Ok(Self::from_bottle(player, virus_level, speed, random, bottle))
     }
 
-    pub fn from_bottle(player: u32, virus_level: u32, speed_level: GameSpeed, mut random: GameRandom, bottle: Bottle) -> Self {
+    pub fn from_bottle(player: u32, virus_level: u32, speed: GameSpeed, mut random: GameRandom, bottle: Bottle) -> Self {
         Self {
             player,
             virus_level,
-            speed_level,
+            speed,
             random,
             events: vec![],
             bottle,
             state: GameState::NEW_SPAWN,
+            score: 0,
             total_pills: 0,
             soft_drop: false,
             hard_dropped: false,
             hold: None,
-            garbage_buffer: vec![],
+            garbage_buffer: vec![]
         }
+    }
+
+    pub fn next_level(&mut self) -> Result<(), String> {
+        assert_eq!(self.state, GameState::LevelComplete);
+        self.virus_level += 1;
+        self.events.clear();
+        self.bottle = Bottle::from_seed(self.random.bottle_seed(self.virus_level)?);
+        self.state = GameState::NEW_SPAWN;
+        self.total_pills = 0;
+        self.soft_drop = false;
+        self.hard_dropped = false;
+        self.hold = None;
+        self.garbage_buffer.clear();
+        Ok(())
+    }
+
+    pub fn viruses(&self) -> Vec<ColoredBlock> {
+        self.bottle.viruses()
+    }
+
+    pub fn state(&self) -> &GameState {
+        &self.state
+    }
+
+    pub fn speed(&self) -> GameSpeed {
+        self.speed
+    }
+
+    pub fn metrics(&self) -> GameMetrics {
+        GameMetrics::new(
+            self.player,
+            self.virus_level,
+            self.speed,
+            self.bottle.virus_count(),
+            self.score,
+            self.random.peek(),
+            self.hold.map(|h| h.shape),
+        )
     }
 
     pub fn row(&self, y: u32) -> &[Block] {
@@ -233,12 +362,7 @@ impl Game {
             Some(shape) => shape,
         };
 
-        let shape = match self.hold {
-            None => self.random.next_pill(), // just spawn next random shape
-            Some(HoldState { shape, .. }) => shape,
-        };
-
-        self.state = GameState::SpawnHold(shape);
+        self.state = GameState::SpawnHold(self.hold.map(|h| h.shape));
         self.hold = Some(HoldState::locked(held_shape));
         self.events.push(GameEvent::Hold);
     }
@@ -255,7 +379,10 @@ impl Game {
             self.state = GameState::LOCK_NOW;
             self.hard_dropped = true;
             self.events.push(
-                GameEvent::HardDrop { player: self.player, dropped_rows, vitamins }
+                GameEvent::HardDrop {
+                    player: self.player,
+                    dropped_rows, vitamins
+                }
             );
         }
     }
@@ -285,21 +412,33 @@ impl Game {
     pub fn update(&mut self, delta: Duration) {
         self.state = match &self.state {
             GameState::Spawn(duration) => self.next_spawn(*duration + delta),
-            GameState::SpawnHold(shape) => self.spawn_shape(*shape),
+            GameState::SpawnHold(Some(shape)) => self.spawn_shape(*shape, true),
+            GameState::SpawnHold(None) => {
+                let shape = self.random.next_pill();
+                self.spawn_shape(shape, false)
+            },
             GameState::Fall(duration) => self.next_fall(*duration + delta),
             GameState::Lock(duration) => self.next_lock(*duration + delta),
-            GameState::Pattern => self.next_pattern(),
-            GameState::Destroy(points) => self.next_destroy(points.clone()),
+            GameState::Pattern(combo) => self.next_pattern(combo.clone()),
+            GameState::Destroy(blocks, combo) => self.next_destroy(blocks.clone(), combo.clone()),
             GameState::GameOver => GameState::GameOver,
-            GameState::DropGarbage(duration) => self.next_drop_garbage(*duration + delta),
+            GameState::DropGarbage(duration, combo) => self.next_drop_garbage(*duration + delta, combo.clone()),
+            GameState::LevelComplete => GameState::LevelComplete
         };
+    }
+
+    pub fn consume_events(&mut self, target: &mut Vec<GameEvent>) {
+        for event in self.events.iter().cloned() {
+            target.push(event);
+        }
+        self.events.clear();
     }
 
     fn next_spawn(&mut self, duration: Duration) -> GameState {
         if let Some(next_garbage) = self.garbage_buffer.pop() {
             let garbage = self.bottle.send_garbage(next_garbage);
             self.events.push(GameEvent::ReceivedGarbage { player: self.player, garbage });
-            return GameState::NEW_DROP_GARBAGE;
+            return GameState::drop_garbage(Combo::empty());
         }
 
         if !self.hard_dropped && duration < self.spawn_delay() {
@@ -307,18 +446,18 @@ impl Game {
         }
         self.hard_dropped = false;
         let shape = self.random.next_pill();
-        dbg!(shape);
-        self.spawn_shape(shape)
+        self.spawn_shape(shape, false)
     }
 
-    fn spawn_shape(&mut self, shape: PillShape) -> GameState {
-        if let Some(vitamins) = self.bottle.try_spawn(shape) {
+    fn spawn_shape(&mut self, shape: PillShape, is_hold: bool) -> GameState {
+        if self.bottle.try_spawn(shape).is_some() {
             self.events.push(
-                GameEvent::Spawn {
-                    player: self.player,
-                    vitamins,
-                }
+                GameEvent::Spawn { player: self.player, shape, is_hold }
             );
+            self.total_pills += 1;
+            if self.total_pills % PILLS_PER_SPEED_LEVEL == 0 {
+                self.events.push(GameEvent::SpeedLevelUp);
+            }
             GameState::NEW_FALL
         } else {
             // cannot spawn a pill is a game over event
@@ -376,37 +515,53 @@ impl Game {
                     hard_or_soft_dropped: self.hard_dropped || self.soft_drop,
                 }
             );
-            GameState::Pattern
+            GameState::NEW_PATTERN
         } else {
             // otherwise must've moved over empty space so start a new fall
             GameState::NEW_FALL
         }
     }
 
-    fn next_pattern(&mut self) -> GameState {
-        let points = self.bottle.pattern();
-        self.events.push(GameEvent::Destroy(points.clone()));
-        GameState::Destroy(points)
+    fn next_pattern(&mut self, combo: Combo) -> GameState {
+        let (blocks, patterns) = self.bottle.pattern();
+        if !blocks.is_empty() {
+            let viruses = blocks.iter().filter(|b| b.is_virus).count() as u32;
+            return GameState::Destroy(blocks, combo.into_updated(patterns, viruses));
+        }
+
+        // combo over so update the score
+        self.score += combo.score(self.speed);
+        let garbage = combo.garbage();
+        if !garbage.is_empty() {
+            self.events.push(GameEvent::SendGarbage { player: self.player, garbage });
+        }
+
+        if self.bottle.virus_count() == 0 {
+            self.events.push(GameEvent::LevelComplete { player: self.player });
+            GameState::LevelComplete
+        } else {
+            GameState::NEW_SPAWN
+        }
     }
 
-    fn next_destroy(&mut self, points: HashSet<BottlePoint>) -> GameState {
-        self.bottle.destroy(points);
-        // todo combo -> garbage & score
-        GameState::NEW_DROP_GARBAGE
+    fn next_destroy(&mut self, blocks: Vec<ColoredBlock>, combo: Combo) -> GameState {
+        self.bottle.destroy(blocks.clone());
+        self.events.push(GameEvent::Destroy { player: self.player, blocks, is_combo: combo.is_combo() });
+        GameState::drop_garbage(combo)
     }
 
-    fn next_drop_garbage(&mut self, duration: Duration) -> GameState {
+    fn next_drop_garbage(&mut self, duration: Duration, combo: Combo) -> GameState {
         if duration < GARBAGE_DROP_DURATION {
-            return GameState::DropGarbage(duration);
+            return GameState::DropGarbage(duration, combo);
         }
 
         if self.bottle.step_down_garbage() {
             // garbage dropped so try again
             self.events.push(GameEvent::DropGarbage);
-            GameState::NEW_DROP_GARBAGE
+            GameState::drop_garbage(combo)
         } else {
-            // no garbage to drop so spawn a new pill
-            GameState::NEW_SPAWN
+            // no garbage to drop so check for patterns
+            GameState::Pattern(combo)
         }
     }
 
@@ -452,9 +607,9 @@ impl Game {
     }
 
     fn base_delay(&self, soft_drop_factor: u32) -> Duration {
-        let base = self.speed_level.drop_duration(self.total_pills);
+        let base = self.speed.duration_of_level(self.total_pills / PILLS_PER_SPEED_LEVEL);
         if self.soft_drop {
-            (base / soft_drop_factor).max(self.speed_level.min_drop_duration())
+            (base / soft_drop_factor).max(self.speed.min_drop_duration())
         } else {
             base
         }
@@ -474,7 +629,11 @@ mod tests {
     mock! {
         pub Bottle {
             pub fn from_seed(seed: BottleSeed) -> Self;
+            pub fn pill(&self) -> &Pill;
+            pub fn virus_count(&self) -> u32;
+            pub fn viruses(&self) -> Vec<ColoredBlock>;
             pub fn row(&self, y: u32) -> &[Block];
+            pub fn block(&self, point: BottlePoint) -> Block;
             pub fn left(&mut self) -> bool;
             pub fn right(&mut self) -> bool;
             pub fn rotate(&mut self, clockwise: bool) -> bool;
@@ -487,8 +646,8 @@ mod tests {
             pub fn try_spawn(&mut self, shape: PillShape) -> Option<Vitamins>;
             pub fn step_down_pill(&mut self) -> bool;
             pub fn lock(&mut self) -> Option<Vitamins>;
-            pub fn pattern(&self) -> HashSet<BottlePoint>;
-            pub fn destroy(&mut self, points: HashSet<BottlePoint>);
+            pub fn pattern(&self) -> (Vec<ColoredBlock>, Vec<VirusColor>);
+            pub fn destroy(&mut self, points: Vec<ColoredBlock>);
             pub fn step_down_garbage(&mut self) -> bool;
         }
     }
@@ -600,31 +759,31 @@ mod tests {
     #[test]
     fn holds_for_first_time() {
         let mut game = having_bottle(|bottle| {
-            bottle.expect_hold().return_once(|| Some(PillShape::RED_BLUE));
+            bottle.expect_hold().return_once(|| Some(PillShape::RB));
         });
         game.hold();
         game.should_have_events(&[GameEvent::Hold]);
-        assert_eq!(game.state, GameState::SpawnHold(PillShape::BLUE_BLUE));
-        assert_eq!(game.hold, Some(HoldState::locked(PillShape::RED_BLUE)))
+        assert_eq!(game.state, GameState::SpawnHold(None));
+        assert_eq!(game.hold, Some(HoldState::locked(PillShape::RB)))
     }
 
     #[test]
     fn holds_for_second_time() {
         let mut game = having_bottle(|bottle| {
-            bottle.expect_hold().return_once(|| Some(PillShape::RED_BLUE));
+            bottle.expect_hold().return_once(|| Some(PillShape::RB));
         });
-        game.hold = Some(HoldState { shape: PillShape::RED_RED, locked: false });
+        game.hold = Some(HoldState { shape: PillShape::RR, locked: false });
         game.hold();
         game.should_have_events(&[GameEvent::Hold]);
-        assert_eq!(game.state, GameState::SpawnHold(PillShape::RED_RED));
-        assert_eq!(game.hold, Some(HoldState::locked(PillShape::RED_BLUE)))
+        assert_eq!(game.state, GameState::SpawnHold(Some(PillShape::RR)));
+        assert_eq!(game.hold, Some(HoldState::locked(PillShape::RB)))
     }
 
     #[test]
     fn cannot_hold_when_hold_locked() {
         let mut game = having_bottle(|_| {});
         game.state = GameState::NEW_FALL;
-        game.hold = Some(HoldState::locked(PillShape::RED_BLUE));
+        game.hold = Some(HoldState::locked(PillShape::RB));
         game.hold();
         game.should_have_no_events();
         assert_eq!(game.state, GameState::NEW_FALL);
@@ -658,12 +817,12 @@ mod tests {
     #[test]
     fn hard_drop_success() {
         let mut game = having_bottle(|bottle| {
-            bottle.expect_hard_drop().return_once(|| Some((10, Vitamin::vitamins(PillShape::RED_BLUE))));
+            bottle.expect_hard_drop().return_once(|| Some((10, Vitamin::vitamins(PillShape::RB))));
         });
         game.hard_drop();
         game.should_have_events(&[GameEvent::HardDrop {
             player: 0,
-            vitamins: Vitamin::vitamins(PillShape::RED_BLUE),
+            vitamins: Vitamin::vitamins(PillShape::RB),
             dropped_rows: 10
         }]);
         assert_eq!(game.state, GameState::LOCK_NOW);
@@ -701,38 +860,38 @@ mod tests {
     fn update_spawn_into_fall() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_try_spawn()
-                .with(eq(PillShape::BLUE_BLUE))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::BLUE_BLUE)));
+                .with(eq(PillShape::BB))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::BB)));
         });
-        game.state = GameState::Spawn(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_FALL);
-        game.should_have_events(&[GameEvent::Spawn { player: 0, vitamins: Vitamin::vitamins(PillShape::BLUE_BLUE) }]);
+        game.should_have_events(&[GameEvent::Spawn { player: 0, shape: PillShape::BB, is_hold: false }]);
     }
 
     #[test]
     fn update_hard_dropped_spawn_into_fall() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_try_spawn()
-                .with(eq(PillShape::BLUE_BLUE))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::BLUE_BLUE)));
+                .with(eq(PillShape::BB))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::BB)));
         });
         game.hard_dropped = true;
         game.state = GameState::NEW_SPAWN;
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_FALL);
         assert!(!game.hard_dropped);
-        game.should_have_events(&[GameEvent::Spawn { player: 0, vitamins: Vitamin::vitamins(PillShape::BLUE_BLUE) }]);
+        game.should_have_events(&[GameEvent::Spawn { player: 0, shape: PillShape::BB, is_hold: false }]);
     }
 
     #[test]
     fn update_spawn_into_game_over() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_try_spawn()
-                .with(eq(PillShape::BLUE_BLUE))
+                .with(eq(PillShape::BB))
                 .return_once(|_| None);
         });
-        game.state = GameState::Spawn(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::GameOver);
         game.should_have_events(&[GameEvent::GameOver { player: 0 }]);
@@ -748,7 +907,7 @@ mod tests {
         game.garbage_buffer.push(vec![VirusColor::Red, VirusColor::Yellow]);
         game.state = GameState::NEW_SPAWN;
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::NEW_DROP_GARBAGE);
+        assert_eq!(game.state, GameState::drop_garbage(Combo::empty()));
         game.should_have_events(&[GameEvent::ReceivedGarbage {
             player: 0,
             garbage: vec![Garbage::new(VirusColor::Yellow, BottlePoint::new(1, 2))]
@@ -759,13 +918,13 @@ mod tests {
     fn update_hold_spawn_into_fall() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_try_spawn()
-                .with(eq(PillShape::RED_BLUE))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::RED_BLUE)));
+                .with(eq(PillShape::RB))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::RB)));
         });
-        game.state = GameState::SpawnHold(PillShape::RED_BLUE);
+        game.state = GameState::SpawnHold(Some(PillShape::RB));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_FALL);
-        game.should_have_events(&[GameEvent::Spawn { player: 0, vitamins: Vitamin::vitamins(PillShape::RED_BLUE) }]);
+        game.should_have_events(&[GameEvent::Spawn { player: 0, shape: PillShape::RB, is_hold: true }]);
     }
 
     #[test]
@@ -783,7 +942,7 @@ mod tests {
             bottle.expect_step_down_pill().return_once(|| true);
             bottle.expect_is_collision().return_once(|| false);
         });
-        game.state = GameState::Fall(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Fall(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state,  GameState::NEW_FALL);
         game.should_have_events(&[GameEvent::Fall]);
@@ -794,7 +953,7 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle.expect_step_down_pill().return_once(|| false);
         });
-        game.state = GameState::Fall(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Fall(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_LOCK);
         game.should_have_no_events();
@@ -807,7 +966,7 @@ mod tests {
             bottle.expect_is_collision().return_once(|| true);
             bottle.expect_lock_placements().return_once(|| 0);
         });
-        game.state = GameState::Fall(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Fall(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_LOCK);
         game.should_have_events(&[GameEvent::Fall]);
@@ -820,7 +979,7 @@ mod tests {
             bottle.expect_is_collision().return_once(|| true);
             bottle.expect_lock_placements().return_once(|| MAX_LOCK_PLACEMENTS);
         });
-        game.state = GameState::Fall(GameSpeed::Low.drop_duration(0));
+        game.state = GameState::Fall(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::LOCK_NOW);
         game.should_have_events(&[GameEvent::Fall]);
@@ -839,14 +998,14 @@ mod tests {
     fn update_lock_into_pattern() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_is_collision().return_once(|| true);
-            bottle.expect_lock().return_once(|| Some(Vitamin::vitamins(PillShape::RED_BLUE)));
+            bottle.expect_lock().return_once(|| Some(Vitamin::vitamins(PillShape::RB)));
         });
         game.state = GameState::LOCK_NOW;
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::Pattern);
+        assert_eq!(game.state, GameState::NEW_PATTERN);
         game.should_have_events(&[GameEvent::Lock {
             player: 0,
-            vitamins: Vitamin::vitamins(PillShape::RED_BLUE),
+            vitamins: Vitamin::vitamins(PillShape::RB),
             hard_or_soft_dropped: false
         }]);
     }
@@ -855,15 +1014,15 @@ mod tests {
     fn update_hard_drop_lock_into_pattern() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_is_collision().return_once(|| true);
-            bottle.expect_lock().return_once(|| Some(Vitamin::vitamins(PillShape::RED_BLUE)));
+            bottle.expect_lock().return_once(|| Some(Vitamin::vitamins(PillShape::RB)));
         });
         game.hard_dropped = true;
         game.state = GameState::Lock(Duration::from_nanos(1));
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::Pattern);
+        assert_eq!(game.state, GameState::NEW_PATTERN);
         game.should_have_events(&[GameEvent::Lock {
             player: 0,
-            vitamins: Vitamin::vitamins(PillShape::RED_BLUE),
+            vitamins: Vitamin::vitamins(PillShape::RB),
             hard_or_soft_dropped: true
         }])
     }
@@ -882,35 +1041,109 @@ mod tests {
     #[test]
     fn update_pattern_into_destroy() {
         let mut game = having_bottle(|bottle| {
-            bottle.expect_pattern().return_once(|| HashSet::from_iter([BottlePoint::new(1, 2)]));
+            bottle.expect_pattern()
+                .return_once(|| (vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)], vec![VirusColor::Yellow]));
         });
-        game.state = GameState::Pattern;
+        game.state = GameState::Pattern(Combo::new(vec![VirusColor::Blue], 0));
         game.update(Duration::from_nanos(1));
-        let points = HashSet::from_iter([BottlePoint::new(1, 2)]);
-        assert_eq!(game.state, GameState::Destroy(points.clone()));
-        game.should_have_events(&[GameEvent::Destroy(points)]);
+        assert_eq!(game.state, GameState::Destroy(
+            vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)],
+            Combo::new(vec![VirusColor::Blue, VirusColor::Yellow], 1)
+        ));
+        game.should_have_no_events();
+    }
+
+    #[test]
+    fn update_pattern_into_spawn() {
+        let mut game = having_bottle(|bottle| {
+            bottle.expect_pattern().return_once(|| (vec![], vec![]));
+            bottle.expect_virus_count().return_once(|| 1);
+        });
+        game.state = GameState::NEW_PATTERN;
+        game.update(Duration::from_nanos(1));
+        assert_eq!(game.state, GameState::NEW_SPAWN);
+        game.should_have_no_events();
+    }
+
+    #[test]
+    fn update_pattern_into_spawn_with_garbage() {
+        let mut game = having_bottle(|bottle| {
+            bottle.expect_pattern().return_once(|| (vec![], vec![]));
+            bottle.expect_virus_count().return_once(|| 1);
+        });
+        game.state = GameState::Pattern(Combo::new(vec![VirusColor::Blue, VirusColor::Red], 2));
+        game.update(Duration::from_nanos(1));
+        assert_eq!(game.state, GameState::NEW_SPAWN);
+        assert_eq!(game.score, 300);
+        game.should_have_events(&[GameEvent::SendGarbage { player: 0, garbage: vec![VirusColor::Blue, VirusColor::Red] }]);
+    }
+
+    #[test]
+    fn update_pattern_into_level_complete() {
+        let mut game = having_bottle(|bottle| {
+            bottle.expect_pattern().return_once(|| (vec![], vec![]));
+            bottle.expect_virus_count().return_once(|| 0);
+        });
+        game.state = GameState::NEW_PATTERN;
+        game.update(Duration::from_nanos(1));
+        assert_eq!(game.state, GameState::LevelComplete);
+        assert_eq!(game.score, 0);
+        game.should_have_events(&[GameEvent::LevelComplete { player: 0 }]);
     }
 
     #[test]
     fn update_destroy_into_drop_garbage() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_destroy()
-                .with(eq(HashSet::from_iter([BottlePoint::new(1, 2)])))
+                .with(eq(vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)]))
                 .return_once(|_| ());
+            bottle.expect_block()
+                .with(eq(BottlePoint::new(1, 2)))
+                .return_once(|_| Block::Garbage(VirusColor::Yellow));
+            bottle.expect_virus_count().return_once(|| 1);
         });
-
-        game.state = GameState::Destroy(HashSet::from_iter([BottlePoint::new(1, 2)]));
+        game.state = GameState::Destroy(
+            vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)],
+            Combo::new(vec![VirusColor::Blue], 2)
+        );
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::NEW_DROP_GARBAGE);
-        game.should_have_no_events();
+        assert_eq!(game.state, GameState::drop_garbage(Combo::new(vec![VirusColor::Blue], 2)));
+        game.should_have_events(&[GameEvent::Destroy {
+            player: 0,
+            blocks: vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)],
+            is_combo: false
+        }]);
+    }
+
+    #[test]
+    fn update_destroy_into_drop_garbage_with_combo() {
+        let mut game = having_bottle(|bottle| {
+            bottle.expect_destroy()
+                .with(eq(vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)]))
+                .return_once(|_| ());
+            bottle.expect_block()
+                .with(eq(BottlePoint::new(1, 2)))
+                .return_once(|_| Block::Garbage(VirusColor::Yellow));
+            bottle.expect_virus_count().return_once(|| 1);
+        });
+        let combo = Combo::new(vec![VirusColor::Red, VirusColor::Blue], 1);
+        game.state = GameState::Destroy(vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)], combo.clone());
+        game.update(Duration::from_nanos(1));
+        assert_eq!(game.state, GameState::drop_garbage(combo));
+        game.should_have_events(&[GameEvent::Destroy {
+            player: 0,
+            blocks: vec![ColoredBlock::virus(1, 2, VirusColor::Yellow)],
+            is_combo: true
+        }]);
     }
 
     #[test]
     fn update_drop_garbage_into_drop_garbage() {
         let mut game = having_bottle(|_| {});
-        game.state = GameState::DropGarbage(Duration::from_nanos(2));
+        let combo = Combo::new(vec![VirusColor::Blue], 2);
+        game.state = GameState::DropGarbage(Duration::from_nanos(2), combo.clone());
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::DropGarbage(Duration::from_nanos(3)));
+        assert_eq!(game.state, GameState::DropGarbage(Duration::from_nanos(3), combo));
         game.should_have_no_events();
     }
 
@@ -919,21 +1152,64 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle.expect_step_down_garbage().return_once(|| true);
         });
-        game.state = GameState::DropGarbage(GARBAGE_DROP_DURATION);
+        let combo = Combo::new(vec![VirusColor::Blue], 2);
+        game.state = GameState::DropGarbage(GARBAGE_DROP_DURATION, combo.clone());
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::NEW_DROP_GARBAGE);
+        assert_eq!(game.state, GameState::DropGarbage(Duration::ZERO, combo));
         game.should_have_events(&[GameEvent::DropGarbage])
     }
 
     #[test]
-    fn update_drop_garbage_into_spawn() {
+    fn update_drop_garbage_into_pattern() {
         let mut game = having_bottle(|bottle| {
             bottle.expect_step_down_garbage().return_once(|| false);
         });
-        game.state = GameState::DropGarbage(GARBAGE_DROP_DURATION);
+        let combo = Combo::new(vec![VirusColor::Blue], 2);
+        game.state = GameState::DropGarbage(GARBAGE_DROP_DURATION, combo.clone());
         game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::NEW_SPAWN);
+        assert_eq!(game.state, GameState::Pattern(combo));
         game.should_have_no_events();
+    }
+
+    #[test]
+    fn score_0_when_empty() {
+        assert_eq!(Combo::empty().score(GameSpeed::Low), 0);
+    }
+
+    #[test]
+    fn score_low() {
+        let score = Combo::new(vec![VirusColor::Blue], 1).score(GameSpeed::Low);
+        assert_eq!(score, 100);
+    }
+
+    #[test]
+    fn score_combo_low() {
+        let score = Combo::new(vec![VirusColor::Blue, VirusColor::Red], 2).score(GameSpeed::Low);
+        assert_eq!(score, 100 + 200);
+    }
+
+    #[test]
+    fn score_medium() {
+        let score = Combo::new(vec![VirusColor::Blue], 1).score(GameSpeed::Medium);
+        assert_eq!(score, 200);
+    }
+
+    #[test]
+    fn score_combo_medium() {
+        let score = Combo::new(vec![VirusColor::Blue, VirusColor::Red], 3).score(GameSpeed::Medium);
+        assert_eq!(score, 200 + 400 + 800);
+    }
+
+    #[test]
+    fn score_high() {
+        let score = Combo::new(vec![VirusColor::Blue], 1).score(GameSpeed::High);
+        assert_eq!(score, 300);
+    }
+
+    #[test]
+    fn score_combo_high() {
+        let score = Combo::new(vec![VirusColor::Blue, VirusColor::Red], 4).score(GameSpeed::High);
+        assert_eq!(score, 300 + 600 + 1200 + 2400);
     }
 
     fn having_bottle<F>(mut f: F) -> Game
@@ -951,7 +1227,7 @@ mod tests {
 
     impl GameTestHarness for Game {
         fn should_have_no_events(&self) {
-            assert!(self.events.is_empty());
+            assert!(self.events.is_empty(), "{:?}", self.events);
         }
 
         fn should_have_events(&self, events: &[GameEvent]) {

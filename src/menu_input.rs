@@ -11,6 +11,7 @@ pub enum MenuInputKey {
     Right,
     Start,
     Select,
+    Back,
     Quit,
 }
 

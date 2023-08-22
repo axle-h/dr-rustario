@@ -82,7 +82,7 @@ impl AddAssign for BottlePoint {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Rotation {
     North,
     East,

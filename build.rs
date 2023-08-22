@@ -3,5 +3,5 @@ fn main() {
     // and `build_info::format!` in the main program.
     build_info_build::build_script();
 
-    // embed_resource::compile("icon.rc", embed_resource::NONE);
+    embed_resource::compile("icon.rc", embed_resource::NONE);
 }
