@@ -20,11 +20,13 @@ pub mod sound;
 pub mod font;
 pub mod pause;
 pub mod scene;
+pub mod snes;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {
     #[default]
-    Nes
+    Nes,
+    Snes
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -57,7 +59,10 @@ pub struct Theme<'a> {
     bottle_bg_snip: Rect,
     background_size: (u32, u32),
     dr_hand_point: Point,
-    dr_point: Point,
+    dr_normal_point: Point,
+    dr_game_over_point: Point,
+    dr_victory_point: Point,
+    dr_wait_point: Point,
     animation_meta: AnimationMeta,
     score_snip: MetricSnips,
     virus_level_snip: MetricSnips,
@@ -65,6 +70,7 @@ pub struct Theme<'a> {
     game_over_snips: Vec<Rect>,
     next_level_snips: Vec<Rect>,
     match_end_texture: Texture<'a>,
+    hold_point: Point,
     peek_point: Point,
     peek_max: u32,
     peek_offset: i32,
@@ -112,28 +118,27 @@ impl<'a> Theme<'a> {
 
         let metrics = game.metrics();
         if let Some(game_over) = animations.game_over().state() {
-            self.sprites.draw_dr(canvas, DrType::GameOver, self.dr_point, game_over.dr_frame())?;
+            self.sprites.draw_dr(canvas, DrType::GameOver, self.dr_game_over_point, game_over.dr_frame())?;
         } else if let Some(victory) = animations.victory().state() {
-            self.sprites.draw_dr(canvas, DrType::Victory, self.dr_point, victory.dr_frame())?;
-        } else if animations.next_level().state().map(|s| s.action().interstitial_frame().is_some()).unwrap_or(false) {
-            let dr_frame = animations.next_level().state().unwrap().dr_frame();
-            self.sprites.draw_dr(canvas, DrType::Wait, self.dr_point, dr_frame)?;
+            self.sprites.draw_dr(canvas, DrType::Victory, self.dr_victory_point, victory.dr_frame())?;
+        } else if let Some(next_level_interstitial) = animations.next_level_interstitial().state() {
+            self.sprites.draw_dr(canvas, DrType::Wait, self.dr_wait_point, next_level_interstitial.dr_frame())?;
         } else {
             let peek = metrics.queue();
             let mut peek_offset = 0;
             if let Some(spawn) = animations.spawn().state() {
                 self.sprites.draw_pill(canvas, spawn.shape(), spawn.throw_position(), spawn.pill_rotate_angle_degrees(), None)?;
-                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_point, spawn.dr_throw_frame())?;
+                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_normal_point, spawn.dr_throw_frame())?;
 
                 if let Some(spawn_peek_offset) = spawn.peek_offset() {
                     peek_offset = self.peek_offset - (spawn_peek_offset * self.peek_offset as f64).round() as i32;
                 }
             } else {
                 self.sprites.draw_pill(canvas, peek[0], self.dr_hand_point, None, None)?;
-                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_point, 0)?;
+                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_normal_point, 0)?;
             }
             if let Some(hold) = metrics.hold() {
-                self.sprites.draw_pill(canvas, hold, Point::new(125, 30), None, self.peek_scale)?;
+                self.sprites.draw_pill(canvas, hold, self.hold_point, None, self.peek_scale)?;
             }
             for i in 0..self.peek_max.min(peek.len() as u32 - 1) {
                 let point = self.peek_point.offset(0, peek_offset + i as i32 * self.peek_offset);
@@ -162,16 +167,11 @@ impl<'a> Theme<'a> {
         };
         canvas.copy(&self.bottles_texture, bottle_snip, self.bottle_bg_snip)?;
 
-        if let Some(game_over) = animations.game_over().state() {
-            if game_over.display_game_over_screen() {
-                canvas.copy(&self.match_end_texture, self.game_over_snips[game_over.game_over_screen_frame()], self.geometry.game_snip())?;
-            } else {
-                self.sprites.draw_bottle(canvas, game, &self.geometry, animations)?;
-            }
-        } else if let Some(interstitial_frame) = animations.next_level().state().and_then(|s| s.action().interstitial_frame()) {
+        self.sprites.draw_bottle(canvas, game, &self.geometry, animations)?;
+        if let Some(game_over_frame) = animations.game_over().state().and_then(|s| s.game_over_screen_frame()) {
+            canvas.copy(&self.match_end_texture, self.game_over_snips[game_over_frame], self.geometry.game_snip())?;
+        } else if let Some(interstitial_frame) = animations.next_level_interstitial().state().map(|s| s.interstitial_frame()) {
             canvas.copy(&self.match_end_texture, self.next_level_snips[interstitial_frame], self.geometry.game_snip())?;
-        } else {
-            self.sprites.draw_bottle(canvas, game, &self.geometry, animations)?;
         }
 
         Ok(())

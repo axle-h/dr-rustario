@@ -31,7 +31,8 @@ pub enum GameEvent {
     },
     Paused,
     UnPaused,
-    Quit
+    Quit,
+    NextTheme,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]

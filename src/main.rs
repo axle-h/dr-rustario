@@ -441,7 +441,7 @@ impl DrRustario {
 
         for player in 0..self.game_config.players() {
             let viruses = fixture.player(player).game().viruses();
-            themes.animate_next_level(player, viruses.as_slice(), false);
+            themes.animate_next_level(player, viruses.as_slice());
         }
 
         themes.theme().audio().play_game_music()?;
@@ -450,13 +450,15 @@ impl DrRustario {
             let delta = frame_rate.update()?;
             fixture.unset_flags();
 
-            let mut next_theme = false;
             let mut events = vec![];
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
                 if let Some(player) = key.player() {
                     if themes.current().is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_next_level_interstitial(player) {
                             themes.theme().audio().play_game_music()?;
+                            let game = fixture.player_mut(player).game_mut();
+                            game.next_level()?;
+                            themes.animate_next_level(player, game.viruses().as_slice());
                         } else {
                             themes.maybe_dismiss_game_over();
                         }
@@ -482,7 +484,7 @@ impl DrRustario {
                     },
                     GameInputKey::ReturnToMenu => return Ok(PostGameAction::ReturnToMenu),
                     GameInputKey::Quit => return Ok(PostGameAction::Quit),
-                    GameInputKey::NextTheme => { next_theme = true; },
+                    GameInputKey::NextTheme => events.push(GameEvent::NextTheme),
                 }
             }
 
@@ -537,9 +539,7 @@ impl DrRustario {
                             fixture.set_winner(player);
                         } else {
                             themes.theme().audio().play_next_level_music()?;
-                            let game = fixture.player_mut(player).game_mut();
-                            game.next_level()?;
-                            themes.animate_next_level(player, game.viruses().as_slice(), true);
+                            themes.animate_next_level_interstitial(player);
                         }
                     },
                     GameEvent::GameOver { player } => {
@@ -564,6 +564,22 @@ impl DrRustario {
                     GameEvent::Spawn { player, shape, is_hold } => {
                         themes.animate_spawn(player, shape, is_hold);
                     },
+                    GameEvent::NextTheme => {
+                        themes.start_fade(&mut self.canvas)?;
+                        themes.next();
+
+                        // handle music
+                        let audio = themes.theme().audio();
+                        match fixture.state() {
+                            MatchState::Normal if themes.is_animating_next_level_interstitial() => audio.play_next_level_music()?,
+                            MatchState::Normal => audio.fade_in_game_music()?,
+                            MatchState::Paused => {
+                                audio.play_game_music()?;
+                                audio.pause_music();
+                            }
+                            MatchState::GameOver { .. } => audio.play_game_over_music()?
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -583,10 +599,7 @@ impl DrRustario {
 
             // update themes
             if !fixture.state().is_paused() {
-                themes.update_current(delta);
-            }
-            if next_theme {
-                //todo
+                themes.update(delta);
             }
 
             // clear

@@ -9,7 +9,10 @@ pub enum MatchThemes {
     All = 0,
 
     #[strum(serialize = "nes")]
-    Nes = 1
+    Nes = 1,
+
+    #[strum(serialize = "snes")]
+    Snes = 2
 }
 
 impl MatchThemes {

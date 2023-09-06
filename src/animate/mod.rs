@@ -7,6 +7,7 @@ pub mod spawn;
 pub mod game_over;
 pub mod victory;
 pub mod next_level;
+pub mod next_level_interstitial;
 
 use std::time::Duration;
 use crate::animate::destroy::DestroyAnimation;
@@ -15,6 +16,7 @@ use crate::animate::hard_drop::HardDropAnimation;
 use crate::animate::impact::ImpactAnimation;
 use crate::animate::lock::LockAnimation;
 use crate::animate::next_level::NextLevelAnimation;
+use crate::animate::next_level_interstitial::NextLevelInterstitialAnimation;
 use crate::animate::spawn::SpawnAnimation;
 use crate::animate::victory::VictoryAnimation;
 use crate::animate::virus::VirusAnimation;
@@ -30,7 +32,8 @@ pub struct PlayerAnimations {
     spawn: SpawnAnimation,
     game_over: GameOverAnimation,
     victory: VictoryAnimation,
-    next_level: NextLevelAnimation
+    next_level: NextLevelAnimation,
+    next_level_interstitial: NextLevelInterstitialAnimation
 }
 
 impl PlayerAnimations {
@@ -49,8 +52,9 @@ impl PlayerAnimations {
         );
         let game_over = GameOverAnimation::new(meta.game_over_screen_frames);
         let victory = VictoryAnimation::new(meta.dr_victory_frames);
-        let next_level = NextLevelAnimation::new(meta.dr_wait_frames, meta.next_level_interstitial_frames);
-        Self { virus, destroy, impact, lock, hard_drop, spawn, game_over, victory, next_level }
+        let next_level = NextLevelAnimation::new();
+        let next_level_interstitial = NextLevelInterstitialAnimation::new(meta.dr_wait_frames, meta.next_level_interstitial_frames);
+        Self { virus, destroy, impact, lock, hard_drop, spawn, game_over, victory, next_level, next_level_interstitial }
     }
 
     pub fn reset(&mut self) {
@@ -75,6 +79,7 @@ impl PlayerAnimations {
         self.game_over.update(delta);
         self.victory.update(delta);
         self.next_level.update(delta);
+        self.next_level_interstitial.update(delta);
     }
 
     pub fn is_animating(&self) -> bool {
@@ -85,10 +90,7 @@ impl PlayerAnimations {
             || self.game_over.state().is_some()
             || self.victory.state().is_some()
             || self.next_level.state().is_some()
-    }
-
-    pub fn maybe_dismiss(&mut self) -> bool {
-        self.next_level.maybe_dismiss_interstitial()
+            || self.next_level_interstitial.state().is_some()
     }
 
     pub fn virus(&self) -> &VirusAnimation {
@@ -158,6 +160,14 @@ impl PlayerAnimations {
 
     pub fn next_level_mut(&mut self) -> &mut NextLevelAnimation {
         &mut self.next_level
+    }
+
+    pub fn next_level_interstitial(&self) -> &NextLevelInterstitialAnimation {
+        &self.next_level_interstitial
+    }
+
+    pub fn next_level_interstitial_mut(&mut self) -> &mut NextLevelInterstitialAnimation {
+        &mut self.next_level_interstitial
     }
 
 }

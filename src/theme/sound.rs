@@ -12,21 +12,24 @@ static mut NEXT_MUSIC: Option<Rc<StructuredMusic>> = None;
 
 pub struct StructuredMusic {
     intro: Option<Music<'static>>,
-    repeating: Music<'static>
+    repeating: Music<'static>,
+    loops: i32
 }
 
 impl StructuredMusic {
     pub fn new(intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
         Ok(Self {
             intro: Some(Music::from_static_bytes(intro)?),
-            repeating: Music::from_static_bytes(repeating)?
+            repeating: Music::from_static_bytes(repeating)?,
+            loops: -1
         })
     }
 
-    pub fn simple(repeating: &'static [u8]) -> Result<Self, String> {
+    pub fn once(repeating: &'static [u8]) -> Result<Self, String> {
         Ok(Self {
             intro: None,
-            repeating: Music::from_static_bytes(repeating)?
+            repeating: Music::from_static_bytes(repeating)?,
+            loops: 1
         })
     }
 
@@ -44,7 +47,7 @@ impl StructuredMusic {
             Music::hook_finished(Self::play_next);
             Ok(())
         } else {
-            music.repeating.play(-1)
+            music.repeating.play(music.loops)
         }
     }
 
@@ -160,12 +163,22 @@ impl AudioTheme {
         Ok(self)
     }
 
+    pub fn with_once_next_level_music(mut self, music: &'static [u8]) -> Result<Self, String> {
+        self.next_level_music = Some(StructuredMusic::once(music)?.into_rc());
+        Ok(self)
+    }
+
     pub fn with_victory_music(mut self, intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
         self.victory_music = Some(StructuredMusic::new(intro, repeating)?.into_rc());
         Ok(self)
     }
 
     pub fn play_game_music(&self) -> Result<(), String> {
+        StructuredMusic::maybe_play(self.game_music.as_ref())
+    }
+
+    pub fn fade_in_game_music(&self) -> Result<(), String> {
+        // TODO fade in
         StructuredMusic::maybe_play(self.game_music.as_ref())
     }
 
@@ -179,6 +192,10 @@ impl AudioTheme {
 
     pub fn play_victory_music(&self) -> Result<(), String> {
         StructuredMusic::maybe_play(self.victory_music.as_ref())
+    }
+
+    pub fn pause_music(&self) {
+        Music::pause();
     }
 
     pub fn receive_event(&self, event: GameEvent) -> Result<(), String> {

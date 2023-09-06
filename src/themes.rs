@@ -128,6 +128,15 @@ impl<'a> ScaledTheme<'a> {
     pub fn is_pause_required_for_animation(&self, player: u32) -> bool {
         self.player_themes[player as usize].animations.is_animating()
     }
+
+    pub fn is_animating_next_level_interstitial(&self) -> bool {
+        for player in self.player_themes.iter() {
+            if player.animations.next_level_interstitial().state().is_some() {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 pub struct ThemeContext<'a> {
@@ -152,7 +161,8 @@ impl<'a> ThemeContext<'a> {
         fade_buffer.set_blend_mode(BlendMode::Blend);
 
         let current = match game_config.themes() {
-            MatchThemes::All | MatchThemes::Nes => 0
+            MatchThemes::All | MatchThemes::Nes => 0,
+            MatchThemes::Snes => 1,
         };
 
         Ok(Self {
@@ -205,50 +215,87 @@ impl<'a> ThemeContext<'a> {
         &self.themes[self.current]
     }
 
-    pub fn update_current(&mut self, delta: Duration) {
-        self.themes[self.current].update(delta)
+    pub fn update(&mut self, delta: Duration) {
+        for theme in self.themes.iter_mut() {
+            theme.update(delta);
+        }
     }
 
     pub fn animate_destroy(&mut self, player: u32, blocks: Vec<ColoredBlock>) {
-        self.themes[self.current].animations_mut(player).destroy_mut().add(blocks);
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).destroy_mut().add(blocks.clone());
+        }
     }
 
     pub fn animate_impact(&mut self, player: u32) {
-        self.themes[self.current].animations_mut(player).impact_mut().impact();
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).impact_mut().impact();
+        }
     }
 
     pub fn animate_lock(&mut self, player: u32, vitamins: Vitamins) {
-        self.themes[self.current].animations_mut(player).lock_mut().lock(vitamins);
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).lock_mut().lock(vitamins);
+        }
     }
 
     pub fn animate_hard_drop(&mut self, player: u32, vitamins: Vitamins, dropped_rows: u32) {
-        self.themes[self.current].animations_mut(player).hard_drop_mut().hard_drop(vitamins, dropped_rows);
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).hard_drop_mut().hard_drop(vitamins, dropped_rows);
+        }
     }
 
     pub fn animate_spawn(&mut self, player: u32, shape: PillShape, is_hold: bool) {
-        self.themes[self.current].animations_mut(player).spawn_mut().spawn(shape, is_hold);
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).spawn_mut().spawn(shape, is_hold);
+        }
     }
 
     pub fn animate_game_over(&mut self, player: u32) {
-        self.themes[self.current].animations_mut(player).game_over_mut().game_over();
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).game_over_mut().game_over();
+        }
     }
 
     pub fn animate_victory(&mut self, player: u32) {
-        self.themes[self.current].animations_mut(player).victory_mut().victory();
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).victory_mut().victory();
+        }
     }
 
-    pub fn animate_next_level(&mut self, player: u32, viruses: &[ColoredBlock], display_interstitial: bool) {
-        self.themes[self.current].animations_mut(player).next_level_mut().next_level(viruses, display_interstitial);
+    pub fn animate_next_level_interstitial(&mut self, player: u32) {
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).next_level_interstitial_mut().display();
+        }
+    }
+
+    pub fn animate_next_level(&mut self, player: u32, viruses: &[ColoredBlock]) {
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).next_level_mut().next_level(viruses);
+        }
     }
 
     pub fn maybe_dismiss_next_level_interstitial(&mut self, player: u32) -> bool {
-        self.themes[self.current].animations_mut(player).next_level_mut().maybe_dismiss_interstitial()
+        let mut result = false;
+        for index in 0..self.themes.len() {
+            let theme_result = self.themes[index].animations_mut(player).next_level_interstitial_mut().dismiss();
+            if index == self.current {
+                result = theme_result;
+            }
+        }
+        result
+    }
+
+    pub fn is_animating_next_level_interstitial(&self) -> bool {
+        self.themes[self.current].is_animating_next_level_interstitial()
     }
 
     pub fn maybe_dismiss_game_over(&mut self) {
-        for player in self.themes[self.current].player_themes.iter_mut() {
-            player.animations.game_over_mut().dismiss();
-            player.animations.victory_mut().dismiss();
+        for theme in self.themes.iter_mut() {
+            for player in theme.player_themes.iter_mut() {
+                player.animations.game_over_mut().dismiss();
+                player.animations.victory_mut().dismiss();
+            }
         }
     }
 

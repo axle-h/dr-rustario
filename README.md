@@ -81,8 +81,15 @@ All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
 There are no default player 2 controls.
 
 ## TODO
-* change colours on low, medium & high
+* bg shadows
 * themes
-  * snes
   * n64
-  * wii
+    * virus pop
+    * virus animation is a yoyo
+  * modern
+    * wii dr mario
+    * wii bottle
+    * font based game metrics like tetris effect
+    * wii sound effects & music
+    * particles
+    * space background

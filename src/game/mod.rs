@@ -536,18 +536,19 @@ impl Game {
             self.events.push(GameEvent::SendGarbage { player: self.player, garbage });
         }
 
-        if self.bottle.virus_count() == 0 {
-            self.events.push(GameEvent::LevelComplete { player: self.player });
-            GameState::LevelComplete
-        } else {
-            GameState::NEW_SPAWN
-        }
+        GameState::NEW_SPAWN
     }
 
     fn next_destroy(&mut self, blocks: Vec<ColoredBlock>, combo: Combo) -> GameState {
         self.bottle.destroy(blocks.clone());
         self.events.push(GameEvent::Destroy { player: self.player, blocks, is_combo: combo.is_combo() });
-        GameState::drop_garbage(combo)
+
+        if self.bottle.virus_count() == 0 {
+            self.events.push(GameEvent::LevelComplete { player: self.player });
+            GameState::LevelComplete
+        } else {
+            GameState::drop_garbage(combo)
+        }
     }
 
     fn next_drop_garbage(&mut self, duration: Duration, combo: Combo) -> GameState {

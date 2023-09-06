@@ -126,6 +126,7 @@ impl Match {
     }
 
     pub fn set_winner(&mut self, player: u32) {
+        // todo move to a SelectWinner { player: u32 } state
         self.player_mut(player).set_winner();
     }
 

@@ -17,10 +17,6 @@ impl State {
         Self { duration: Duration::ZERO, game_over_screen_frame: 0, is_complete: false, is_dismissed: false }
     }
 
-    pub fn display_game_over_screen(&self) -> bool {
-        self.duration >= GAME_OVER_SCREEN_DELAY
-    }
-
     pub fn is_complete(&self) -> bool {
         self.is_complete || self.is_dismissed
     }
@@ -34,8 +30,12 @@ impl State {
         0
     }
 
-    pub fn game_over_screen_frame(&self) -> usize {
-        self.game_over_screen_frame
+    pub fn game_over_screen_frame(&self) -> Option<usize> {
+        if self.duration >= GAME_OVER_SCREEN_DELAY {
+            Some(self.game_over_screen_frame)
+        } else {
+            None
+        }
     }
 }
 

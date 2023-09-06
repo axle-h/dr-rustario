@@ -26,7 +26,6 @@ pub struct BlockPoints {
     west: [Point; 2],
     garbage: Point,
     virus_frames: Vec<Point>,
-    virus_pop_frames: Vec<Point>,
     vitamin_pop_frames: Vec<Point>,
 }
 
@@ -34,9 +33,9 @@ impl BlockPoints {
     pub fn new(
         north: [Point; 2], east: [Point; 2], south: [Point; 2], west: [Point; 2],
         garbage: Point,
-        virus_frames: Vec<Point>, virus_pop_frames: Vec<Point>, vitamin_pop_frames: Vec<Point>
+        virus_frames: Vec<Point>, vitamin_pop_frames: Vec<Point>
     ) -> Self {
-        Self { north, east, south, west, garbage, virus_frames, virus_pop_frames, vitamin_pop_frames }
+        Self { north, east, south, west, garbage, virus_frames, vitamin_pop_frames }
     }
 }
 
@@ -51,8 +50,7 @@ pub struct BlockSnips {
     west: [Rect; 2],
     garbage: Rect,
     virus_frames: Vec<Rect>,
-    virus_pop_frames: Vec<Rect>,
-    vitamin_pop_frames: Vec<Rect>,
+    vitamin_pop_frames: Vec<Rect>
 }
 
 impl BlockSnips {
@@ -63,7 +61,6 @@ impl BlockSnips {
             .chain(self.south)
             .chain(self.west)
             .chain(self.virus_frames.iter().copied())
-            .chain(self.virus_pop_frames.iter().copied())
             .chain(self.vitamin_pop_frames.iter().copied())
             .collect()
     }
@@ -119,20 +116,6 @@ impl BlockContext {
     }
 }
 
-fn pill_size(block_size: u32) -> (u32, u32) {
-    (
-        // 2 block wide + 2 outside borders + 1 inside border
-        block_size * 2 + 3,
-        // 1 block high + 2 outside borders
-        block_size + 2
-    )
-}
-
-fn pill_rect(point: Point, block_size: u32) -> Rect {
-    let (width, height) = pill_size(block_size);
-    Rect::new(point.x, point.y, width, height)
-}
-
 #[derive(Clone, Debug)]
 pub struct PillSnips {
     width: u32,
@@ -146,21 +129,32 @@ impl PillSnips {
     }
 }
 
+trait ToRect {
+    fn into_rect(self, width: u32, height: u32) -> Rect;
+}
+
+impl ToRect for Point {
+    fn into_rect(self, width: u32, height: u32) -> Rect {
+        Rect::new(self.x, self.y, width, height)
+    }
+}
+
 pub fn pills(
+    w: u32, h: u32,
     yy: Point, yb: Point, yr: Point,
     bb: Point, by: Point, br: Point,
     rr: Point, ry: Point, rb: Point
-) -> HashMap<PillShape, Point> {
+) -> HashMap<PillShape, Rect> {
     HashMap::from_iter([
-        (PillShape::YY, yy), (PillShape::YB, yb), (PillShape::YR, yr),
-        (PillShape::BB, bb), (PillShape::BY, by), (PillShape::BR, br),
-        (PillShape::RR, rr), (PillShape::RY, ry), (PillShape::RB, rb),
+        (PillShape::YY, yy.into_rect(w, h)), (PillShape::YB, yb.into_rect(w, h)), (PillShape::YR, yr.into_rect(w, h)),
+        (PillShape::BB, bb.into_rect(w, h)), (PillShape::BY, by.into_rect(w, h)), (PillShape::BR, br.into_rect(w, h)),
+        (PillShape::RR, rr.into_rect(w, h)), (PillShape::RY, ry.into_rect(w, h)), (PillShape::RB, rb.into_rect(w, h)),
     ])
 }
 
 pub struct VitaminSpriteSheetData {
     file: &'static [u8],
-    pills: HashMap<PillShape, Point>,
+    pills: HashMap<PillShape, Rect>,
     yellow: BlockPoints,
     red: BlockPoints,
     blue: BlockPoints,
@@ -179,7 +173,7 @@ pub struct VitaminSpriteSheetData {
 impl VitaminSpriteSheetData {
     pub fn new(
         file: &'static [u8],
-        pills: HashMap<PillShape, Point>,
+        pills: HashMap<PillShape, Rect>,
         yellow: BlockPoints,
         red: BlockPoints,
         blue: BlockPoints,
@@ -231,7 +225,6 @@ impl VitaminSpriteSheetData {
             west: src.west.map(|p| self.source_block(p)),
             garbage: self.source_block(src.garbage),
             virus_frames: src.virus_frames.iter().copied().map(|p| self.source_block(p)).collect(),
-            virus_pop_frames: src.virus_pop_frames.iter().copied().map(|p| self.source_block(p)).collect(),
             vitamin_pop_frames: src.vitamin_pop_frames.iter().copied().map(|p| self.source_block(p)).collect(),
             width: 0, // doesnt matter, these are unused for source snips
             height: 0
@@ -253,18 +246,15 @@ impl VitaminSpriteSheetData {
             west: context.next2(),
             garbage: context.next(),
             virus_frames: context.next_vec(src.virus_frames.len()),
-            virus_pop_frames: context.next_vec(src.virus_pop_frames.len()),
             vitamin_pop_frames: context.next_vec(src.vitamin_pop_frames.len()),
             width: context.width(),
             height: context.height
         }
     }
 
-    fn pill_source_snips(&self, source_block_size: u32) -> PillSnips {
+    fn pill_source_snips(&self) -> PillSnips {
         PillSnips {
-            shapes: self.pills.iter()
-                .map(|(s, p)| (*s, pill_rect(*p, source_block_size)))
-                .collect(),
+            shapes: self.pills.clone(),
             // width and height are not used
             width: 0,
             height: 0,
@@ -273,10 +263,9 @@ impl VitaminSpriteSheetData {
 
     fn pill_target_snips(&self, block_size: u32) -> PillSnips {
         let mut context = BlockContext::new(0, block_size);
-        let (width, height) = pill_size(block_size);
         PillSnips {
             shapes: self.pills.iter()
-                .map(|(s, _)| (*s, context.next_unscaled(width, height)))
+                .map(|(s, r)| (*s, context.next_unscaled(r.width(), r.height())))
                 .collect(),
             width: context.width(),
             height: context.height,
@@ -360,7 +349,7 @@ fn scale_pills<'a>(
     target_snips: &PillSnips,
 ) -> Result<(), String> {
     canvas.with_texture_canvas(target_texture, |c| {
-        let src_snips = data.pill_source_snips(data.source_block_size);
+        let src_snips = data.pill_source_snips();
         for shape in PillShape::ALL {
             c.copy(&src_texture, src_snips.snip(shape), target_snips.snip(shape)).unwrap();
         }
@@ -504,7 +493,7 @@ impl<'a> VitaminSpriteSheet<'a> {
     ) -> Result<(), String> {
         let virus_frame = animations.virus().frame();
 
-        if let Some(popping_in_viruses) = animations.next_level().state().and_then(|s| s.action().maybe_display_viruses().cloned()) {
+        if let Some(popping_in_viruses) = animations.next_level().state().map(|s| s.display_viruses()) {
             for virus in popping_in_viruses {
                 let dest = geometry.raw_block(virus.position);
                 canvas.copy(&self.texture, self.snips(virus.color).virus_frames[virus_frame], dest)?;
