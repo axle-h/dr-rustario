@@ -163,6 +163,7 @@ impl<'a> ThemeContext<'a> {
         let current = match game_config.themes() {
             MatchThemes::All | MatchThemes::Nes => 0,
             MatchThemes::Snes => 1,
+            MatchThemes::N64 => 2,
         };
 
         Ok(Self {

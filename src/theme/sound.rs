@@ -114,6 +114,7 @@ pub struct AudioTheme {
     paused: Chunk,
     speed_level_up: Chunk,
     receive_garbage: Chunk,
+    next_level_jingle: Chunk
 }
 
 impl AudioTheme {
@@ -128,8 +129,12 @@ impl AudioTheme {
         destroy_vitamin_combo: &[u8],
         paused: &[u8],
         speed_level_up: &[u8],
-        receive_garbage: &[u8]
+        receive_garbage: &[u8],
+        next_level_jingle: &[u8]
     ) -> Result<Self, String> {
+        let mut next_level_jingle = config.load_chunk(next_level_jingle)?;
+        next_level_jingle.set_volume(next_level_jingle.get_volume() / 2);
+
         Ok(Self {
             game_music: None,
             game_over_music: None,
@@ -145,6 +150,7 @@ impl AudioTheme {
             paused: config.load_chunk(paused)?,
             speed_level_up: config.load_chunk(speed_level_up)?,
             receive_garbage: config.load_chunk(receive_garbage)?,
+            next_level_jingle
         })
     }
 
@@ -153,18 +159,21 @@ impl AudioTheme {
         Ok(self)
     }
 
-    pub fn with_game_over_music(mut self, intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
-        self.game_over_music = Some(StructuredMusic::new(intro, repeating)?.into_rc());
+    pub fn with_game_over_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+        if let Some(repeating) = repeating.into() {
+            self.game_over_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
+        } else {
+            self.game_over_music = Some(StructuredMusic::once(music)?.into_rc());
+        }
         Ok(self)
     }
 
-    pub fn with_next_level_music(mut self, intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
-        self.next_level_music = Some(StructuredMusic::new(intro, repeating)?.into_rc());
-        Ok(self)
-    }
-
-    pub fn with_once_next_level_music(mut self, music: &'static [u8]) -> Result<Self, String> {
-        self.next_level_music = Some(StructuredMusic::once(music)?.into_rc());
+    pub fn with_next_level_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+        if let Some(repeating) = repeating.into() {
+            self.next_level_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
+        } else {
+            self.next_level_music = Some(StructuredMusic::once(music)?.into_rc());
+        }
         Ok(self)
     }
 
@@ -196,6 +205,10 @@ impl AudioTheme {
 
     pub fn pause_music(&self) {
         Music::pause();
+    }
+
+    pub fn play_next_level_jingle(&self) -> Result<(), String> {
+        self.next_level_jingle.play()
     }
 
     pub fn receive_event(&self, event: GameEvent) -> Result<(), String> {

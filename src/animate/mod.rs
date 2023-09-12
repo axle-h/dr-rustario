@@ -8,11 +8,14 @@ pub mod game_over;
 pub mod victory;
 pub mod next_level;
 pub mod next_level_interstitial;
+pub mod idle;
+pub mod dr;
 
 use std::time::Duration;
 use crate::animate::destroy::DestroyAnimation;
 use crate::animate::game_over::GameOverAnimation;
 use crate::animate::hard_drop::HardDropAnimation;
+use crate::animate::idle::IdleAnimation;
 use crate::animate::impact::ImpactAnimation;
 use crate::animate::lock::LockAnimation;
 use crate::animate::next_level::NextLevelAnimation;
@@ -24,6 +27,7 @@ use crate::theme::Theme;
 
 #[derive(Clone, Debug)]
 pub struct PlayerAnimations {
+    idle: IdleAnimation,
     virus: VirusAnimation,
     destroy: DestroyAnimation,
     impact: ImpactAnimation,
@@ -39,8 +43,9 @@ pub struct PlayerAnimations {
 impl PlayerAnimations {
     pub fn new(theme: &Theme) -> Self {
         let meta = theme.animation_meta();
-        let virus = VirusAnimation::new(meta.virus_frames);
-        let destroy = DestroyAnimation::new(meta.vitamin_pop_frames);
+        let idle = IdleAnimation::new(meta.dr_idle_frames);
+        let virus = VirusAnimation::new(meta.virus_frames, meta.virus_type);
+        let destroy = DestroyAnimation::new(meta.vitamin_pop_frames, meta.virus_pop_frames);
         let impact = ImpactAnimation::new();
         let lock = LockAnimation::new();
         let hard_drop = HardDropAnimation::new();
@@ -50,14 +55,20 @@ impl PlayerAnimations {
             theme.geometry().block_size(),
             meta.dr_throw_frames
         );
-        let game_over = GameOverAnimation::new(meta.game_over_screen_frames);
-        let victory = VictoryAnimation::new(meta.dr_victory_frames);
+        let game_over = GameOverAnimation::new(meta.game_over_screen_frames, meta.dr_game_over_type, meta.dr_game_over_frames);
+        let victory = VictoryAnimation::new(meta.dr_victory_frames, meta.dr_victory_type);
         let next_level = NextLevelAnimation::new();
-        let next_level_interstitial = NextLevelInterstitialAnimation::new(meta.dr_wait_frames, meta.next_level_interstitial_frames);
-        Self { virus, destroy, impact, lock, hard_drop, spawn, game_over, victory, next_level, next_level_interstitial }
+        let next_level_interstitial = NextLevelInterstitialAnimation::new(
+            meta.dr_victory_type,
+            meta.dr_victory_frames,
+            meta.next_level_interstitial_frames
+        );
+
+        Self { idle, virus, destroy, impact, lock, hard_drop, spawn, game_over, victory, next_level, next_level_interstitial }
     }
 
     pub fn reset(&mut self) {
+        self.idle.reset();
         self.virus.reset();
         self.destroy.reset();
         self.impact.reset();
@@ -70,6 +81,7 @@ impl PlayerAnimations {
         if delta.is_zero() {
             return;
         }
+        self.idle.update(delta);
         self.virus.update(delta);
         self.destroy.update(delta);
         self.impact.update(delta);
@@ -91,6 +103,10 @@ impl PlayerAnimations {
             || self.victory.state().is_some()
             || self.next_level.state().is_some()
             || self.next_level_interstitial.state().is_some()
+    }
+
+    pub fn idle(&self) -> &IdleAnimation {
+        &self.idle
     }
 
     pub fn virus(&self) -> &VirusAnimation {
@@ -169,5 +185,4 @@ impl PlayerAnimations {
     pub fn next_level_interstitial_mut(&mut self) -> &mut NextLevelInterstitialAnimation {
         &mut self.next_level_interstitial
     }
-
 }

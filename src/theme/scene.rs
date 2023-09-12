@@ -74,7 +74,7 @@ impl<'a> SceneRender<'a> {
     fn offset_and_repeat(window_size: u32, tile_size: u32) -> (i32, i32) {
         let remainder = window_size as i32 % tile_size as i32;
         let offset = -remainder / 2;
-        let repeat = window_size as i32 / tile_size as i32 + if remainder == 0 { 0 } else { 1 };
+        let repeat = window_size as i32 / tile_size as i32 + if remainder == 0 { 0 } else { 2 };
         (offset, repeat)
     }
 }

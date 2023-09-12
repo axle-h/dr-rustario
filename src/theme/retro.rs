@@ -2,9 +2,11 @@ use sdl2::image::LoadTexture;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
+use crate::animate::dr::DrAnimationType;
+use crate::animate::virus::VirusAnimationType;
 use crate::game::pill::{left_vitamin_spawn_point, PillShape, Vitamin};
 use crate::theme::{AnimationMeta, Theme, ThemeName};
-use crate::theme::font::{FontRenderOptions, MetricSnips};
+use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
@@ -15,10 +17,13 @@ pub struct RetroThemeOptions {
     pub scene_low: SceneType,
     pub scene_medium: SceneType,
     pub scene_high: SceneType,
+    pub virus_animation_type: VirusAnimationType,
+    pub dr_victory_animation_type: DrAnimationType,
+    pub dr_game_over_animation_type: DrAnimationType,
     pub sprites: VitaminSpriteSheetData,
     pub geometry: BottleGeometry,
     pub audio: AudioTheme,
-    pub font: FontRenderOptions,
+    pub font: FontThemeOptions,
     pub bottles_file: &'static [u8],
     pub bottle_low: Point,
     pub bottle_medium: Point,
@@ -27,14 +32,11 @@ pub struct RetroThemeOptions {
     pub bottle_height: u32,
     pub background_file: &'static [u8],
     pub bottle_point: Point,
+    pub dr_order_first: bool,
     pub dr_hand_point: Point,
-    pub dr_normal_point: Point,
+    pub dr_throw_point: Point,
     pub dr_game_over_point: Point,
     pub dr_victory_point: Point,
-    pub dr_wait_point: Point,
-    pub score: MetricSnips,
-    pub virus_level: MetricSnips,
-    pub virus_count: MetricSnips,
     pub match_end_file: &'static [u8],
     pub game_over_points: Vec<Point>,
     pub next_level_points: Vec<Point>,
@@ -75,14 +77,19 @@ pub fn retro_theme<'a>(
     ).collect();
 
     let animation_meta = AnimationMeta {
+        virus_type: options.virus_animation_type,
         virus_frames: sprites.virus_frames(),
         vitamin_pop_frames: sprites.vitamin_pop_frames(),
+        virus_pop_frames: sprites.virus_pop_frames(),
         throw_start: options.dr_hand_point,
         // we take 1 away from the throw end as thrown pills have a border
         throw_end: options.geometry.point(left_vitamin_spawn_point()) - Point::new(1, 1),
-        dr_throw_frames: sprites.dr_frames(DrType::Normal),
+        dr_throw_frames: sprites.dr_frames(DrType::Throw),
+        dr_victory_type: options.dr_victory_animation_type,
         dr_victory_frames: sprites.dr_frames(DrType::Victory),
-        dr_wait_frames: sprites.dr_frames(DrType::Wait),
+        dr_idle_frames: sprites.dr_frames(DrType::Idle),
+        dr_game_over_type: options.dr_game_over_animation_type,
+        dr_game_over_frames: sprites.dr_frames(DrType::GameOver),
         game_over_screen_frames: game_over_snips.len(),
         next_level_interstitial_frames: next_level_snips.len(),
     };
@@ -118,15 +125,12 @@ pub fn retro_theme<'a>(
             ),
             background_texture,
             background_size: (background_query.width, background_query.height),
+            dr_order_first: options.dr_order_first,
             dr_hand_point: options.dr_hand_point,
-            dr_normal_point: options.dr_normal_point,
+            dr_throw_point: options.dr_throw_point,
             dr_game_over_point: options.dr_game_over_point,
             dr_victory_point: options.dr_victory_point,
-            dr_wait_point: options.dr_wait_point,
             animation_meta,
-            score_snip: options.score,
-            virus_level_snip: options.virus_level,
-            virus_count_snip: options.virus_count,
             game_over_snips,
             next_level_snips,
             match_end_texture,

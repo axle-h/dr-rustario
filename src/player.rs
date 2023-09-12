@@ -170,11 +170,6 @@ impl Match {
             return false;
         }
 
-        if self.game_config.rules() == MatchRules::Marathon && self.players.iter().any(|p| !p.game.state().is_game_over()) {
-            // all players must have game over for the match to end
-            return false;
-        }
-
         let best_game = self.highest_score();
 
         let high_score = if self.high_scores.is_high_score(best_game.score()) {

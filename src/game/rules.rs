@@ -12,7 +12,10 @@ pub enum MatchThemes {
     Nes = 1,
 
     #[strum(serialize = "snes")]
-    Snes = 2
+    Snes = 2,
+
+    #[strum(serialize = "n64")]
+    N64 = 3
 }
 
 impl MatchThemes {
@@ -72,6 +75,10 @@ impl GameConfig {
     pub fn players(&self) -> u32 {
         self.players
     }
+    pub fn is_single_player(&self) -> bool {
+        self.players == 1
+    }
+
     pub fn virus_level(&self) -> u32 {
         self.virus_level
     }

@@ -83,9 +83,6 @@ There are no default player 2 controls.
 ## TODO
 * bg shadows
 * themes
-  * n64
-    * virus pop
-    * virus animation is a yoyo
   * modern
     * wii dr mario
     * wii bottle

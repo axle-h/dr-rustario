@@ -3,18 +3,22 @@ use std::time::Duration;
 use crate::game::event::ColoredBlock;
 use crate::game::geometry::BottlePoint;
 
-const VITAMIN_POP_DURATION: Duration = Duration::from_millis(300);
+const POP_DURATION: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Debug)]
 pub struct State {
     blocks: Vec<ColoredBlock>,
-    frame: usize,
+    vitamin_frame: usize,
+    virus_frame: usize,
     duration: Duration
 }
 
 impl State {
-    pub fn frame(&self) -> usize {
-        self.frame
+    pub fn vitamin_frame(&self) -> usize {
+        self.vitamin_frame
+    }
+    pub fn virus_frame(&self) -> usize {
+        self.virus_frame
     }
     pub fn blocks(&self) -> Vec<ColoredBlock> {
         self.blocks.clone()
@@ -23,30 +27,31 @@ impl State {
 
 #[derive(Clone, Debug)]
 pub struct DestroyAnimation {
-    max_frames: usize,
-    frame_duration: Duration,
+    vitamin_frames: usize,
+    vitamin_duration: Duration,
+    virus_frames: usize,
+    virus_duration: Duration,
     state: Option<State>
 }
 
 impl DestroyAnimation {
-    pub fn new(max_frames: usize) -> Self {
-        let frame_duration = VITAMIN_POP_DURATION / max_frames as u32;
-        Self { max_frames, frame_duration, state: None }
+    pub fn new(vitamin_frames: usize, virus_frames: usize) -> Self {
+        assert!(vitamin_frames > 0 && virus_frames > 0);
+        let vitamin_duration = POP_DURATION / vitamin_frames as u32;
+        let virus_duration = POP_DURATION / virus_frames as u32;
+        Self { vitamin_frames, vitamin_duration, virus_frames, virus_duration, state: None }
     }
 
     pub fn update(&mut self, delta: Duration) {
-        let mut finished = false;
         if let Some(state) = self.state.as_mut() {
             state.duration += delta;
-            if state.duration < self.frame_duration {
-                return;
+
+            let duration = state.duration.as_millis();
+            state.vitamin_frame = (duration / self.vitamin_duration.as_millis()) as usize % self.vitamin_frames;
+            state.virus_frame = (duration / self.virus_duration.as_millis()) as usize % self.virus_frames;
+            if state.duration >= POP_DURATION {
+                self.state = None;
             }
-            state.duration = Duration::ZERO;
-            state.frame += 1;
-            finished = state.frame == self.max_frames;
-        }
-        if finished {
-            self.state = None;
         }
     }
 
@@ -55,7 +60,7 @@ impl DestroyAnimation {
     }
 
     pub fn add(&mut self, blocks: Vec<ColoredBlock>) {
-        self.state = Some(State { blocks, frame: 0, duration: Duration::ZERO })
+        self.state = Some(State { blocks, vitamin_frame: 0, virus_frame: 0, duration: Duration::ZERO })
     }
 
     pub fn state(&self) -> Option<&State> {

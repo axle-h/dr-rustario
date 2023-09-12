@@ -1,11 +1,13 @@
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{Texture, WindowCanvas};
+use crate::animate::dr::DrAnimationType;
 use crate::animate::PlayerAnimations;
+use crate::animate::virus::VirusAnimationType;
 use crate::game::{Game, GameSpeed};
 use crate::game::geometry::Rotation;
 use crate::game::pill::VitaminOrdinal;
-use crate::theme::font::{FontRender, MetricSnips};
+use crate::theme::font::{FontRender, FontTheme, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::scene::{SceneRender, SceneType};
 use crate::theme::sound::AudioTheme;
@@ -21,23 +23,30 @@ pub mod font;
 pub mod pause;
 pub mod scene;
 pub mod snes;
+pub mod n64;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {
     #[default]
     Nes,
-    Snes
+    Snes,
+    N64
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct AnimationMeta {
+    pub virus_type: VirusAnimationType,
     pub virus_frames: usize,
     pub vitamin_pop_frames: usize,
+    pub virus_pop_frames: usize,
     pub throw_start: Point,
     pub throw_end: Point,
     pub dr_throw_frames: usize,
+    pub dr_victory_type: DrAnimationType,
     pub dr_victory_frames: usize,
-    pub dr_wait_frames: usize,
+    pub dr_idle_frames: usize,
+    pub dr_game_over_type: DrAnimationType,
+    pub dr_game_over_frames: usize,
     pub game_over_screen_frames: usize,
     pub next_level_interstitial_frames: usize
 }
@@ -50,7 +59,7 @@ pub struct Theme<'a> {
     sprites: VitaminSpriteSheet<'a>,
     geometry: BottleGeometry,
     audio: AudioTheme,
-    font: FontRender<'a>,
+    font: FontTheme<'a>,
     bottles_texture: Texture<'a>,
     bottle_low_snip: Rect,
     bottle_medium_snip: Rect,
@@ -58,15 +67,12 @@ pub struct Theme<'a> {
     background_texture: Texture<'a>,
     bottle_bg_snip: Rect,
     background_size: (u32, u32),
+    dr_order_first: bool,
     dr_hand_point: Point,
-    dr_normal_point: Point,
+    dr_throw_point: Point,
     dr_game_over_point: Point,
     dr_victory_point: Point,
-    dr_wait_point: Point,
     animation_meta: AnimationMeta,
-    score_snip: MetricSnips,
-    virus_level_snip: MetricSnips,
-    virus_count_snip: MetricSnips,
     game_over_snips: Vec<Rect>,
     next_level_snips: Vec<Rect>,
     match_end_texture: Texture<'a>,
@@ -122,20 +128,28 @@ impl<'a> Theme<'a> {
         } else if let Some(victory) = animations.victory().state() {
             self.sprites.draw_dr(canvas, DrType::Victory, self.dr_victory_point, victory.dr_frame())?;
         } else if let Some(next_level_interstitial) = animations.next_level_interstitial().state() {
-            self.sprites.draw_dr(canvas, DrType::Wait, self.dr_wait_point, next_level_interstitial.dr_frame())?;
+            self.sprites.draw_dr(canvas, DrType::Victory, self.dr_victory_point, next_level_interstitial.dr_frame())?;
         } else {
             let peek = metrics.queue();
             let mut peek_offset = 0;
             if let Some(spawn) = animations.spawn().state() {
-                self.sprites.draw_pill(canvas, spawn.shape(), spawn.throw_position(), spawn.pill_rotate_angle_degrees(), None)?;
-                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_normal_point, spawn.dr_throw_frame())?;
+                if self.dr_order_first {
+                    self.sprites.draw_dr(canvas, DrType::Throw, self.dr_throw_point, spawn.dr_throw_frame())?;
+                    self.sprites.draw_pill(canvas, spawn.shape(), spawn.throw_position(), spawn.pill_rotate_angle_degrees(), None)?;
+                } else {
+                    self.sprites.draw_pill(canvas, spawn.shape(), spawn.throw_position(), spawn.pill_rotate_angle_degrees(), None)?;
+                    self.sprites.draw_dr(canvas, DrType::Throw, self.dr_throw_point, spawn.dr_throw_frame())?;
+                }
 
                 if let Some(spawn_peek_offset) = spawn.peek_offset() {
                     peek_offset = self.peek_offset - (spawn_peek_offset * self.peek_offset as f64).round() as i32;
                 }
+            } else if self.dr_order_first {
+                self.sprites.draw_dr(canvas, DrType::Idle, self.dr_throw_point, animations.idle().frame())?;
+                self.sprites.draw_pill(canvas, peek[0], self.dr_hand_point, None, None)?;
             } else {
                 self.sprites.draw_pill(canvas, peek[0], self.dr_hand_point, None, None)?;
-                self.sprites.draw_dr(canvas, DrType::Normal, self.dr_normal_point, 0)?;
+                self.sprites.draw_dr(canvas, DrType::Idle, self.dr_throw_point, animations.idle().frame())?;
             }
             if let Some(hold) = metrics.hold() {
                 self.sprites.draw_pill(canvas, hold, self.hold_point, None, self.peek_scale)?;
@@ -146,14 +160,7 @@ impl<'a> Theme<'a> {
             }
         }
 
-        self.font
-            .render_number(canvas, self.score_snip, metrics.score())?;
-        self.font
-            .render_number(canvas, self.virus_level_snip, metrics.virus_level())?;
-        self.font
-            .render_number(canvas, self.virus_count_snip, metrics.virus_count())?;
-
-        Ok(())
+        self.font.render_all(canvas, metrics)
     }
 
     pub fn draw_bottle(&self, canvas: &mut WindowCanvas, game: &Game, animations: &PlayerAnimations) -> Result<(), String> {

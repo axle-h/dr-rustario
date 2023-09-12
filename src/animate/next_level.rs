@@ -9,12 +9,12 @@ const VIRUS_POP_IN_DURATION: Duration = Duration::from_millis(1500);
 const NEXT_VIRUS_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Debug)]
-pub struct StateWrapper {
+pub struct State {
     viruses: Vec<ColoredBlock>,
     duration: Duration,
 }
 
-impl StateWrapper {
+impl State {
     fn new(viruses: Vec<ColoredBlock>) -> Self {
         Self { viruses, duration: Duration::ZERO }
     }
@@ -29,7 +29,7 @@ impl StateWrapper {
 
 #[derive(Clone, Debug)]
 pub struct NextLevelAnimation {
-    state: Option<StateWrapper>,
+    state: Option<State>,
     rng: ThreadRng
 }
 
@@ -47,13 +47,13 @@ impl NextLevelAnimation {
         }
     }
 
-    pub fn state(&self) -> Option<&StateWrapper> {
+    pub fn state(&self) -> Option<&State> {
         self.state.as_ref()
     }
 
     pub fn next_level(&mut self, viruses: &[ColoredBlock]) {
         let mut viruses = viruses.to_vec();
         viruses.shuffle(&mut self.rng);
-        self.state = Some(StateWrapper::new(viruses));
+        self.state = Some(State::new(viruses));
     }
 }

@@ -1,6 +1,8 @@
 use sdl2::rect::Rect;
 use std::cmp::min;
 
+const PLAYER_BUFFER_PCT: f64 = 0.002;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Scale {
     players: u32,
@@ -8,6 +10,8 @@ pub struct Scale {
     window_width: u32,
     window_height: u32,
     block_size: u32,
+    player_buffer_width: u32,
+    player_buffer_height: u32,
 }
 
 impl Scale {
@@ -17,9 +21,13 @@ impl Scale {
         (window_width, window_height): (u32, u32),
         block_size: u32,
     ) -> Self {
+        let player_buffer_width = (PLAYER_BUFFER_PCT * window_width as f64).round() as u32;
+        let player_buffer_height = (PLAYER_BUFFER_PCT * window_height as f64).round() as u32;
+        let effective_bg_width = bg_width + 2 * player_buffer_width;
+        let effective_bg_height = bg_height + 2 * player_buffer_height;
         let scale = min(
-            window_width / (bg_width * players),
-            window_height / bg_height,
+            window_width / (effective_bg_width * players),
+            window_height / effective_bg_height,
         );
         Self {
             players,
@@ -27,14 +35,16 @@ impl Scale {
             window_width,
             window_height,
             block_size: block_size * scale,
+            player_buffer_width,
+            player_buffer_height
         }
     }
 
     /// splits the entire window up into horizontally stacked chunks equally between players
     pub fn player_window(&self, player: u32) -> Rect {
         let player_chunk_width = self.window_width / self.players;
-        let x = player_chunk_width * player;
-        Rect::new(x as i32, 0, player_chunk_width, self.window_height)
+        let x = player_chunk_width * player + self.player_buffer_width;
+        Rect::new(x as i32, self.player_buffer_height as i32, player_chunk_width, self.window_height)
     }
 
     pub fn scale_rect(&self, rect: Rect) -> Rect {

@@ -224,7 +224,7 @@ impl DrRustario {
         const START: &str = "start";
         const BACK: &str = "back";
 
-        let modes = if self.game_config.players() == 1 {
+        let modes = if self.game_config.is_single_player() {
             MatchRules::SINGLE_PLAYER_MODES.to_vec()
         } else {
             MatchRules::VS_MODES.to_vec()
@@ -257,7 +257,7 @@ impl DrRustario {
             MenuItem::select(START),
             MenuItem::select(BACK),
         ];
-        let subtitle = if self.game_config.players() == 1 {
+        let subtitle = if self.game_config.is_single_player() {
             "single player".to_string()
         } else {
             format!("{}-player vs.", self.game_config.players())
@@ -455,7 +455,9 @@ impl DrRustario {
                 if let Some(player) = key.player() {
                     if themes.current().is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_next_level_interstitial(player) {
-                            themes.theme().audio().play_game_music()?;
+                            if self.game_config.is_single_player() {
+                                themes.theme().audio().play_game_music()?;
+                            }
                             let game = fixture.player_mut(player).game_mut();
                             game.next_level()?;
                             themes.animate_next_level(player, game.viruses().as_slice());
@@ -538,15 +540,26 @@ impl DrRustario {
                         if fixture.next_level_ends_match(player) {
                             fixture.set_winner(player);
                         } else {
-                            themes.theme().audio().play_next_level_music()?;
+                            if self.game_config.is_single_player() {
+                                themes.theme().audio().play_next_level_music()?;
+                            } else {
+                                themes.theme().audio().play_next_level_jingle()?;
+                            }
                             themes.animate_next_level_interstitial(player);
                         }
                     },
                     GameEvent::GameOver { player } => {
-                        themes.animate_game_over(player);
-                        if fixture.maybe_set_game_over() {
-                            // the match is over so play the game over music
+                        if self.game_config.is_single_player() {
+                            // single player is a simple game over
+                            themes.animate_game_over(player);
+                            fixture.maybe_set_game_over();
                             themes.theme().audio().play_game_over_music()?;
+                        } else {
+                            for maybe_winner in 0..self.game_config.players() {
+                                if maybe_winner != player {
+                                    fixture.set_winner(maybe_winner);
+                                }
+                            }
                         }
                     },
                     GameEvent::Destroy { player, blocks, .. } => {
