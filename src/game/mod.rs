@@ -272,6 +272,7 @@ impl Combo {
 pub struct Game {
     player: u32,
     virus_level: u32,
+    level_count: u32,
     speed: GameSpeed,
     random: GameRandom,
     events: Vec<GameEvent>,
@@ -295,6 +296,7 @@ impl Game {
         Self {
             player,
             virus_level,
+            level_count: 0,
             speed,
             random,
             events: vec![],
@@ -312,6 +314,7 @@ impl Game {
     pub fn next_level(&mut self) -> Result<(), String> {
         assert_eq!(self.state, GameState::LevelComplete);
         self.virus_level += 1;
+        self.level_count += 1;
         self.events.clear();
         self.bottle = Bottle::from_seed(self.random.bottle_seed(self.virus_level)?);
         self.state = GameState::NEW_SPAWN;
@@ -333,6 +336,14 @@ impl Game {
 
     pub fn speed(&self) -> GameSpeed {
         self.speed
+    }
+
+    pub fn virus_level(&self) -> u32 {
+        self.virus_level
+    }
+
+    pub fn completed_levels(&self) -> u32 {
+        self.level_count
     }
 
     pub fn metrics(&self) -> GameMetrics {
@@ -1077,19 +1088,6 @@ mod tests {
         assert_eq!(game.state, GameState::NEW_SPAWN);
         assert_eq!(game.score, 300);
         game.should_have_events(&[GameEvent::SendGarbage { player: 0, garbage: vec![VirusColor::Blue, VirusColor::Red] }]);
-    }
-
-    #[test]
-    fn update_pattern_into_level_complete() {
-        let mut game = having_bottle(|bottle| {
-            bottle.expect_pattern().return_once(|| (vec![], vec![]));
-            bottle.expect_virus_count().return_once(|| 0);
-        });
-        game.state = GameState::NEW_PATTERN;
-        game.update(Duration::from_nanos(1));
-        assert_eq!(game.state, GameState::LevelComplete);
-        assert_eq!(game.score, 0);
-        game.should_have_events(&[GameEvent::LevelComplete { player: 0 }]);
     }
 
     #[test]

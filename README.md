@@ -82,6 +82,7 @@ There are no default player 2 controls.
 
 ## TODO
 * bg shadows
+* lint
 * themes
   * modern
     * wii dr mario

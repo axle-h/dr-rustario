@@ -11,7 +11,7 @@ use rand::prelude::ThreadRng;
 use crate::game::bottle::SendGarbage;
 use crate::game::metrics::GameMetrics;
 use crate::game::pill::VirusColor;
-use crate::game::rules::{GameConfig, MatchRules};
+use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 
 pub struct Player {
     player: u32,
@@ -118,10 +118,10 @@ impl Match {
     }
 
     pub fn next_level_ends_match(&self, player: u32) -> bool {
-        if let MatchRules::LevelSprint { levels: sprint_levels } = self.game_config.rules() {
-            self.player(player).game().metrics().virus_level() + 1 >= sprint_levels
-        } else {
-            false
+        match self.game_config.rules() {
+            MatchRules::LevelSprint { levels: sprint_levels } => self.player(player).game().completed_levels() + 1 >= sprint_levels,
+            MatchRules::ThemeSprint => self.player(player).game().completed_levels() + 1 >= MatchThemes::count() as u32,
+            _ => false
         }
     }
 

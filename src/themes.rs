@@ -13,6 +13,7 @@ use crate::game::GameSpeed;
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, Vitamins};
 use crate::game::rules::{GameConfig, MatchThemes};
+use crate::player::MatchState;
 use crate::theme::scene::SceneRender;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
@@ -326,16 +327,38 @@ impl<'a> ThemeContext<'a> {
         true
     }
 
-    pub fn next(&mut self) {
+    pub fn fade_into_next_theme(&mut self, canvas: &mut WindowCanvas, match_state: MatchState, is_single_player: bool) -> Result<(), String> {
         for theme in self.themes.iter_mut() {
             for player in theme.player_themes.iter_mut() {
                 player.animations.reset();
             }
         }
         self.current = (self.current + 1) % self.themes.len();
+
+        self.start_fade(canvas)?;
+
+        // handle music
+        let audio = self.theme().audio();
+        match match_state {
+            MatchState::Normal if self.is_animating_next_level_interstitial() => audio.play_next_level_music()?,
+            MatchState::Normal => audio.fade_in_game_music()?,
+            MatchState::Paused => {
+                audio.play_game_music()?;
+                audio.pause_music();
+            }
+            MatchState::GameOver { .. } => {
+                if is_single_player {
+                    audio.play_game_over_music()?
+                } else {
+                    audio.play_victory_music()?
+                }
+            }
+        }
+
+        Ok(())
     }
 
-    pub fn start_fade(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
+    fn start_fade(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
         self.fade_duration = Some(Duration::ZERO);
 
         let query = self.fade_buffer.query();

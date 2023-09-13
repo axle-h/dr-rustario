@@ -446,6 +446,8 @@ impl DrRustario {
 
         themes.theme().audio().play_game_music()?;
 
+        let mut max_virus_level = self.game_config.virus_level();
+
         loop {
             let delta = frame_rate.update()?;
             fixture.unset_flags();
@@ -455,11 +457,21 @@ impl DrRustario {
                 if let Some(player) = key.player() {
                     if themes.current().is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_next_level_interstitial(player) {
-                            if self.game_config.is_single_player() {
-                                themes.theme().audio().play_game_music()?;
-                            }
                             let game = fixture.player_mut(player).game_mut();
                             game.next_level()?;
+
+                            let next_level = game.virus_level();
+                            let is_first_to_next_level = next_level > max_virus_level;
+                            max_virus_level = next_level;
+
+                            if self.game_config.themes() == MatchThemes::All {
+                                if is_first_to_next_level {
+                                    events.push(GameEvent::NextTheme);
+                                }
+                            } else if self.game_config.is_single_player() {
+                                // only start game music here if on single player and not switching themes
+                                themes.theme().audio().play_game_music()?;
+                            }
                             themes.animate_next_level(player, game.viruses().as_slice());
                         } else {
                             themes.maybe_dismiss_game_over();
@@ -486,7 +498,11 @@ impl DrRustario {
                     },
                     GameInputKey::ReturnToMenu => return Ok(PostGameAction::ReturnToMenu),
                     GameInputKey::Quit => return Ok(PostGameAction::Quit),
-                    GameInputKey::NextTheme => events.push(GameEvent::NextTheme),
+                    GameInputKey::NextTheme => {
+                        if self.game_config.rules().allow_manual_theme_change() {
+                            events.push(GameEvent::NextTheme)
+                        }
+                    },
                 }
             }
 
@@ -578,20 +594,11 @@ impl DrRustario {
                         themes.animate_spawn(player, shape, is_hold);
                     },
                     GameEvent::NextTheme => {
-                        themes.start_fade(&mut self.canvas)?;
-                        themes.next();
-
-                        // handle music
-                        let audio = themes.theme().audio();
-                        match fixture.state() {
-                            MatchState::Normal if themes.is_animating_next_level_interstitial() => audio.play_next_level_music()?,
-                            MatchState::Normal => audio.fade_in_game_music()?,
-                            MatchState::Paused => {
-                                audio.play_game_music()?;
-                                audio.pause_music();
-                            }
-                            MatchState::GameOver { .. } => audio.play_game_over_music()?
-                        }
+                        themes.fade_into_next_theme(
+                            &mut self.canvas,
+                            fixture.state(),
+                            self.game_config.is_single_player()
+                        )?;
                     }
                     _ => {}
                 }

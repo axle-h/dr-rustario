@@ -22,6 +22,9 @@ impl MatchThemes {
     pub fn names() -> Vec<&'static str> {
         Self::iter().map(|e| e.into()).collect()
     }
+    pub fn count() -> usize {
+        Self::iter().filter(|i| *i as usize > 0).count()
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,21 +35,37 @@ pub enum MatchRules {
     LevelSprint { levels: u32 },
     /// Race to some score
     ScoreSprint { score: u32 },
+    /// Race through all of the themes, one per virus level
+    ThemeSprint
 }
 
 impl MatchRules {
     pub const ONE_LEVEL_SPRINT: Self = Self::LevelSprint { levels: 1 };
     pub const DEFAULT_SCORE_SPRINT: Self = Self::ScoreSprint { score: 10_000 };
 
-    pub const VS_MODES: [Self; 2] = [Self::ONE_LEVEL_SPRINT, Self::DEFAULT_SCORE_SPRINT];
-    pub const SINGLE_PLAYER_MODES: [Self; 3] = [Self::Marathon, Self::ONE_LEVEL_SPRINT, Self::DEFAULT_SCORE_SPRINT];
+    pub const VS_MODES: [Self; 3] = [
+        Self::ONE_LEVEL_SPRINT,
+        Self::ThemeSprint,
+        Self::DEFAULT_SCORE_SPRINT
+    ];
+    pub const SINGLE_PLAYER_MODES: [Self; 4] = [
+        Self::Marathon,
+        Self::ONE_LEVEL_SPRINT,
+        Self::ThemeSprint,
+        Self::DEFAULT_SCORE_SPRINT
+    ];
 
     pub fn name(&self) -> String {
         match self {
             MatchRules::Marathon => "marathon".to_string(),
             MatchRules::LevelSprint { levels } => format!("{} level sprint", levels),
             MatchRules::ScoreSprint { score } => format!("{} point sprint", score.to_formatted_string(&Locale::en)),
+            MatchRules::ThemeSprint => "theme sprint".to_string()
         }
+    }
+
+    pub fn allow_manual_theme_change(&self) -> bool {
+        self != &Self::ThemeSprint
     }
 
     pub fn default_by_players(players: u32) -> Self {
@@ -75,6 +94,7 @@ impl GameConfig {
     pub fn players(&self) -> u32 {
         self.players
     }
+
     pub fn is_single_player(&self) -> bool {
         self.players == 1
     }
@@ -86,7 +106,11 @@ impl GameConfig {
         self.speed
     }
     pub fn themes(&self) -> MatchThemes {
-        self.themes
+        if self.rules == MatchRules::ThemeSprint {
+            MatchThemes::All
+        } else {
+            self.themes
+        }
     }
     pub fn rules(&self) -> MatchRules {
         self.rules
@@ -112,5 +136,15 @@ impl GameConfig {
 impl Default for GameConfig {
     fn default() -> Self {
         Self::new(1, 0, GameSpeed::Medium, MatchThemes::All, MatchRules::Marathon)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_count() {
+        assert_eq!(MatchThemes::count(), 3);
     }
 }
