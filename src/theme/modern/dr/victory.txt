@@ -1,0 +1,3 @@
+width=478
+frames=183
+repeat-from=64
