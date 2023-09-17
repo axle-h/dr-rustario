@@ -81,6 +81,7 @@ All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
 There are no default player 2 controls.
 
 ## TODO
+* all assets in one zipfile?
 * bg shadows
 * lint
 * themes

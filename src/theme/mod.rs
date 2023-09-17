@@ -24,6 +24,7 @@ pub mod pause;
 pub mod scene;
 pub mod snes;
 pub mod n64;
+pub mod animation;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {

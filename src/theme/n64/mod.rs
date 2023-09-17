@@ -7,8 +7,9 @@ use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
 use crate::config::Config;
 use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockPoints, DrSpriteSheetData, pills, VitaminSpriteSheetData};
+use crate::theme::sprite_sheet::{BlockPoints, pills, VitaminSpriteSheetData};
 use crate::theme::{Theme, ThemeName};
+use crate::theme::animation::AnimationSpriteSheetData;
 use crate::theme::font::{alpha_sprites, FontRenderOptions, FontThemeOptions, MetricSnips, ThemedNumeric};
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::scene::SceneType;
@@ -98,10 +99,10 @@ pub fn n64_theme<'a>(
             color(1),
             BLOCK_SIZE,
             0x50,
-            DrSpriteSheetData::new(sprites::DR_THROW, 4),
-            DrSpriteSheetData::new(sprites::DR_GAME_OVER, 21),
-            DrSpriteSheetData::new(sprites::DR_VICTORY, 13),
-            DrSpriteSheetData::new(sprites::DR_IDLE, 6),
+            AnimationSpriteSheetData::exclusive_linear(sprites::DR_THROW, 4),
+            AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 21),
+            AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 13),
+            AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 6),
         ),
         geometry: BottleGeometry::new(BLOCK_SIZE, 0, (8, 41)),
         audio: AudioTheme::new(

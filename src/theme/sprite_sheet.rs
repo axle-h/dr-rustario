@@ -10,12 +10,41 @@ use crate::game::bottle::BOTTLE_HEIGHT;
 use crate::game::Game;
 use crate::game::geometry::{BottlePoint, Rotation};
 use crate::game::pill::{PillShape, VirusColor, VitaminOrdinal};
+use crate::theme::animation::{AnimationSpriteSheet, AnimationSpriteSheetData};
 use crate::theme::geometry::BottleGeometry;
 
 const ALPHA_STRIDE: u8 = 4;
 
 fn alpha_stride(alpha_mod: u8) -> u8 {
     ALPHA_STRIDE * (alpha_mod as f64 / ALPHA_STRIDE as f64).round() as u8
+}
+
+pub struct BlockAnimationsData {
+    virus_idle: AnimationSpriteSheetData,
+    virus_pop: AnimationSpriteSheetData,
+    vitamin_pop: AnimationSpriteSheetData
+}
+
+impl BlockAnimationsData {
+    fn build<'a>(&self, canvas: &mut WindowCanvas, texture_creator: &'a TextureCreator<WindowContext>, block_size: u32) -> Result<BlockAnimations<'a>, String> {
+        Ok(BlockAnimations {
+            virus_idle: self.virus_idle.sprite_sheet(texture_creator)?.scale(canvas, texture_creator, block_size, block_size)?,
+            virus_pop: self.virus_pop.sprite_sheet(texture_creator)?.scale(canvas, texture_creator, block_size, block_size)?,
+            vitamin_pop: self.vitamin_pop.sprite_sheet(texture_creator)?.scale(canvas, texture_creator, block_size, block_size)?,
+        })
+    }
+
+    fn assert_same_frames(&self, other: &BlockAnimationsData) {
+        assert_eq!(self.virus_idle.frame_count(), other.virus_idle.frame_count());
+        assert_eq!(self.virus_pop.frame_count(), other.virus_pop.frame_count());
+        assert_eq!(self.vitamin_pop.frame_count(), other.vitamin_pop.frame_count());
+    }
+}
+
+pub struct BlockAnimations<'a> {
+    virus_idle: AnimationSpriteSheet<'a>,
+    virus_pop: AnimationSpriteSheet<'a>,
+    vitamin_pop: AnimationSpriteSheet<'a>
 }
 
 #[derive(Clone, Debug)]
@@ -25,20 +54,11 @@ pub struct BlockPoints {
     south: [Point; 2],
     west: [Point; 2],
     garbage: Point,
-    virus_frames: Vec<Point>,
-    virus_pop_frames: Vec<Point>,
-    vitamin_pop_frames: Vec<Point>,
 }
 
 impl BlockPoints {
-    pub fn new(
-        north: [Point; 2], east: [Point; 2], south: [Point; 2], west: [Point; 2],
-        garbage: Point,
-        virus_frames: Vec<Point>,
-        virus_pop_frames: Vec<Point>,
-        vitamin_pop_frames: Vec<Point>
-    ) -> Self {
-        Self { north, east, south, west, garbage, virus_frames, virus_pop_frames, vitamin_pop_frames }
+    pub fn new(north: [Point; 2], east: [Point; 2], south: [Point; 2], west: [Point; 2], garbage: Point) -> Self {
+        Self { north, east, south, west, garbage }
     }
 }
 
@@ -51,10 +71,7 @@ pub struct BlockSnips {
     east: [Rect; 2],
     south: [Rect; 2],
     west: [Rect; 2],
-    garbage: Rect,
-    virus_frames: Vec<Rect>,
-    virus_pop_frames: Vec<Rect>,
-    vitamin_pop_frames: Vec<Rect>
+    garbage: Rect
 }
 
 impl BlockSnips {
@@ -64,9 +81,6 @@ impl BlockSnips {
             .chain(self.east)
             .chain(self.south)
             .chain(self.west)
-            .chain(self.virus_frames.iter().copied())
-            .chain(self.virus_pop_frames.iter().copied())
-            .chain(self.vitamin_pop_frames.iter().copied())
             .collect()
     }
 
@@ -157,68 +171,51 @@ pub fn pills(
     ])
 }
 
-pub struct DrSpriteSheetData {
-    file: &'static [u8],
-    frames: u32
-}
-
-impl DrSpriteSheetData {
-    pub fn new(file: &'static [u8], frames: u32) -> Self {
-        assert!(frames > 0);
-        Self { file, frames }
-    }
-
-    pub fn sprite_sheet<'a>(&self, texture_creator: &'a TextureCreator<WindowContext>) -> Result<DrSpriteSheet<'a>, String> {
-        let mut texture = texture_creator.load_texture_bytes(self.file)?;
-        texture.set_blend_mode(BlendMode::Blend);
-        let query = texture.query();
-        let frame_width = query.width / self.frames;
-        Ok(DrSpriteSheet {
-            texture,
-            frames: (0..self.frames).map(|i| Rect::new((i * frame_width) as i32, 0, frame_width, query.height)).collect()
-        })
-    }
-}
-
-pub struct DrSpriteSheet<'a> {
-    texture: Texture<'a>,
-    frames: Vec<Rect>
-}
-
 pub struct VitaminSpriteSheetData {
     file: &'static [u8],
     pills: HashMap<PillShape, Rect>,
-    yellow: BlockPoints,
-    red: BlockPoints,
-    blue: BlockPoints,
+    yellow_blocks: BlockPoints,
+    yellow_animations: BlockAnimationsData,
+    red_blocks: BlockPoints,
+    red_animations: BlockAnimationsData,
+    blue_blocks: BlockPoints,
+    blue_animations: BlockAnimationsData,
     source_block_size: u32,
     ghost_alpha: u8,
-    dr_throw: DrSpriteSheetData,
-    dr_game_over: DrSpriteSheetData,
-    dr_victory: DrSpriteSheetData,
-    dr_idle: DrSpriteSheetData
+    dr_throw: AnimationSpriteSheetData,
+    dr_game_over: AnimationSpriteSheetData,
+    dr_victory: AnimationSpriteSheetData,
+    dr_idle: AnimationSpriteSheetData
 }
 
 impl VitaminSpriteSheetData {
     pub fn new(
         file: &'static [u8],
         pills: HashMap<PillShape, Rect>,
-        yellow: BlockPoints,
-        red: BlockPoints,
-        blue: BlockPoints,
+        yellow_blocks: BlockPoints,
+        yellow_animations: BlockAnimationsData,
+        red_blocks: BlockPoints,
+        red_animations: BlockAnimationsData,
+        blue_blocks: BlockPoints,
+        blue_animations: BlockAnimationsData,
         source_block_size: u32,
         ghost_alpha: u8,
-        dr_throw: DrSpriteSheetData,
-        dr_game_over: DrSpriteSheetData,
-        dr_victory: DrSpriteSheetData,
-        dr_idle: DrSpriteSheetData
+        dr_throw: AnimationSpriteSheetData,
+        dr_game_over: AnimationSpriteSheetData,
+        dr_victory: AnimationSpriteSheetData,
+        dr_idle: AnimationSpriteSheetData
     ) -> Self {
+        yellow_animations.assert_same_frames(&red_animations);
+        blue_animations.assert_same_frames(&red_animations);
         Self {
             file,
             pills,
-            yellow,
-            red,
-            blue,
+            yellow_blocks,
+            yellow_animations,
+            red_blocks,
+            red_animations,
+            blue_blocks,
+            blue_animations,
             source_block_size,
             ghost_alpha,
             dr_throw,
@@ -230,9 +227,9 @@ impl VitaminSpriteSheetData {
 
     fn points(&self, color: VirusColor) -> &BlockPoints {
         match color {
-            VirusColor::Yellow => &self.yellow,
-            VirusColor::Blue => &self.blue,
-            VirusColor::Red => &self.red
+            VirusColor::Yellow => &self.yellow_blocks,
+            VirusColor::Blue => &self.blue_blocks,
+            VirusColor::Red => &self.red_blocks
         }
     }
 
@@ -245,9 +242,6 @@ impl VitaminSpriteSheetData {
             south: src.south.map(|p| self.source_block(p)),
             west: src.west.map(|p| self.source_block(p)),
             garbage: self.source_block(src.garbage),
-            virus_frames: src.virus_frames.iter().copied().map(|p| self.source_block(p)).collect(),
-            vitamin_pop_frames: src.vitamin_pop_frames.iter().copied().map(|p| self.source_block(p)).collect(),
-            virus_pop_frames: src.virus_pop_frames.iter().copied().map(|p| self.source_block(p)).collect(),
             width: 0, // doesnt matter, these are unused for source snips
             height: 0
         }
@@ -258,7 +252,6 @@ impl VitaminSpriteSheetData {
     }
 
     fn target_snips(&self, color: VirusColor, y: i32, block_size: u32) -> BlockSnips {
-        let src = self.points(color);
         let mut context = BlockContext::new(y, block_size);
         BlockSnips {
             color,
@@ -267,9 +260,6 @@ impl VitaminSpriteSheetData {
             south: context.next2(),
             west: context.next2(),
             garbage: context.next(),
-            virus_frames: context.next_vec(src.virus_frames.len()),
-            vitamin_pop_frames: context.next_vec(src.vitamin_pop_frames.len()),
-            virus_pop_frames: context.next_vec(src.virus_pop_frames.len()),
             width: context.width(),
             height: context.height
         }
@@ -295,13 +285,29 @@ impl VitaminSpriteSheetData {
         }
     }
 
-    fn dr<'a>(&self, texture_creator: &'a TextureCreator<WindowContext>, dr_type: DrType) -> Result<DrSpriteSheet<'a>, String> {
+    fn dr<'a>(&self, texture_creator: &'a TextureCreator<WindowContext>, dr_type: DrType) -> Result<AnimationSpriteSheet<'a>, String> {
         match dr_type {
             DrType::Throw => self.dr_throw.sprite_sheet(texture_creator),
             DrType::GameOver => self.dr_game_over.sprite_sheet(texture_creator),
             DrType::Victory => self.dr_victory.sprite_sheet(texture_creator),
             DrType::Idle => self.dr_idle.sprite_sheet(texture_creator),
         }
+    }
+
+    fn block_animations<'a>(
+        &self,
+        canvas: &mut WindowCanvas,
+        texture_creator: &'a TextureCreator<WindowContext>,
+        color: VirusColor,
+        block_size: u32
+    ) -> Result<BlockAnimations<'a>, String> {
+        let data = match color {
+            VirusColor::Yellow => &self.yellow_animations,
+            VirusColor::Blue => &self.blue_animations,
+            VirusColor::Red => &self.red_animations
+        };
+
+        data.build(canvas, texture_creator, block_size)
     }
 }
 
@@ -347,16 +353,19 @@ pub struct VitaminSpriteSheet<'a> {
     texture: Texture<'a>,
     alpha_textures: HashMap<u8, Texture<'a>>,
     ghost_alpha_mod: u8,
-    yellow: BlockSnips,
-    red: BlockSnips,
-    blue: BlockSnips,
+    yellow_blocks: BlockSnips,
+    red_blocks: BlockSnips,
+    blue_blocks: BlockSnips,
+    yellow_animations: BlockAnimations<'a>,
+    red_animations: BlockAnimations<'a>,
+    blue_animations: BlockAnimations<'a>,
     pills: PillSnips,
     pill_texture: Texture<'a>,
     block_size: u32,
-    dr_throw: DrSpriteSheet<'a>,
-    dr_game_over: DrSpriteSheet<'a>,
-    dr_victory: DrSpriteSheet<'a>,
-    dr_idle: DrSpriteSheet<'a>
+    dr_throw: AnimationSpriteSheet<'a>,
+    dr_game_over: AnimationSpriteSheet<'a>,
+    dr_victory: AnimationSpriteSheet<'a>,
+    dr_idle: AnimationSpriteSheet<'a>
 }
 
 impl<'a> VitaminSpriteSheet<'a> {
@@ -368,19 +377,23 @@ impl<'a> VitaminSpriteSheet<'a> {
     ) -> Result<Self, String> {
         let block_size = block_size.into().unwrap_or(data.source_block_size);
         let sprite_src = texture_creator.load_texture_bytes(data.file)?;
-        let yellow = data.target_snips(VirusColor::Yellow, 0, block_size);
-        let red = data.target_snips(VirusColor::Red, yellow.height as i32, block_size);
-        let blue = data.target_snips(VirusColor::Blue, (yellow.height + red.height) as i32, block_size);
-        let width = yellow.width.max(red.width).max(blue.width);
-        let height = yellow.height + red.height + blue.height;
+        let yellow_blocks = data.target_snips(VirusColor::Yellow, 0, block_size);
+        let red_blocks = data.target_snips(VirusColor::Red, yellow_blocks.height as i32, block_size);
+        let blue_blocks = data.target_snips(VirusColor::Blue, (yellow_blocks.height + red_blocks.height) as i32, block_size);
+        let width = yellow_blocks.width.max(red_blocks.width).max(blue_blocks.width);
+        let height = yellow_blocks.height + red_blocks.height + blue_blocks.height;
         let mut texture = texture_creator
             .create_texture_target(None, width, height)
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
 
-        scale_blocks(canvas, &data, &sprite_src, &mut texture, &yellow)?;
-        scale_blocks(canvas, &data, &sprite_src, &mut texture, &red)?;
-        scale_blocks(canvas, &data, &sprite_src, &mut texture, &blue)?;
+        scale_blocks(canvas, &data, &sprite_src, &mut texture, &yellow_blocks)?;
+        scale_blocks(canvas, &data, &sprite_src, &mut texture, &red_blocks)?;
+        scale_blocks(canvas, &data, &sprite_src, &mut texture, &blue_blocks)?;
+
+        let yellow_animations = data.block_animations(canvas, texture_creator, VirusColor::Yellow, block_size)?;
+        let red_animations = data.block_animations(canvas, texture_creator, VirusColor::Red, block_size)?;
+        let blue_animations = data.block_animations(canvas, texture_creator, VirusColor::Blue, block_size)?;
 
         let mut alpha_textures = HashMap::new();
         for i in 0..0xff / ALPHA_STRIDE {
@@ -411,32 +424,43 @@ impl<'a> VitaminSpriteSheet<'a> {
         let dr_victory = data.dr(texture_creator, DrType::Victory)?;
         let dr_idle = data.dr(texture_creator, DrType::Idle)?;
 
-        Ok(Self { texture, alpha_textures, ghost_alpha_mod, yellow, red, blue, pills, pill_texture, block_size, dr_throw, dr_game_over, dr_victory, dr_idle })
+        Ok(Self {
+            texture,
+            alpha_textures,
+            ghost_alpha_mod,
+            yellow_blocks,
+            red_blocks,
+            blue_blocks,
+            yellow_animations,
+            red_animations,
+            blue_animations,
+            pills,
+            pill_texture,
+            block_size,
+            dr_throw,
+            dr_game_over,
+            dr_victory,
+            dr_idle
+        })
     }
 
     pub fn virus_frames(&self) -> usize {
-        self.yellow.virus_frames.len()
-            .min(self.red.virus_frames.len())
-            .min(self.blue.virus_frames.len())
+        self.red_animations.virus_idle.frame_count()
     }
 
     pub fn vitamin_pop_frames(&self) -> usize {
-        self.yellow.vitamin_pop_frames.len()
-            .min(self.red.vitamin_pop_frames.len())
-            .min(self.blue.vitamin_pop_frames.len())
+        self.red_animations.vitamin_pop.frame_count()
     }
 
     pub fn virus_pop_frames(&self) -> usize {
-        self.yellow.virus_pop_frames.len()
-            .min(self.red.virus_pop_frames.len())
-            .min(self.blue.virus_pop_frames.len())
+        self.red_animations.virus_pop.frame_count()
     }
 
     pub fn dr_frames(&self, dr_type: DrType) -> usize {
-        self.dr(dr_type).frames.len()
+        self.dr(dr_type).frame_count()
     }
 
-    fn dr(&self, dr_type: DrType) -> &DrSpriteSheet<'a> {
+    fn dr(&self, dr_type: DrType) -> &AnimationSpriteSheet<'a> {
         match dr_type {
             DrType::Throw => &self.dr_throw,
             DrType::GameOver => &self.dr_game_over,
@@ -446,9 +470,7 @@ impl<'a> VitaminSpriteSheet<'a> {
     }
 
     pub fn draw_dr(&self, canvas: &mut WindowCanvas, dr_type: DrType, point: Point, frame: usize) -> Result<(), String> {
-        let dr = self.dr(dr_type);
-        let snip = dr.frames[frame];
-        canvas.copy(&dr.texture, snip, Rect::new(point.x, point.y, snip.width(), snip.height()))
+        self.dr(dr_type).draw_frame(canvas, point, frame)
     }
 
     /// TODO maybe move this into the theme, it deals with animations and what not which is a theme concern
@@ -464,7 +486,7 @@ impl<'a> VitaminSpriteSheet<'a> {
         if let Some(spawning_viruses) = animations.next_level().state().map(|s| s.display_viruses()) {
             for virus in spawning_viruses {
                 let dest = geometry.raw_block(virus.position);
-                canvas.copy(&self.texture, self.snips(virus.color).virus_frames[virus_frame], dest)?;
+                self.animations(virus.color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame)?;
             }
             return Ok(());
         }
@@ -505,7 +527,7 @@ impl<'a> VitaminSpriteSheet<'a> {
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, offset_y, None)?
                     }
                     Block::Garbage(color) => canvas.copy(&self.texture, self.snips(color).garbage, dest)?,
-                    Block::Virus(color) => canvas.copy(&self.texture, self.snips(color).virus_frames[virus_frame], dest)?,
+                    Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame?),
                     Block::Ghost(color, rotation, ordinal) if draw_vitamin =>
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, 0.0, self.ghost_alpha_mod)?,
                     _ => {}
@@ -515,15 +537,13 @@ impl<'a> VitaminSpriteSheet<'a> {
 
         if let Some(destroyed) = animations.destroy().state() {
             for block in destroyed.blocks() {
-                let snips = self.snips(block.color);
-                let frame_snip = if block.is_virus {
-                    snips.virus_pop_frames[destroyed.virus_frame()]
-                } else {
-                    snips.vitamin_pop_frames[destroyed.vitamin_frame()]
-                };
-
+                let animations = self.animations(block.color);
                 let dest = geometry.raw_block(block.position);
-                canvas.copy(&self.texture, frame_snip, dest)?;
+                if block.is_virus {
+                    animations.virus_pop.draw_frame_scaled(canvas, dest, destroyed.virus_frame())?;
+                } else {
+                    animations.vitamin_pop.draw_frame_scaled(canvas, dest, destroyed.vitamin_frame())?;
+                }
             }
         }
 
@@ -592,9 +612,17 @@ impl<'a> VitaminSpriteSheet<'a> {
 
     fn snips(&self, color: VirusColor) -> &BlockSnips {
         match color {
-            VirusColor::Yellow => &self.yellow,
-            VirusColor::Blue => &self.blue,
-            VirusColor::Red => &self.red
+            VirusColor::Yellow => &self.yellow_blocks,
+            VirusColor::Blue => &self.blue_blocks,
+            VirusColor::Red => &self.red_blocks
+        }
+    }
+
+    fn animations(&self, color: VirusColor) -> &BlockAnimations {
+        match color {
+            VirusColor::Yellow => &self.yellow_animations,
+            VirusColor::Blue => &self.blue_animations,
+            VirusColor::Red => &self.red_animations
         }
     }
 
