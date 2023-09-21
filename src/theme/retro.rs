@@ -1,3 +1,4 @@
+use std::time::Duration;
 use sdl2::image::LoadTexture;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, TextureCreator, WindowCanvas};
@@ -8,6 +9,7 @@ use crate::game::pill::{left_vitamin_spawn_point, PillShape, Vitamin};
 use crate::theme::{AnimationMeta, Theme, ThemeName};
 use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::helper::{TextureFactory, TextureQuery};
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
 use crate::theme::sprite_sheet::{DrType, VitaminSpriteSheet, VitaminSpriteSheetData};
@@ -18,6 +20,8 @@ pub struct RetroThemeOptions {
     pub scene_medium: SceneType,
     pub scene_high: SceneType,
     pub virus_animation_type: VirusAnimationType,
+    pub dr_idle_animation_type: DrAnimationType,
+    pub dr_throw_animation_type: DrAnimationType,
     pub dr_victory_animation_type: DrAnimationType,
     pub dr_game_over_animation_type: DrAnimationType,
     pub sprites: VitaminSpriteSheetData,
@@ -58,17 +62,14 @@ pub fn retro_theme<'a>(
         options.sprites,
         None,
     )?;
-    let mut bottles_texture = texture_creator.load_texture_bytes(options.bottles_file)?;
-    bottles_texture.set_blend_mode(BlendMode::Blend);
+    let bottles_texture = texture_creator.load_texture_bytes_blended(options.bottles_file)?;
 
-    let mut background_texture = texture_creator.load_texture_bytes(options.background_file)?;
-    background_texture.set_blend_mode(BlendMode::Blend);
-    let background_query = background_texture.query();
+    let background_texture = texture_creator.load_texture_bytes_blended(options.background_file)?;
+    let background_size = background_texture.size();
 
     let font = options.font.build(texture_creator)?;
 
-    let mut match_end_texture = texture_creator.load_texture_bytes(options.match_end_file)?;
-    match_end_texture.set_blend_mode(BlendMode::Blend);
+    let match_end_texture = texture_creator.load_texture_bytes_blended(options.match_end_file)?;
     let game_over_snips: Vec<Rect> = options.game_over_points.iter().map(|p|
         Rect::new(p.x, p.y, options.geometry.width(), options.geometry.height())
     ).collect();
@@ -82,14 +83,16 @@ pub fn retro_theme<'a>(
         vitamin_pop_frames: sprites.vitamin_pop_frames(),
         virus_pop_frames: sprites.virus_pop_frames(),
         throw_start: options.dr_hand_point,
-        // we take 1 away from the throw end as thrown pills have a border
+        // we take 1 away from the throw end as thrown pills have a border TODO only do thi for NES
         throw_end: options.geometry.point(left_vitamin_spawn_point()) - Point::new(1, 1),
-        dr_throw_frames: sprites.dr_frames(DrType::Throw),
+        dr_throw_type: options.dr_throw_animation_type,
+        dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
         dr_victory_type: options.dr_victory_animation_type,
-        dr_victory_frames: sprites.dr_frames(DrType::Victory),
-        dr_idle_frames: sprites.dr_frames(DrType::Idle),
+        dr_victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
+        dr_idle_type: options.dr_idle_animation_type,
+        dr_idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
         dr_game_over_type: options.dr_game_over_animation_type,
-        dr_game_over_frames: sprites.dr_frames(DrType::GameOver),
+        dr_game_over_frames: sprites.dr_sprites(DrType::GameOver).frame_count(),
         game_over_screen_frames: game_over_snips.len(),
         next_level_interstitial_frames: next_level_snips.len(),
     };
@@ -124,7 +127,7 @@ pub fn retro_theme<'a>(
                 options.bottle_height
             ),
             background_texture,
-            background_size: (background_query.width, background_query.height),
+            background_size,
             dr_order_first: options.dr_order_first,
             dr_hand_point: options.dr_hand_point,
             dr_throw_point: options.dr_throw_point,

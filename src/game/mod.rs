@@ -29,10 +29,11 @@ const SOFT_DROP_STEP_FACTOR: u32 = 20;
 const SOFT_DROP_SPAWN_FACTOR: u32 = 10;
 const GARBAGE_DROP_DURATION: Duration = Duration::from_millis(200);
 const MIN_SPAWN_DELAY: Duration = Duration::from_millis(500);
-const LOCK_DURATION: Duration = Duration::from_millis(300);
+const LOCK_DURATION: Duration = Duration::from_millis(500);
 const SOFT_DROP_LOCK_DURATION: Duration = Duration::from_millis(300 / 2);
 const MAX_LOCK_PLACEMENTS: u32 = 15;
 const PILLS_PER_SPEED_LEVEL: usize = 10;
+pub const MAX_SCORE: u32 = 9999999;
 
 const SPEED_TABLE: [Duration; 81] = [
     Duration::from_nanos(1166666667),
@@ -541,7 +542,7 @@ impl Game {
         }
 
         // combo over so update the score
-        self.score += combo.score(self.speed);
+        self.score = (self.score + combo.score(self.speed)).min(MAX_SCORE);
         let garbage = combo.garbage();
         if !garbage.is_empty() {
             self.events.push(GameEvent::SendGarbage { player: self.player, garbage });

@@ -669,13 +669,11 @@ impl DrRustario {
 fn main() -> Result<(), String> {
     let mut dr_rustario = DrRustario::new()?;;
     let texture_creator = dr_rustario.canvas.texture_creator();
-    let (_, window_height) = dr_rustario.canvas.window().size();
     let all_themes = AllThemes::new(
         &mut dr_rustario.canvas,
         &texture_creator,
         &dr_rustario.ttf,
         dr_rustario.config,
-        window_height,
     )?;
 
     'title: loop {

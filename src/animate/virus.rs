@@ -1,13 +1,26 @@
 use std::time::Duration;
 
-const FRAME_DURATION: Duration = Duration::from_millis(200);
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum VirusAnimationType {
-    Linear,
-    YoYo
+    Linear { fps: u32 },
+    YoYo { fps: u32 }
 }
 
+impl VirusAnimationType {
+    pub const LINEAR_STANDARD: Self = Self::Linear { fps: 3 };
+    pub const YO_YO_STANDARD: Self = Self::Linear { fps: 3 };
+
+    fn is_yo_yo(&self) -> bool {
+        matches!(self, &Self::YoYo { .. })
+    }
+
+    pub fn fps(&self) -> u32 {
+        match self {
+            VirusAnimationType::Linear { fps } => *fps,
+            VirusAnimationType::YoYo { fps } => *fps
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct VirusAnimation {
@@ -15,20 +28,22 @@ pub struct VirusAnimation {
     invert: bool,
     max_frame: usize,
     animation_type: VirusAnimationType,
-    duration: Duration
+    duration: Duration,
+    frame_duration: Duration
 }
 
 impl VirusAnimation {
     pub fn new(max_frame: usize, animation_type: VirusAnimationType) -> Self {
-        Self { frame: 0, invert: false, max_frame, duration: Duration::ZERO, animation_type }
+        let frame_duration = Duration::from_secs(1) / animation_type.fps();
+        Self { frame: 0, invert: false, max_frame, duration: Duration::ZERO, animation_type, frame_duration }
     }
 
     pub fn update(&mut self, delta: Duration) {
         self.duration += delta;
-        self.frame = (self.duration.as_millis() / FRAME_DURATION.as_millis()) as usize % self.max_frame;
+        self.frame = (self.duration.as_millis() / self.frame_duration.as_millis()) as usize % self.max_frame;
 
-        if self.animation_type == VirusAnimationType::YoYo {
-            let iteration = self.duration.as_millis() / (FRAME_DURATION * self.max_frame as u32).as_millis();
+        if self.animation_type.is_yo_yo() {
+            let iteration = self.duration.as_millis() / (self.frame_duration * self.max_frame as u32).as_millis();
             self.invert = iteration % 2 == 1;
         }
     }

@@ -2,6 +2,8 @@ use num_format::{Locale, ToFormattedString};
 use strum::IntoEnumIterator;
 use crate::game::GameSpeed;
 
+pub const MAX_VIRUS_LEVEL: u32 = 30;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter, strum::EnumString)]
 pub enum MatchThemes {
     /// Run themes in order, switching at the next level
@@ -15,7 +17,10 @@ pub enum MatchThemes {
     Snes = 2,
 
     #[strum(serialize = "n64")]
-    N64 = 3
+    N64 = 3,
+
+    #[strum(serialize = "modern")]
+    Modern = 4
 }
 
 impl MatchThemes {
@@ -120,7 +125,7 @@ impl GameConfig {
         self.players = players;
     }
     pub fn set_virus_level(&mut self, virus_level: u32) {
-        self.virus_level = virus_level;
+        self.virus_level = virus_level.min(MAX_VIRUS_LEVEL);
     }
     pub fn set_speed(&mut self, speed: GameSpeed) {
         self.speed = speed;

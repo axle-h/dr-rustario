@@ -12,6 +12,7 @@ use crate::game::pill::{PillShape, VirusColor};
 
 pub const PEEK_SIZE: usize = 5;
 pub const MAX_BOTTLE_SEED_ATTEMPTS: usize = 100_000;
+pub const MAX_VIRUSES: u32 = 99;
 
 type Seed = <ChaCha8Rng as SeedableRng>::Seed;
 
@@ -171,7 +172,7 @@ impl GameRandom {
 
     fn try_bottle_seed(&mut self, virus_level: u32) -> Option<BottleSeed> {
         let mut bottle = BottleSeed::new();
-        let target = (virus_level * 4 + 4).min(99);
+        let target = (virus_level * 4 + 4).min(MAX_VIRUSES);
         let max_virus_row = match virus_level {
             0..=14 => 6,
             15 | 16 => 5,

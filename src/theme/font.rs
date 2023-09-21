@@ -253,6 +253,17 @@ impl<'a> FontRender<'a> {
         Ok(())
     }
 
+    pub fn render_string_in_center(
+        &self,
+        canvas: &mut WindowCanvas,
+        dest: Rect,
+        value: &str,
+    ) -> Result<(), String> {
+        let (width, height) = self.string_size(value);
+        let rect = Rect::from_center(dest.center(), width, height);
+        self.render_string(canvas, rect.top_left(), value)
+    }
+
     pub fn render_number(
         &self,
         canvas: &mut WindowCanvas,
@@ -403,6 +414,10 @@ pub struct FontTheme<'a> {
 }
 
 impl<'a> FontTheme<'a> {
+    pub fn new(fonts: Vec<FontRender<'a>>, score: ThemedNumeric, virus_level: ThemedNumeric, virus_count: ThemedNumeric) -> Self {
+        Self { fonts, score, virus_level, virus_count }
+    }
+
     pub fn render_all(&self, canvas: &mut WindowCanvas, metrics: GameMetrics) -> Result<(), String> {
         self.fonts[self.score.font_index].render_number(canvas, self.score.snips, metrics.score())?;
         self.fonts[self.virus_level.font_index].render_number(canvas, self.virus_level.snips, metrics.virus_level())?;

@@ -3,7 +3,7 @@ pub mod destroy;
 pub mod impact;
 pub mod lock;
 pub mod hard_drop;
-pub mod spawn;
+pub mod throw;
 pub mod game_over;
 pub mod victory;
 pub mod next_level;
@@ -20,7 +20,7 @@ use crate::animate::impact::ImpactAnimation;
 use crate::animate::lock::LockAnimation;
 use crate::animate::next_level::NextLevelAnimation;
 use crate::animate::next_level_interstitial::NextLevelInterstitialAnimation;
-use crate::animate::spawn::SpawnAnimation;
+use crate::animate::throw::ThrowAnimation;
 use crate::animate::victory::VictoryAnimation;
 use crate::animate::virus::VirusAnimation;
 use crate::theme::Theme;
@@ -33,7 +33,7 @@ pub struct PlayerAnimations {
     impact: ImpactAnimation,
     lock: LockAnimation,
     hard_drop: HardDropAnimation,
-    spawn: SpawnAnimation,
+    throw: ThrowAnimation,
     game_over: GameOverAnimation,
     victory: VictoryAnimation,
     next_level: NextLevelAnimation,
@@ -43,17 +43,18 @@ pub struct PlayerAnimations {
 impl PlayerAnimations {
     pub fn new(theme: &Theme) -> Self {
         let meta = theme.animation_meta();
-        let idle = IdleAnimation::new(meta.dr_idle_frames);
+        let idle = IdleAnimation::new(meta.dr_idle_frames, meta.dr_idle_type);
         let virus = VirusAnimation::new(meta.virus_frames, meta.virus_type);
         let destroy = DestroyAnimation::new(meta.vitamin_pop_frames, meta.virus_pop_frames);
         let impact = ImpactAnimation::new();
         let lock = LockAnimation::new();
         let hard_drop = HardDropAnimation::new();
-        let spawn = SpawnAnimation::new(
+        let throw = ThrowAnimation::new(
             meta.throw_start,
             meta.throw_end,
             theme.geometry().block_size(),
-            meta.dr_throw_frames
+            meta.dr_throw_frames,
+            meta.dr_throw_type
         );
         let game_over = GameOverAnimation::new(meta.game_over_screen_frames, meta.dr_game_over_type, meta.dr_game_over_frames);
         let victory = VictoryAnimation::new(meta.dr_victory_frames, meta.dr_victory_type);
@@ -64,7 +65,7 @@ impl PlayerAnimations {
             meta.next_level_interstitial_frames
         );
 
-        Self { idle, virus, destroy, impact, lock, hard_drop, spawn, game_over, victory, next_level, next_level_interstitial }
+        Self { idle, virus, destroy, impact, lock, hard_drop, throw, game_over, victory, next_level, next_level_interstitial }
     }
 
     pub fn reset(&mut self) {
@@ -74,7 +75,7 @@ impl PlayerAnimations {
         self.impact.reset();
         self.lock.reset();
         self.hard_drop.reset();
-        self.spawn.reset();
+        self.throw.reset();
     }
 
     pub fn update(&mut self, delta: Duration) {
@@ -87,7 +88,7 @@ impl PlayerAnimations {
         self.impact.update(delta);
         self.lock.update(delta);
         self.hard_drop.update(delta);
-        self.spawn.update(delta);
+        self.throw.update(delta);
         self.game_over.update(delta);
         self.victory.update(delta);
         self.next_level.update(delta);
@@ -98,7 +99,7 @@ impl PlayerAnimations {
         self.destroy.state().is_some()
             || self.lock.state().is_some()
             || self.hard_drop.state().is_some()
-            || self.spawn.state().is_some()
+            || self.throw.state().is_some()
             || self.game_over.state().is_some()
             || self.victory.state().is_some()
             || self.next_level.state().is_some()
@@ -146,12 +147,12 @@ impl PlayerAnimations {
         &mut self.hard_drop
     }
 
-    pub fn spawn(&self) -> &SpawnAnimation {
-        &self.spawn
+    pub fn throw(&self) -> &ThrowAnimation {
+        &self.throw
     }
 
-    pub fn spawn_mut(&mut self) -> &mut SpawnAnimation {
-        &mut self.spawn
+    pub fn throw_mut(&mut self) -> &mut ThrowAnimation {
+        &mut self.throw
     }
 
     pub fn game_over(&self) -> &GameOverAnimation {

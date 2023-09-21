@@ -5,8 +5,9 @@ use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::scale::Scale;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneType {
+    Particles,
     Checkerboard { width: u32, height: u32, colors: [Color; 2] },
     Tile { texture: &'static [u8] }
 }
@@ -48,6 +49,9 @@ impl<'a> SceneRender<'a> {
                 texture
             }
             SceneType::Tile { texture } => texture_creator.load_texture_bytes(texture)?,
+            // TODO build background particles
+            SceneType::Particles => texture_creator.create_texture_target(None, 1, 1)
+                .map_err(|e| e.to_string())?
         };
 
         let query = texture.query();
@@ -55,6 +59,10 @@ impl<'a> SceneRender<'a> {
     }
 
     pub fn draw(&self, canvas: &mut WindowCanvas, scale: &Scale) -> Result<(), String> {
+        if self.scene_type == SceneType::Particles {
+            return Ok(());
+        }
+
         let (window_width, window_height) = scale.window_size();
         let mut rect = scale.scale_rect(self.rect_0);
 

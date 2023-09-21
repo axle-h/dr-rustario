@@ -165,6 +165,7 @@ impl<'a> ThemeContext<'a> {
             MatchThemes::All | MatchThemes::Nes => 0,
             MatchThemes::Snes => 1,
             MatchThemes::N64 => 2,
+            MatchThemes::Modern => 3
         };
 
         Ok(Self {
@@ -249,7 +250,7 @@ impl<'a> ThemeContext<'a> {
 
     pub fn animate_spawn(&mut self, player: u32, shape: PillShape, is_hold: bool) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).spawn_mut().spawn(shape, is_hold);
+            theme.animations_mut(player).throw_mut().throw(shape, is_hold);
         }
     }
 

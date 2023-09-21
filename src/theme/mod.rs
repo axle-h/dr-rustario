@@ -25,13 +25,16 @@ pub mod scene;
 pub mod snes;
 pub mod n64;
 pub mod animation;
+pub mod modern;
+pub mod helper;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {
     #[default]
     Nes,
     Snes,
-    N64
+    N64,
+    Modern
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -42,9 +45,11 @@ pub struct AnimationMeta {
     pub virus_pop_frames: usize,
     pub throw_start: Point,
     pub throw_end: Point,
+    pub dr_throw_type: DrAnimationType,
     pub dr_throw_frames: usize,
     pub dr_victory_type: DrAnimationType,
     pub dr_victory_frames: usize,
+    pub dr_idle_type: DrAnimationType,
     pub dr_idle_frames: usize,
     pub dr_game_over_type: DrAnimationType,
     pub dr_game_over_frames: usize,
@@ -123,6 +128,9 @@ impl<'a> Theme<'a> {
         let (width, height) = self.background_size;
         canvas.copy(&self.background_texture, None, Rect::new(0, 0, width, height))?;
 
+        // canvas.set_draw_color(Color::RED);
+        // canvas.draw_rect(Rect::new(0, 0, width, height))?;
+
         let metrics = game.metrics();
         if let Some(game_over) = animations.game_over().state() {
             self.sprites.draw_dr(canvas, DrType::GameOver, self.dr_game_over_point, game_over.dr_frame())?;
@@ -133,7 +141,7 @@ impl<'a> Theme<'a> {
         } else {
             let peek = metrics.queue();
             let mut peek_offset = 0;
-            if let Some(spawn) = animations.spawn().state() {
+            if let Some(spawn) = animations.throw().state() {
                 if self.dr_order_first {
                     self.sprites.draw_dr(canvas, DrType::Throw, self.dr_throw_point, spawn.dr_throw_frame())?;
                     self.sprites.draw_pill(canvas, spawn.shape(), spawn.throw_position(), spawn.pill_rotate_angle_degrees(), None)?;
@@ -174,6 +182,9 @@ impl<'a> Theme<'a> {
             GameSpeed::High => self.bottle_high_snip
         };
         canvas.copy(&self.bottles_texture, bottle_snip, self.bottle_bg_snip)?;
+
+        // canvas.set_draw_color(Color::BLUE);
+        // canvas.draw_rect(self.bottle_bg_snip)?;
 
         self.sprites.draw_bottle(canvas, game, &self.geometry, animations)?;
         if let Some(game_over_frame) = animations.game_over().state().and_then(|s| s.game_over_screen_frame()) {

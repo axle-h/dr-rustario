@@ -26,6 +26,27 @@ pub struct BlockAnimationsData {
 }
 
 impl BlockAnimationsData {
+    pub fn new(virus_idle: AnimationSpriteSheetData, virus_pop: AnimationSpriteSheetData, vitamin_pop: AnimationSpriteSheetData) -> Self {
+        Self { virus_idle, virus_pop, vitamin_pop }
+    }
+
+    pub fn non_exclusive_linear(
+        file: &'static [u8],
+        virus_idle_start: Point,
+        virus_idle_frames: u32,
+        virus_pop_start: Point,
+        virus_pop_frames: u32,
+        vitamin_pop_start: Point,
+        vitamin_pop_frames: u32,
+        block_size: u32
+    ) -> Self {
+        Self::new(
+            AnimationSpriteSheetData::non_exclusive_linear(file, virus_idle_start, virus_idle_frames, block_size, block_size),
+            AnimationSpriteSheetData::non_exclusive_linear(file, virus_pop_start, virus_pop_frames, block_size, block_size),
+            AnimationSpriteSheetData::non_exclusive_linear(file, vitamin_pop_start, vitamin_pop_frames, block_size, block_size)
+        )
+    }
+
     fn build<'a>(&self, canvas: &mut WindowCanvas, texture_creator: &'a TextureCreator<WindowContext>, block_size: u32) -> Result<BlockAnimations<'a>, String> {
         Ok(BlockAnimations {
             virus_idle: self.virus_idle.sprite_sheet(texture_creator)?.scale(canvas, texture_creator, block_size, block_size)?,
@@ -127,7 +148,7 @@ impl BlockContext {
         (0..n).map(|_| self.next()).collect()
     }
 
-    fn next_unscaled(&mut self, width: u32, height: u32) -> Rect {
+    fn next_sprite(&mut self, width: u32, height: u32) -> Rect {
         let result = Rect::new(self.x, self.y, width, height);
         self.x += width as i32;
         self.height = self.height.max(height);
@@ -174,6 +195,7 @@ pub fn pills(
 pub struct VitaminSpriteSheetData {
     file: &'static [u8],
     pills: HashMap<PillShape, Rect>,
+    pill_size: (u32, u32),
     yellow_blocks: BlockPoints,
     yellow_animations: BlockAnimationsData,
     red_blocks: BlockPoints,
@@ -185,13 +207,15 @@ pub struct VitaminSpriteSheetData {
     dr_throw: AnimationSpriteSheetData,
     dr_game_over: AnimationSpriteSheetData,
     dr_victory: AnimationSpriteSheetData,
-    dr_idle: AnimationSpriteSheetData
+    dr_idle: AnimationSpriteSheetData,
+    dr_scale: Option<f64>
 }
 
 impl VitaminSpriteSheetData {
     pub fn new(
         file: &'static [u8],
         pills: HashMap<PillShape, Rect>,
+        pill_size: (u32, u32),
         yellow_blocks: BlockPoints,
         yellow_animations: BlockAnimationsData,
         red_blocks: BlockPoints,
@@ -203,13 +227,15 @@ impl VitaminSpriteSheetData {
         dr_throw: AnimationSpriteSheetData,
         dr_game_over: AnimationSpriteSheetData,
         dr_victory: AnimationSpriteSheetData,
-        dr_idle: AnimationSpriteSheetData
+        dr_idle: AnimationSpriteSheetData,
+        dr_scale: Option<f64>
     ) -> Self {
         yellow_animations.assert_same_frames(&red_animations);
         blue_animations.assert_same_frames(&red_animations);
         Self {
             file,
             pills,
+            pill_size,
             yellow_blocks,
             yellow_animations,
             red_blocks,
@@ -221,7 +247,8 @@ impl VitaminSpriteSheetData {
             dr_throw,
             dr_game_over,
             dr_victory,
-            dr_idle
+            dr_idle,
+            dr_scale
         }
     }
 
@@ -276,21 +303,28 @@ impl VitaminSpriteSheetData {
 
     fn pill_target_snips(&self, block_size: u32) -> PillSnips {
         let mut context = BlockContext::new(0, block_size);
+        let (pill_width, pill_height) = self.pill_size;
         PillSnips {
             shapes: self.pills.iter()
-                .map(|(s, r)| (*s, context.next_unscaled(r.width(), r.height())))
+                .map(|(s, r)| (*s, context.next_sprite(pill_width, pill_height)))
                 .collect(),
             width: context.width(),
             height: context.height,
         }
     }
 
-    fn dr<'a>(&self, texture_creator: &'a TextureCreator<WindowContext>, dr_type: DrType) -> Result<AnimationSpriteSheet<'a>, String> {
-        match dr_type {
+    fn dr<'a>(&self, canvas: &mut WindowCanvas, texture_creator: &'a TextureCreator<WindowContext>, dr_type: DrType) -> Result<AnimationSpriteSheet<'a>, String> {
+        let dr = match dr_type {
             DrType::Throw => self.dr_throw.sprite_sheet(texture_creator),
             DrType::GameOver => self.dr_game_over.sprite_sheet(texture_creator),
             DrType::Victory => self.dr_victory.sprite_sheet(texture_creator),
             DrType::Idle => self.dr_idle.sprite_sheet(texture_creator),
+        }?;
+
+        if let Some(dr_scale) = self.dr_scale {
+            dr.scale_f64(canvas, texture_creator, dr_scale)
+        } else {
+            Ok(dr)
         }
     }
 
@@ -419,10 +453,10 @@ impl<'a> VitaminSpriteSheet<'a> {
         pill_texture.set_blend_mode(BlendMode::Blend);
         scale_pills(canvas, &data, &sprite_src, &mut pill_texture, &pills)?;
 
-        let dr_throw = data.dr(texture_creator, DrType::Throw)?;
-        let dr_game_over = data.dr(texture_creator, DrType::GameOver)?;
-        let dr_victory = data.dr(texture_creator, DrType::Victory)?;
-        let dr_idle = data.dr(texture_creator, DrType::Idle)?;
+        let dr_throw = data.dr(canvas, texture_creator, DrType::Throw)?;
+        let dr_game_over = data.dr(canvas, texture_creator, DrType::GameOver)?;
+        let dr_victory = data.dr(canvas, texture_creator, DrType::Victory)?;
+        let dr_idle = data.dr(canvas, texture_creator, DrType::Idle)?;
 
         Ok(Self {
             texture,
@@ -456,8 +490,8 @@ impl<'a> VitaminSpriteSheet<'a> {
         self.red_animations.virus_pop.frame_count()
     }
 
-    pub fn dr_frames(&self, dr_type: DrType) -> usize {
-        self.dr(dr_type).frame_count()
+    pub fn dr_sprites(&self, dr_type: DrType) -> &AnimationSpriteSheet {
+        self.dr(dr_type)
     }
 
     fn dr(&self, dr_type: DrType) -> &AnimationSpriteSheet<'a> {
@@ -491,7 +525,7 @@ impl<'a> VitaminSpriteSheet<'a> {
             return Ok(());
         }
 
-        let mut draw_vitamin = !animations.spawn().state().is_some();
+        let mut draw_vitamin = !animations.throw().state().is_some();
 
         if let Some(hard_drop) = animations.hard_drop().state() {
             draw_vitamin = false;
@@ -527,7 +561,7 @@ impl<'a> VitaminSpriteSheet<'a> {
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, offset_y, None)?
                     }
                     Block::Garbage(color) => canvas.copy(&self.texture, self.snips(color).garbage, dest)?,
-                    Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame?),
+                    Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame)?,
                     Block::Ghost(color, rotation, ordinal) if draw_vitamin =>
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, 0.0, self.ghost_alpha_mod)?,
                     _ => {}

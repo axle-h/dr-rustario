@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
@@ -6,8 +7,11 @@ use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
 use crate::config::Config;
+use crate::game::MAX_SCORE;
+use crate::game::random::MAX_VIRUSES;
+use crate::game::rules::MAX_VIRUS_LEVEL;
 use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockPoints, pills, VitaminSpriteSheetData};
+use crate::theme::sprite_sheet::{BlockAnimations, BlockAnimationsData, BlockPoints, pills, VitaminSpriteSheetData};
 use crate::theme::{Theme, ThemeName};
 use crate::theme::animation::AnimationSpriteSheetData;
 use crate::theme::font::{alpha_sprites, FontRenderOptions, FontThemeOptions, MetricSnips};
@@ -60,16 +64,23 @@ fn block(i: i32, j: i32) -> Point {
     Point::new(i * BLOCK_SIZE as i32, j * BLOCK_SIZE as i32)
 }
 
-fn color(j: i32) -> BlockPoints {
+fn blocks(j: i32) -> BlockPoints {
     BlockPoints::new(
         [block(0, j), block(1, j)],
         [block(2, j), block(3, j)],
         [block(1, j), block(0, j)],
         [block(3, j), block(2, j)],
-        block(4, j),
-        vec![block(6, j), block(7, j)],
-        vec![block(5, j)],
-        vec![block(5, j)]
+        block(4, j)
+    )
+}
+
+fn animations(j: i32) -> BlockAnimationsData {
+    BlockAnimationsData::non_exclusive_linear(
+        sprites::VITAMINS,
+        block(6, j), 2,
+        block(5, j), 1,
+        block(5, j), 1,
+        BLOCK_SIZE
     )
 }
 
@@ -87,7 +98,9 @@ pub fn nes_theme<'a>(
         scene_low: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x00, 0x3f, 0x00)] },
         scene_medium: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x2d, 0x05, 0x85)] },
         scene_high: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x58, 0x58, 0x58)] },
-        virus_animation_type: VirusAnimationType::Linear,
+        virus_animation_type: VirusAnimationType::LINEAR_STANDARD,
+        dr_idle_animation_type: DrAnimationType::Static,
+        dr_throw_animation_type: DrAnimationType::RETRO_THROW,
         dr_victory_animation_type: DrAnimationType::NES_SNES_VICTORY,
         dr_game_over_animation_type: DrAnimationType::Static,
         sprites: VitaminSpriteSheetData::new(
@@ -98,15 +111,20 @@ pub fn nes_theme<'a>(
                 pill(0, 1), pill(1, 1), pill(2, 1),
                 pill(0, 2), pill(1, 2), pill(2, 2)
             ),
-            color(0),
-            color(2),
-            color(1),
+            (PILL_WIDTH, PILL_HEIGHT),
+            blocks(0),
+            animations(0),
+            blocks(2),
+            animations(2),
+            blocks(1),
+            animations(1),
             BLOCK_SIZE,
             0x40,
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_THROW, 3),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 1),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 2),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 1),
+            None
         ),
         geometry: BottleGeometry::new(7, 1, (8, 40)),
         audio: AudioTheme::new(
@@ -120,9 +138,9 @@ pub fn nes_theme<'a>(
             .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::simple(
             FontRenderOptions::numeric_sprites(sprites::FONT, texture_creator, 1)?,
-            MetricSnips::zero_fill((92, 113), 9999999),
-            MetricSnips::zero_fill((123, 134), 99),
-            MetricSnips::zero_fill((123, 155), 99)
+            MetricSnips::zero_fill((92, 113), MAX_SCORE),
+            MetricSnips::zero_fill((123, 134), MAX_VIRUS_LEVEL),
+            MetricSnips::zero_fill((123, 155), MAX_VIRUSES)
         ),
         bottles_file: sprites::BOTTLES,
         bottle_low: Point::new(81, 0),
