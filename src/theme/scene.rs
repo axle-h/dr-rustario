@@ -1,3 +1,4 @@
+use std::time::Duration;
 use sdl2::image::LoadTexture;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -71,7 +72,33 @@ impl<'a> SceneRender<'a> {
                     let target = PlayerParticleTarget::Vitamins(vitamins);
                     let particles = PrescribedParticles::BurstUp { color: base_color };
                     Some(particles.into_targeted(player, target))
+                },
+                GameEvent::Lock {
+                    player,
+                    vitamins,
+                    hard_or_soft_dropped,
+                } if hard_or_soft_dropped => {
+                    let target = PlayerParticleTarget::Vitamins(vitamins);
+                    let particles = PrescribedParticles::BurstDown { color: base_color };
+                    Some(particles.into_targeted(player, target))
+                },
+                GameEvent::ReceivedGarbage { player, garbage } => {
+                    let target = PlayerParticleTarget::Garbage(garbage);
+                    let particles = PrescribedParticles::BurstDown { color: base_color };
+                    Some(particles.into_targeted(player, target))
                 }
+                GameEvent::Destroy { player, blocks, .. } => {
+                    let target = PlayerParticleTarget::MaskedBlocks(blocks);
+                    let particles = PrescribedParticles::FadeInLatticeBurstAndFall {
+                        fade_in: Duration::from_millis(250),
+                        color: base_color,
+                    };
+                    Some(particles.into_targeted(player, target))
+                },
+                GameEvent::Victory { player } => Some(
+                    PrescribedParticles::PerimeterSpray { color: base_color }
+                        .into_targeted(player, PlayerParticleTarget::Bottle),
+                ),
                 _ => None,
             }
         } else {

@@ -22,6 +22,7 @@ pub enum GameEvent {
     Spawn { player: u32, shape: PillShape, is_hold: bool },
     SpeedLevelUp,
     GameOver { player: u32 },
+    Victory { player: u32 },
     LevelComplete { player: u32 },
     Lock { player: u32, vitamins: Vitamins, hard_or_soft_dropped: bool },
     Destroy {

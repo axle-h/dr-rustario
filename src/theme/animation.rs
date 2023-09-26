@@ -2,6 +2,7 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::rect::{Point, Rect};
 use sdl2::video::WindowContext;
 use sdl2::image::LoadTexture;
+use crate::theme::block_mask::BlockMask;
 use crate::theme::helper::{TextureFactory, TextureQuery};
 
 #[derive(Debug, Clone)]
@@ -180,5 +181,9 @@ impl<'a> AnimationSpriteSheet<'a> {
         let height = (frame_height as f64 * scale).round() as u32;
 
         self.scale(canvas, texture_creator, width, height)
+    }
+
+    pub fn block_mask(&mut self, canvas: &mut WindowCanvas, frame: usize) -> Result<BlockMask, String> {
+        BlockMask::from_texture(canvas, &mut self.texture, self.frames[frame])
     }
 }

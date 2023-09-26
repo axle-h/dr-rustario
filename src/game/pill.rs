@@ -112,8 +112,8 @@ pub enum VitaminOrdinal {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Garbage {
-    color: VirusColor,
-    position: BottlePoint
+    pub color: VirusColor,
+    pub position: BottlePoint
 }
 
 impl Garbage {

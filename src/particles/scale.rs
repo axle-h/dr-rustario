@@ -85,7 +85,7 @@ impl Scale {
         ]
     }
 
-    fn build_lattice<I: Iterator<Item = Point>>(&self, iter: I) -> ParticlePositionSource {
+    pub fn build_lattice<I: Iterator<Item = Point>>(&self, iter: I) -> ParticlePositionSource {
         ParticlePositionSource::Lattice(iter.map(|p| self.point_to_particle_space(p)).collect())
     }
 

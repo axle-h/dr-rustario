@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use crate::scale::Scale;
 use crate::theme::all::AllThemes;
 use crate::theme::Theme;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 
 use sdl2::video::WindowContext;
@@ -56,6 +56,7 @@ struct ThemedPlayer {
     player: u32,
     bg_snip: Rect,
     bottle_snip: Rect,
+    game_snip: Rect,
     animations: PlayerAnimations
 }
 
@@ -65,11 +66,13 @@ impl ThemedPlayer {
         let mut bg_snip = scale.scale_rect(Rect::new(0, 0, theme_width, theme_height));
         bg_snip.center_on(scale.player_window(player).center());
         let bottle_snip = scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
+        let game_snip = scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
         let animations = PlayerAnimations::new(theme);
         Self {
             player,
             bg_snip,
             bottle_snip,
+            game_snip,
             animations
         }
     }
@@ -207,7 +210,7 @@ impl<'a> ThemeContext<'a> {
             .player_themes
             .get(player as usize)
             .unwrap()
-            .bottle_snip
+            .game_snip
     }
 
     pub fn player_animations(&self, player: u32) -> &PlayerAnimations {
@@ -426,6 +429,38 @@ impl<'a> ThemeContext<'a> {
         }
 
         Ok(())
+    }
+
+    pub fn player_block_snips(&self, player: u32, points: Vec<BottlePoint>) -> Vec<Rect> {
+        let theme = &self.themes[self.current];
+        let player = &theme.player_themes[player as usize];
+        let geometry = theme.theme.geometry();
+        points.into_iter()
+            .map(|p| geometry.raw_block(p))
+            .map(|r| {
+                theme
+                    .scale
+                    .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
+            })
+            .collect()
+    }
+
+    pub fn player_block_snips_masked(&self, player: u32, blocks: Vec<ColoredBlock>, lattice_spacing: u32) -> Vec<Point> {
+        let theme = &self.themes[self.current];
+        let player = &theme.player_themes[player as usize];
+        let geometry = theme.theme.geometry();
+        let sprites = theme.theme.sprites();
+
+        blocks.into_iter()
+            .flat_map(|b| {
+                if b.is_virus {
+                    sprites.virus_mask(b.color)
+                } else {
+                    sprites.garbage_mask()
+                }.lattice(geometry.point(b.position), lattice_spacing)
+            })
+            .map(|p| theme.scale.scale_and_offset_point(p, player.bottle_snip.x(), player.bottle_snip.y()))
+            .collect()
     }
 
     pub fn player_vitamin_snips(&self, player: u32, vitamins: Vitamins) -> [Rect; 2] {

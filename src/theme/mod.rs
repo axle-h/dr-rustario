@@ -27,6 +27,7 @@ pub mod n64;
 pub mod animation;
 pub mod modern;
 pub mod helper;
+pub mod block_mask;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {

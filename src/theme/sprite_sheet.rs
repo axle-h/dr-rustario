@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use sdl2::image::LoadTexture;
-use sdl2::pixels::Color;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
@@ -11,6 +11,7 @@ use crate::game::Game;
 use crate::game::geometry::{BottlePoint, Rotation};
 use crate::game::pill::{PillShape, VirusColor, VitaminOrdinal};
 use crate::theme::animation::{AnimationSpriteSheet, AnimationSpriteSheetData};
+use crate::theme::block_mask::BlockMask;
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::helper::TextureFactory;
 
@@ -415,7 +416,11 @@ pub struct VitaminSpriteSheet<'a> {
     dr_throw: AnimationSpriteSheet<'a>,
     dr_game_over: AnimationSpriteSheet<'a>,
     dr_victory: AnimationSpriteSheet<'a>,
-    dr_idle: AnimationSpriteSheet<'a>
+    dr_idle: AnimationSpriteSheet<'a>,
+    garbage_mask: BlockMask,
+    yellow_virus_mask: BlockMask,
+    red_virus_mask: BlockMask,
+    blue_virus_mask: BlockMask,
 }
 
 impl<'a> VitaminSpriteSheet<'a> {
@@ -432,26 +437,25 @@ impl<'a> VitaminSpriteSheet<'a> {
         let blue_blocks = data.target_snips(VirusColor::Blue, (yellow_blocks.height + red_blocks.height) as i32, block_size);
         let width = yellow_blocks.width.max(red_blocks.width).max(blue_blocks.width);
         let height = yellow_blocks.height + red_blocks.height + blue_blocks.height;
-        let mut texture = texture_creator
-            .create_texture_target(None, width, height)
-            .map_err(|e| e.to_string())?;
-        texture.set_blend_mode(BlendMode::Blend);
+        let mut texture = texture_creator.create_texture_target_blended(width, height)?;
 
         scale_blocks(canvas, &data, &sprite_src, &mut texture, &yellow_blocks)?;
         scale_blocks(canvas, &data, &sprite_src, &mut texture, &red_blocks)?;
         scale_blocks(canvas, &data, &sprite_src, &mut texture, &blue_blocks)?;
 
-        let yellow_animations = data.block_animations(canvas, texture_creator, VirusColor::Yellow, block_size)?;
-        let red_animations = data.block_animations(canvas, texture_creator, VirusColor::Red, block_size)?;
-        let blue_animations = data.block_animations(canvas, texture_creator, VirusColor::Blue, block_size)?;
+        let mut yellow_animations = data.block_animations(canvas, texture_creator, VirusColor::Yellow, block_size)?;
+        let mut red_animations = data.block_animations(canvas, texture_creator, VirusColor::Red, block_size)?;
+        let mut blue_animations = data.block_animations(canvas, texture_creator, VirusColor::Blue, block_size)?;
+
+        let garbage_mask = BlockMask::from_texture(canvas, &mut texture, red_blocks.garbage)?;
+        let yellow_virus_mask = yellow_animations.virus_idle.block_mask(canvas, 0)?;
+        let red_virus_mask = red_animations.virus_idle.block_mask(canvas, 0)?;
+        let blue_virus_mask = blue_animations.virus_idle.block_mask(canvas, 0)?;
 
         let mut alpha_textures = HashMap::new();
         for i in 0..0xff / ALPHA_STRIDE {
             let alpha_mod = i * ALPHA_STRIDE;
-            let mut alpha_texture = texture_creator
-                .create_texture_target(None, width, height)
-                .map_err(|e| e.to_string())?;
-            alpha_texture.set_blend_mode(BlendMode::Blend);
+            let mut alpha_texture = texture_creator.create_texture_target_blended(width, height)?;
             alpha_texture.set_alpha_mod(alpha_mod);
             canvas
                 .with_texture_canvas(&mut alpha_texture, |c| {
@@ -464,9 +468,7 @@ impl<'a> VitaminSpriteSheet<'a> {
 
         let pills = data.pill_target_snips(block_size);
         let mut pill_texture = texture_creator
-            .create_texture_target(None, pills.width, pills.height)
-            .map_err(|e| e.to_string())?;
-        pill_texture.set_blend_mode(BlendMode::Blend);
+            .create_texture_target_blended(pills.width, pills.height)?;
         scale_pills(canvas, &data, &sprite_src, &mut pill_texture, &pills)?;
 
         let dr_throw = data.dr(canvas, texture_creator, DrType::Throw)?;
@@ -490,7 +492,11 @@ impl<'a> VitaminSpriteSheet<'a> {
             dr_throw,
             dr_game_over,
             dr_victory,
-            dr_idle
+            dr_idle,
+            garbage_mask,
+            yellow_virus_mask,
+            red_virus_mask,
+            blue_virus_mask
         })
     }
 
@@ -504,6 +510,18 @@ impl<'a> VitaminSpriteSheet<'a> {
 
     pub fn virus_pop_frames(&self) -> usize {
         self.red_animations.virus_pop.frame_count()
+    }
+
+    pub fn garbage_mask(&self) -> &BlockMask {
+        &self.garbage_mask
+    }
+
+    pub fn virus_mask(&self, color: VirusColor) -> &BlockMask {
+        match color {
+            VirusColor::Yellow => &self.yellow_virus_mask,
+            VirusColor::Blue => &self.blue_virus_mask,
+            VirusColor::Red => &self.red_virus_mask
+        }
     }
 
     pub fn dr_sprites(&self, dr_type: DrType) -> &AnimationSpriteSheet {

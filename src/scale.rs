@@ -1,4 +1,4 @@
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use std::cmp::min;
 
 const PLAYER_BUFFER_PCT: f64 = 0.002;
@@ -66,6 +66,13 @@ impl Scale {
             rect.y * self.scale as i32 + offset_y,
             rect.width() * self.scale,
             rect.height() * self.scale,
+        )
+    }
+
+    pub fn scale_and_offset_point(&self, point: Point, offset_x: i32, offset_y: i32) -> Point {
+        Point::new(
+            point.x * self.scale as i32 + offset_x,
+            point.y * self.scale as i32 + offset_y
         )
     }
 

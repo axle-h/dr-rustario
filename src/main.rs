@@ -680,6 +680,10 @@ impl DrRustario {
             if let Some(winner) = fixture.check_for_winning_player() {
                 if fixture.maybe_set_game_over() {
                     themes.animate_victory(winner);
+                    let event = GameEvent::Victory { player: winner };
+                    if let Some(emit) = themes.theme().scene(self.game_config.speed()).emit_particles(event) {
+                        to_emit_particles.push(emit);
+                    }
                     for pid in 0..self.game_config.players() {
                         if pid != winner {
                             themes.animate_game_over(pid);

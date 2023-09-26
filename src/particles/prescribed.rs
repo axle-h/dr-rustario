@@ -17,11 +17,15 @@ use crate::theme::n64::BLOCK_SIZE as N64_BLOCK_SIZE;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
-use crate::game::pill::Vitamins;
+use crate::game::event::ColoredBlock;
+use crate::game::pill::{Garbage, Vitamins};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlayerParticleTarget {
     Vitamins(Vitamins),
+    Blocks(Vec<ColoredBlock>),
+    Garbage(Vec<Garbage>),
+    MaskedBlocks(Vec<ColoredBlock>),
     Bottle,
 }
 
@@ -45,6 +49,30 @@ impl PrescribedParticles {
             player,
             target,
             particles: self,
+        }
+    }
+
+    pub fn into_lattice_source<I: Iterator<Item = Point>>(self, scale: &Scale, lattice: I) -> Box<dyn ParticleSource> {
+        match self {
+            PrescribedParticles::FadeInLatticeBurstAndFall { fade_in, color } => {
+                RandomParticleSource::new(
+                    scale.build_lattice(lattice),
+                    ParticleModulation::Cascade,
+                )
+                    .with_static_properties(
+                        ParticleSprite::Circle05,
+                        ParticleColor::from_sdl(color),
+                        1.0,
+                        0.0,
+                    )
+                    .with_velocity((Vec2D::new(0.0, -0.4), Vec2D::new(0.1, 0.1)))
+                    .with_acceleration(Vec2D::new(0.0, 1.5)) // gravity
+                    .with_anchor(fade_in)
+                    .with_fade_in(fade_in)
+                    .with_alpha((0.9, 0.1))
+                    .into_box()
+            }
+            _ => todo!()
         }
     }
 
@@ -302,7 +330,7 @@ fn perimeter_sources(scale: &Scale, rect: Rect, color: ParticleColor) -> [Random
     ]
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayerTargetedParticles {
     player: u32,
     target: PlayerParticleTarget,
@@ -316,10 +344,20 @@ impl PlayerTargetedParticles {
         particle_scale: &Scale,
     ) -> Box<dyn ParticleSource> {
         let target_rects = match self.target {
+            PlayerParticleTarget::Bottle => vec![themes.player_bottle_snip(self.player)],
             PlayerParticleTarget::Vitamins(vitamins) => {
                 themes.player_vitamin_snips(self.player, vitamins).to_vec()
             }
-            PlayerParticleTarget::Bottle => vec![themes.player_bottle_snip(self.player)],
+            PlayerParticleTarget::Blocks(blocks) => {
+                themes.player_block_snips(self.player, blocks.into_iter().map(|b| b.position).collect())
+            }
+            PlayerParticleTarget::MaskedBlocks(blocks) => {
+                let points = themes.player_block_snips_masked(self.player, blocks, 5);
+                return self.particles.into_lattice_source(particle_scale, points.into_iter())
+            }
+            PlayerParticleTarget::Garbage(garbage) => {
+                themes.player_block_snips(self.player, garbage.into_iter().map(|g| g.position).collect())
+            }
         };
 
         self.particles
