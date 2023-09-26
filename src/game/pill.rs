@@ -58,6 +58,10 @@ pub struct PillShape {
     right_color: VirusColor
 }
 
+impl Default for PillShape {
+    fn default() -> Self { Self::RB }
+}
+
 impl PillShape {
     pub const fn new(left_color: VirusColor, right_color: VirusColor) -> Self {
         Self { left_color, right_color }

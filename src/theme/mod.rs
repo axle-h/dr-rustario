@@ -86,12 +86,16 @@ pub struct Theme<'a> {
     peek_point: Point,
     peek_max: u32,
     peek_offset: i32,
-    peek_scale: Option<f64>,
+    peek_scale: Option<f64>
 }
 
 impl<'a> Theme<'a> {
     pub fn name(&self) -> ThemeName {
         self.name
+    }
+
+    pub fn sprites(&self) -> &VitaminSpriteSheet<'a> {
+        &self.sprites
     }
 
     pub fn scene(&self, speed: GameSpeed) -> &SceneRender<'a> {

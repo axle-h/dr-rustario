@@ -20,13 +20,13 @@ use crate::theme::font::{FontRender, FontTheme, MetricSnips, ThemedNumeric};
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::helper::{TextureFactory, TextureQuery};
 use crate::theme::modern::game_metrics::GameMetricsTable;
-use crate::theme::n64::n64_audio;
 use crate::theme::scene::SceneType;
+use crate::theme::sound::AudioTheme;
 use crate::theme::sprite_sheet::{BlockAnimationsData, BlockPoints, DrType, pills, VitaminSpriteSheet, VitaminSpriteSheetData};
 
 mod game_metrics;
 
-mod sprites {
+pub mod sprites {
     // vitamins
     pub const VITAMINS: &[u8] = include_bytes!("vitamins-min.png");
     pub const SRC_BLOCK_SIZE: u32 = 100; // TODO I have this upto 400 does it look any nicer?
@@ -45,6 +45,27 @@ mod sprites {
     pub const DR_GAME_OVER: &[u8] = include_bytes!("dr/game-over-min.png");
     pub const DR_VICTORY: &[u8] = include_bytes!("dr/victory-min.png");
     pub const SRC_DR_WIDTH: u32 = 478;
+}
+
+mod sound {
+    pub const DESTROY_VIRUS: &[u8] = include_bytes!("destroy-virus.ogg");
+    pub const DESTROY_VIRUS_COMBO: &[u8] = include_bytes!("destroy-virus-combo.ogg");
+    pub const DESTROY_VITAMIN: &[u8] = include_bytes!("destroy-vitamin.ogg");
+    pub const DESTROY_VITAMIN_COMBO: &[u8] = include_bytes!("destroy-vitamin-combo.ogg");
+    pub const DROP: &[u8] = include_bytes!("drop.ogg");
+    pub const FEVER_INTRO: &[u8] = include_bytes!("fever-intro.ogg");
+    pub const FEVER_REPEAT: &[u8] = include_bytes!("fever-repeat.ogg");
+    pub const FEVER_NEXT_LEVEL_INTRO: &[u8] = include_bytes!("fever-next-level-intro.ogg");
+    pub const FEVER_NEXT_LEVEL_REPEAT: &[u8] = include_bytes!("fever-next-level-repeat.ogg");
+    pub const GAME_OVER: &[u8] = include_bytes!("game-over.ogg");
+    pub const RECEIVE_GARBAGE: &[u8] = include_bytes!("garbage.ogg");
+    pub const HARD_DROP: &[u8] = include_bytes!("hard-drop.ogg");
+    pub const MOVE_PILL: &[u8] = include_bytes!("move.ogg");
+    pub const NEXT_LEVEL_JINGLE: &[u8] = include_bytes!("next-level-jingle.ogg");
+    pub const PAUSE: &[u8] = include_bytes!("pause.ogg");
+    pub const ROTATE: &[u8] = include_bytes!("rotate.ogg");
+    pub const SPEED_LEVEL_UP: &[u8] = include_bytes!("speed-level-up.ogg");
+    pub const VICTORY: &[u8] = include_bytes!("victory.ogg");
 }
 
 const BOTTLE_TOP_BUFFER_PCT: f64 = 0.15;
@@ -310,14 +331,25 @@ pub fn modern_theme<'a>(
         ThemedNumeric::new(0, virus_count_snips)
     );
 
+    let audio = AudioTheme::new(
+        config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
+        sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
+        sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, sound::HARD_DROP
+    )?
+        .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
+        .with_game_over_music(sound::GAME_OVER, None)?
+        .with_next_level_music(sound::FEVER_NEXT_LEVEL_INTRO, sound::FEVER_NEXT_LEVEL_REPEAT)?
+        .with_victory_music(sound::VICTORY, None)?;
+
+    let scene_type = SceneType::Particles { base_color: Color::WHITE };
     Ok(Theme {
         name: ThemeName::Modern,
-        scene_low: SceneType::Particles.build(canvas, texture_creator)?,
-        scene_medium: SceneType::Particles.build(canvas, texture_creator)?,
-        scene_high: SceneType::Particles.build(canvas, texture_creator)?,
+        scene_low: scene_type.build(canvas, texture_creator)?,
+        scene_medium: scene_type.build(canvas, texture_creator)?,
+        scene_high: scene_type.build(canvas, texture_creator)?,
         sprites,
         geometry,
-        audio: n64_audio(config.audio)?,
+        audio,
         font: font_theme,
         bottles_texture: bottle_texture,
         bottle_low_snip: bottle_snip,

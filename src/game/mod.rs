@@ -463,6 +463,7 @@ impl Game {
 
     fn spawn_shape(&mut self, shape: PillShape, is_hold: bool) -> GameState {
         if self.bottle.try_spawn(shape).is_some() {
+
             self.events.push(
                 GameEvent::Spawn { player: self.player, shape, is_hold }
             );

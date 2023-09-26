@@ -53,7 +53,7 @@ mod sound {
     pub const NEXT_LEVEL_JINGLE: &[u8] = include_bytes!("next-level-jingle.ogg");
 }
 
-const BLOCK_SIZE: u32 = 7;
+pub const BLOCK_SIZE: u32 = 7;
 
 // 2 block wide + 2 outside borders + 1 inside border
 const PILL_WIDTH: u32 = BLOCK_SIZE * 2 + 3;
@@ -130,7 +130,7 @@ pub fn nes_theme<'a>(
         audio: AudioTheme::new(
             config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
             sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
-            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE
+            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, None
             )?
             .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
             .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?

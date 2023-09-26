@@ -52,7 +52,7 @@ mod sound {
     pub const NEXT_LEVEL_JINGLE: &[u8] = include_bytes!("next-level-jingle.ogg");
 }
 
-const BLOCK_SIZE: u32 = 10;
+pub const BLOCK_SIZE: u32 = 10;
 
 fn block(i: i32, j: i32) -> Point {
     Point::new(i * BLOCK_SIZE as i32, j * BLOCK_SIZE as i32)
@@ -82,17 +82,6 @@ fn match_end(i: i32, j: i32) -> Point {
     Point::new(i * 65 + 1, j * 129 + 1)
 }
 
-pub fn n64_audio(config: AudioConfig) -> Result<AudioTheme, String>  {
-    AudioTheme::new(
-        config, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
-        sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
-        sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE
-    )?
-        .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
-        .with_game_over_music(sound::GAME_OVER, None)?
-        .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
-        .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)
-}
 
 pub fn n64_theme<'a>(
     canvas: &mut WindowCanvas,
@@ -135,7 +124,15 @@ pub fn n64_theme<'a>(
             None
         ),
         geometry: BottleGeometry::new(BLOCK_SIZE, 0, (8, 41)),
-        audio: n64_audio(config.audio)?,
+        audio: AudioTheme::new(
+            config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
+            sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
+            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, None
+        )?
+            .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
+            .with_game_over_music(sound::GAME_OVER, None)?
+            .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
+            .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::new(
             vec![
                 FontRenderOptions::numeric_sprites(sprites::FONT_SMALL, texture_creator, 1)?,

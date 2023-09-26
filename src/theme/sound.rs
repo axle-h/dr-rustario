@@ -114,11 +114,12 @@ pub struct AudioTheme {
     paused: Chunk,
     speed_level_up: Chunk,
     receive_garbage: Chunk,
-    next_level_jingle: Chunk
+    next_level_jingle: Chunk,
+    hard_drop: Option<Chunk>
 }
 
 impl AudioTheme {
-    pub fn new(
+    pub fn new<H : Into<Option<&'static [u8]>>>(
         config: AudioConfig,
         pill_move: &[u8],
         rotate: &[u8],
@@ -130,7 +131,8 @@ impl AudioTheme {
         paused: &[u8],
         speed_level_up: &[u8],
         receive_garbage: &[u8],
-        next_level_jingle: &[u8]
+        next_level_jingle: &[u8],
+        hard_drop: H
     ) -> Result<Self, String> {
         let mut next_level_jingle = config.load_chunk(next_level_jingle)?;
         next_level_jingle.set_volume(next_level_jingle.get_volume() / 2);
@@ -150,7 +152,8 @@ impl AudioTheme {
             paused: config.load_chunk(paused)?,
             speed_level_up: config.load_chunk(speed_level_up)?,
             receive_garbage: config.load_chunk(receive_garbage)?,
-            next_level_jingle
+            next_level_jingle,
+            hard_drop: hard_drop.into().map(|c| config.load_chunk(c).unwrap())
         })
     }
 
@@ -177,8 +180,12 @@ impl AudioTheme {
         Ok(self)
     }
 
-    pub fn with_victory_music(mut self, intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
-        self.victory_music = Some(StructuredMusic::new(intro, repeating)?.into_rc());
+    pub fn with_victory_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+        if let Some(repeating) = repeating.into() {
+            self.victory_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
+        } else {
+            self.victory_music = Some(StructuredMusic::once(music)?.into_rc());
+        }
         Ok(self)
     }
 
@@ -216,6 +223,7 @@ impl AudioTheme {
             GameEvent::Move => self.move_pill.play(),
             GameEvent::Rotate => self.rotate.play(),
             GameEvent::Lock { .. } | GameEvent::DropGarbage => self.drop.play(),
+            GameEvent::HardDrop { .. } => self.hard_drop.as_ref().map(|c| c.play()).unwrap_or(Ok(())),
             GameEvent::Destroy { blocks, is_combo, .. } => {
                 if blocks.iter().any(|b| b.is_virus) {
                     if is_combo {

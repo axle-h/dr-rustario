@@ -427,4 +427,21 @@ impl<'a> ThemeContext<'a> {
 
         Ok(())
     }
+
+    pub fn player_vitamin_snips(&self, player: u32, vitamins: Vitamins) -> [Rect; 2] {
+        let theme = &self.themes[self.current];
+        let player = &theme.player_themes[player as usize];
+        let geometry = theme.theme.geometry();
+        vitamins
+            .map(|v| geometry.raw_block(v.position()))
+            .map(|r| {
+                theme
+                    .scale
+                    .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
+            })
+    }
+
+    pub fn render_scene_particles(&self) -> bool {
+        self.current().theme.scene(GameSpeed::Low).is_particles()
+    }
 }

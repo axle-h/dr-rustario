@@ -12,6 +12,7 @@ use crate::game::geometry::{BottlePoint, Rotation};
 use crate::game::pill::{PillShape, VirusColor, VitaminOrdinal};
 use crate::theme::animation::{AnimationSpriteSheet, AnimationSpriteSheetData};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::helper::TextureFactory;
 
 const ALPHA_STRIDE: u8 = 4;
 
@@ -191,6 +192,21 @@ pub fn pills(
         (PillShape::RR, rr.into_rect(w, h)), (PillShape::RY, ry.into_rect(w, h)), (PillShape::RB, rb.into_rect(w, h)),
     ])
 }
+
+pub struct FlatVitaminSpriteSheet<'a> {
+    texture: Texture<'a>,
+    snips: HashMap<PillShape, Rect>,
+}
+
+impl<'a> FlatVitaminSpriteSheet<'a> {
+    pub fn texture(&self) -> &Texture<'a> {
+        &self.texture
+    }
+    pub fn snip(&self, shape: PillShape) -> Rect {
+        self.snips[&shape]
+    }
+}
+
 
 pub struct VitaminSpriteSheetData {
     file: &'static [u8],
@@ -666,6 +682,21 @@ impl<'a> VitaminSpriteSheet<'a> {
         } else {
             self.alpha_textures.get(&alpha_stride(alpha_mod)).unwrap()
         }
+    }
+
+    pub fn flatten<'b>(
+        &self,
+        canvas: &mut WindowCanvas,
+        texture_creator: &'b TextureCreator<WindowContext>
+    ) -> Result<FlatVitaminSpriteSheet<'b>, String> {
+        let mut texture = texture_creator.create_texture_target_blended(self.pills.width, self.pills.height)?;
+        canvas
+            .with_texture_canvas(&mut texture, |c| {
+                c.copy(&self.pill_texture, None, None).unwrap()
+            })
+            .map_err(|e| e.to_string())?;
+
+        Ok(FlatVitaminSpriteSheet { texture, snips: self.pills.shapes.clone() })
     }
 }
 

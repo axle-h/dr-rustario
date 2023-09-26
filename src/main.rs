@@ -6,6 +6,7 @@ use sdl2::sys::mixer::MIX_CHANNELS;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::{AudioSubsystem, EventPump, Sdl};
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use sdl2::ttf::Sdl2TtfContext;
 use crate::build_info::{APP_NAME, nice_app_name};
 use crate::config::{Config, VideoMode};
@@ -22,6 +23,10 @@ use crate::icon::app_icon;
 use crate::menu::{Menu, MenuAction, MenuItem};
 use crate::menu::sound::MenuSound;
 use crate::menu_input::{MenuInputContext, MenuInputKey};
+use crate::particles::Particles;
+use crate::particles::prescribed::{PlayerTargetedParticles, prescribed_fireworks, prescribed_orbit, prescribed_vitamin_race};
+use crate::particles::render::ParticleRender;
+use crate::particles::source::ParticleSource;
 use crate::player::{Match, MatchState};
 use crate::theme::all::AllThemes;
 use crate::theme::pause::PausedScreen;
@@ -42,8 +47,11 @@ mod animate;
 mod font;
 mod menu;
 mod icon;
+mod particles;
 
 const MAX_PLAYERS: u32 = 2;
+const MAX_PARTICLES_PER_PLAYER: usize = 100000;
+const MAX_BACKGROUND_PARTICLES: usize = 100000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MainMenuAction {
@@ -69,7 +77,8 @@ struct DrRustario {
     event_pump: EventPump,
     _audio: AudioSubsystem,
     menu_sound: MenuSound,
-    game_config: GameConfig
+    game_config: GameConfig,
+    particle_scale: particles::scale::Scale,
 }
 
 impl DrRustario {
@@ -147,11 +156,36 @@ impl DrRustario {
             event_pump,
             _audio: audio,
             menu_sound,
-            game_config: Default::default()
+            game_config: Default::default(),
+            particle_scale: particles::scale::Scale::new((width, height)),
         })
     }
 
-    pub fn title_menu(&mut self) -> Result<MainMenuAction, String> {
+    fn vitamin_race_particle_source(&self) -> Box<dyn ParticleSource> {
+        let (window_width, window_height) = self.canvas.window().size();
+        prescribed_vitamin_race(
+            Rect::new(0, 0, window_width, window_height),
+            &self.particle_scale,
+        )
+    }
+
+    fn fireworks_particle_source(&self) -> Box<dyn ParticleSource> {
+        let (window_width, window_height) = self.canvas.window().size();
+        prescribed_fireworks(
+            Rect::new(0, 0, window_width, window_height),
+            &self.particle_scale,
+        )
+    }
+
+    fn orbit_particle_source(&self) -> Box<dyn ParticleSource> {
+        let (window_width, window_height) = self.canvas.window().size();
+        prescribed_orbit(
+            Rect::new(0, 0, window_width, window_height),
+            &self.particle_scale,
+        )
+    }
+
+    pub fn title_menu(&mut self, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
         const PLAYERS: &str = "players";
         const HIGH_SCORES: &str = "high scores";
         const START: &str = "start";
@@ -176,6 +210,9 @@ impl DrRustario {
             nice_app_name(),
             None
         )?;
+
+        particles.clear();
+        particles.add_source(self.vitamin_race_particle_source());
 
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_title_music()?;
@@ -209,6 +246,10 @@ impl DrRustario {
             self.canvas.set_draw_color(Color::BLACK);
             self.canvas.clear();
 
+            // particles
+            particles.update(delta);
+            particles.draw(&mut self.canvas)?;
+
             // menu
             menu.draw(&mut self.canvas)?;
 
@@ -216,7 +257,7 @@ impl DrRustario {
         }
     }
 
-    pub fn main_menu(&mut self) -> Result<MainMenuAction, String> {
+    pub fn main_menu(&mut self, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
         const THEMES: &str = "themes";
         const MODE: &str = "mode";
         const LEVEL: &str = "level";
@@ -271,6 +312,9 @@ impl DrRustario {
             Some(subtitle)
         )?;
 
+        particles.clear();
+        particles.add_source(self.vitamin_race_particle_source());
+
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_menu_music()?;
         loop {
@@ -305,6 +349,10 @@ impl DrRustario {
             self.canvas.set_draw_color(Color::BLACK);
             self.canvas.clear();
 
+            // particles
+            particles.update(delta);
+            particles.draw(&mut self.canvas)?;
+
             // menu
             menu.draw(&mut self.canvas)?;
 
@@ -312,7 +360,7 @@ impl DrRustario {
         }
     }
 
-    pub fn view_high_score(&mut self) -> Result<(), String> {
+    pub fn view_high_score(&mut self, particles: &mut ParticleRender) -> Result<(), String> {
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
         let high_scores = HighScoreTable::load()?;
@@ -328,11 +376,13 @@ impl DrRustario {
             None,
         )?;
 
+        particles.clear();
+        particles.add_source(self.fireworks_particle_source());
+
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_high_score_music()?;
         'menu: loop {
             let delta = frame_rate.update()?;
-
             let events = inputs.parse(self.event_pump.poll_iter());
             if !events.is_empty() {
                 // any button press
@@ -341,6 +391,10 @@ impl DrRustario {
             self.canvas.set_draw_color(Color::BLACK);
             self.canvas.clear();
 
+            // particles
+            particles.update(delta);
+            particles.draw(&mut self.canvas)?;
+
             view.draw(&mut self.canvas)?;
 
             self.canvas.present();
@@ -348,7 +402,7 @@ impl DrRustario {
         Ok(())
     }
 
-    pub fn new_high_score(&mut self, new_high_score: NewHighScore) -> Result<(), String> {
+    pub fn new_high_score(&mut self, new_high_score: NewHighScore, particles: &mut ParticleRender) -> Result<(), String> {
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
         let high_scores = HighScoreTable::load()?;
@@ -363,6 +417,9 @@ impl DrRustario {
             self.canvas.window().size(),
             Some(new_high_score),
         )?;
+
+        particles.clear();
+        particles.add_source(self.fireworks_particle_source());
 
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_high_score_music()?;
@@ -391,6 +448,10 @@ impl DrRustario {
             self.canvas.set_draw_color(Color::BLACK);
             self.canvas.clear();
 
+            // particles
+            particles.update(delta);
+            particles.draw(&mut self.canvas)?;
+
             table.draw(&mut self.canvas)?;
 
             self.canvas.present();
@@ -407,7 +468,9 @@ impl DrRustario {
 
     pub fn game(
         &mut self,
-        all_themes: &AllThemes
+        all_themes: &AllThemes,
+        fg_particles: &mut ParticleRender,
+        bg_particles: &mut ParticleRender
     ) -> Result<PostGameAction, String> {
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
@@ -444,6 +507,10 @@ impl DrRustario {
             themes.animate_next_level(player, viruses.as_slice());
         }
 
+        fg_particles.clear();
+        bg_particles.clear();
+        bg_particles.add_source(self.orbit_particle_source());
+
         themes.theme().audio().play_game_music()?;
 
         let mut max_virus_level = self.game_config.virus_level();
@@ -451,6 +518,8 @@ impl DrRustario {
         loop {
             let delta = frame_rate.update()?;
             fixture.unset_flags();
+
+            let mut to_emit_particles: Vec<PlayerTargetedParticles> = vec![];
 
             let mut events = vec![];
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
@@ -551,6 +620,9 @@ impl DrRustario {
             // post-update events
             for event in events {
                 themes.theme().audio().receive_event(event.clone())?;
+                if let Some(emit) = themes.theme().scene(self.game_config.speed()).emit_particles(event.clone()) {
+                    to_emit_particles.push(emit);
+                }
                 match event {
                     GameEvent::LevelComplete { player } => {
                         if fixture.next_level_ends_match(player) {
@@ -590,7 +662,7 @@ impl DrRustario {
                         }
                         themes.animate_lock(player, vitamins);
                     }
-                    GameEvent::Spawn { player, shape, is_hold } => {
+                    GameEvent::Spawn { player, shape, is_hold, .. } => {
                         themes.animate_spawn(player, shape, is_hold);
                     },
                     GameEvent::NextTheme => {
@@ -622,12 +694,29 @@ impl DrRustario {
                 themes.update(delta);
             }
 
+            // update particles
+            if !fixture.state().is_paused() {
+                fg_particles.update(delta);
+
+                if themes.render_scene_particles() {
+                    bg_particles.update(delta);
+                }
+            }
+            for emit in to_emit_particles.into_iter() {
+                fg_particles.add_source(emit.into_source(&themes, &self.particle_scale));
+            }
+
             // clear
             self.canvas.set_draw_color(Color::BLACK); // TODO
             self.canvas.clear();
 
             // draw scene
             themes.draw_scene(&mut self.canvas, self.game_config.speed())?;
+
+            // draw bg particles
+            if themes.render_scene_particles() {
+                bg_particles.draw(&mut self.canvas)?;
+            }
 
             // draw the game
             self.canvas
@@ -657,6 +746,9 @@ impl DrRustario {
 
             themes.draw_players(&mut self.canvas, &mut texture_refs, delta)?;
 
+            // fg particles
+            fg_particles.draw(&mut self.canvas)?;
+
             if fixture.state().is_paused() {
                 paused_screen.draw(&mut self.canvas)?;
             }
@@ -676,14 +768,30 @@ fn main() -> Result<(), String> {
         dr_rustario.config,
     )?;
 
+    let mut fg_particles = ParticleRender::new(
+        &mut dr_rustario.canvas,
+        Particles::new(MAX_PARTICLES_PER_PLAYER * MAX_PLAYERS as usize),
+        &texture_creator,
+        dr_rustario.particle_scale,
+        vec![],
+    )?;
+
+    let mut bg_particles = ParticleRender::new(
+        &mut dr_rustario.canvas,
+        Particles::new(MAX_BACKGROUND_PARTICLES),
+        &texture_creator,
+        dr_rustario.particle_scale,
+        all_themes.all(),
+    )?;
+
     'title: loop {
-        match dr_rustario.title_menu()? {
+        match dr_rustario.title_menu(&mut bg_particles)? {
             MainMenuAction::Start => {
                 'select: loop {
-                    match dr_rustario.main_menu()? {
+                    match dr_rustario.main_menu(&mut bg_particles)? {
                         MainMenuAction::Start => {
-                            match dr_rustario.game(&all_themes)? {
-                                PostGameAction::NewHighScore(high_score) => dr_rustario.new_high_score(high_score)?,
+                            match dr_rustario.game(&all_themes, &mut fg_particles, &mut bg_particles)? {
+                                PostGameAction::NewHighScore(high_score) => dr_rustario.new_high_score(high_score, &mut bg_particles)?,
                                 PostGameAction::ReturnToMenu => (),
                                 PostGameAction::Quit => return Ok(()),
                             }
@@ -694,7 +802,7 @@ fn main() -> Result<(), String> {
                     }
                 }
             }
-            MainMenuAction::ViewHighScores => dr_rustario.view_high_score()?,
+            MainMenuAction::ViewHighScores => dr_rustario.view_high_score(&mut bg_particles)?,
             MainMenuAction::Back => break 'title,
             MainMenuAction::Quit => return Ok(())
         }

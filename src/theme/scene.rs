@@ -3,11 +3,13 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
+use crate::game::event::GameEvent;
+use crate::particles::prescribed::{PlayerParticleTarget, PlayerTargetedParticles, PrescribedParticles};
 use crate::scale::Scale;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneType {
-    Particles,
+    Particles { base_color: Color },
     Checkerboard { width: u32, height: u32, colors: [Color; 2] },
     Tile { texture: &'static [u8] }
 }
@@ -49,8 +51,8 @@ impl<'a> SceneRender<'a> {
                 texture
             }
             SceneType::Tile { texture } => texture_creator.load_texture_bytes(texture)?,
-            // TODO build background particles
-            SceneType::Particles => texture_creator.create_texture_target(None, 1, 1)
+            // TODO this is dirty
+            SceneType::Particles { .. } => texture_creator.create_texture_target(None, 1, 1)
                 .map_err(|e| e.to_string())?
         };
 
@@ -58,8 +60,27 @@ impl<'a> SceneRender<'a> {
         Ok(Self { scene_type, texture, rect_0: Rect::new(0, 0, query.width, query.height) })
     }
 
+    pub fn is_particles(&self) -> bool {
+        matches!(self.scene_type, SceneType::Particles { .. })
+    }
+
+    pub fn emit_particles(&self, event: GameEvent) -> Option<PlayerTargetedParticles> {
+        if let SceneType::Particles { base_color } = self.scene_type {
+            match event {
+                GameEvent::HardDrop { player, vitamins, .. } => {
+                    let target = PlayerParticleTarget::Vitamins(vitamins);
+                    let particles = PrescribedParticles::BurstUp { color: base_color };
+                    Some(particles.into_targeted(player, target))
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn draw(&self, canvas: &mut WindowCanvas, scale: &Scale) -> Result<(), String> {
-        if self.scene_type == SceneType::Particles {
+        if self.is_particles() {
             return Ok(());
         }
 
