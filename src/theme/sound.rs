@@ -33,6 +33,14 @@ impl StructuredMusic {
         })
     }
 
+    pub fn repeat(repeating: &'static [u8]) -> Result<Self, String> {
+        Ok(Self {
+            intro: None,
+            repeating: Music::from_static_bytes(repeating)?,
+            loops: -1
+        })
+    }
+
     pub fn into_rc(self) -> Rc<Self> {
         Rc::new(self)
     }
@@ -184,7 +192,7 @@ impl AudioTheme {
         if let Some(repeating) = repeating.into() {
             self.victory_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
         } else {
-            self.victory_music = Some(StructuredMusic::once(music)?.into_rc());
+            self.victory_music = Some(StructuredMusic::repeat(music)?.into_rc());
         }
         Ok(self)
     }

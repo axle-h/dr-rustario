@@ -82,4 +82,3 @@ There are no default player 2 controls.
 
 ## TODO
 * lint
-* modern menu music?

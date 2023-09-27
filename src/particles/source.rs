@@ -21,6 +21,8 @@ pub enum ParticlePositionSource {
     Rect(RectF),
 
     Lattice(Vec<Vec2D>),
+
+    EphemeralLattice(Vec<Vec2D>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,6 +124,7 @@ pub struct RandomParticleSource {
     alpha: VariableQuantity<f64>,
     orbit: Option<Vec2D>,
     properties: ProbabilityTable<ParticleProperties>,
+    emitted: u32
 }
 
 impl ParticleSource for RandomParticleSource {
@@ -133,10 +136,11 @@ impl ParticleSource for RandomParticleSource {
         if self.state == ParticleSourceState::Complete {
             return vec![];
         }
+        let mut limit_emitted: Option<u32> = None;
         let emit_particles = match self.modulation {
             ParticleModulation::Cascade => self.cascade(max_particles),
             ParticleModulation::CascadeLimit { count } => self.cascade(count),
-            ParticleModulation::Constant { count, step } => self.constant(count, step, delta_time),
+            ParticleModulation::Constant { count, step } => self.constant(count, step, delta_time)
         }
         .min(max_particles);
 
@@ -144,7 +148,14 @@ impl ParticleSource for RandomParticleSource {
             return vec![];
         }
 
-        let particles = match &self.position_source {
+        let particles: Vec<Particle> = match &mut self.position_source {
+            ParticlePositionSource::EphemeralLattice(points) => {
+                let new_length = points.len() - (emit_particles as usize).min(points.len());
+                if new_length == 0 {
+                    self.state = ParticleSourceState::Complete;
+                }
+                points.drain(new_length..).collect::<Vec<Vec2D>>()
+            },
             ParticlePositionSource::Lattice(points) => points
                 .iter()
                 .take(emit_particles as usize)
@@ -187,6 +198,7 @@ impl RandomParticleSource {
             alpha: VariableQuantity::new(1.0, 0.0),
             orbit: None,
             properties: ProbabilityTable::identity(ParticleProperties::default()),
+            emitted: 0
         }
     }
 
@@ -223,6 +235,7 @@ impl RandomParticleSource {
                 1.0,
                 0.0,
             )),
+            emitted: 0
         }
     }
 

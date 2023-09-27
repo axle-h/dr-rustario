@@ -14,6 +14,7 @@ use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
 use crate::game::event::GameEvent;
 use crate::game::GameSpeed;
+use crate::game::random::RandomMode;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 use crate::game_input::{GameInputContext, GameInputKey};
 use crate::high_score::event::HighScoreEntryEvent;
@@ -224,10 +225,13 @@ impl DrRustario {
                 if key == MenuInputKey::Quit {
                     return Ok(MainMenuAction::Quit);
                 }
-                self.menu_sound.play_chime()?;
+
                 match menu.read_key(key) {
                     None => match key {
-                        MenuInputKey::Start => return Ok(MainMenuAction::Start),
+                        MenuInputKey::Start => {
+                            self.menu_sound.play_select()?;
+                            return Ok(MainMenuAction::Start);
+                        },
                         MenuInputKey::Back => return Ok(MainMenuAction::Back),
                         _ => {}
                     },
@@ -238,11 +242,15 @@ impl DrRustario {
                             self.game_config.set_rules(MatchRules::default_by_players(players));
                         },
                         HIGH_SCORES => return Ok(MainMenuAction::ViewHighScores),
-                        START => return Ok(MainMenuAction::Start),
+                        START => {
+                            self.menu_sound.play_select()?;
+                            return Ok(MainMenuAction::Start);
+                        },
                         QUIT => return Ok(MainMenuAction::Back),
                         _ => {}
                     },
                 }
+                self.menu_sound.play_chime()?;
             }
 
             self.canvas.set_draw_color(Color::BLACK);
@@ -264,6 +272,7 @@ impl DrRustario {
         const MODE: &str = "mode";
         const LEVEL: &str = "level";
         const SPEED: &str = "speed";
+        const RANDOM: &str = "random";
         const START: &str = "start";
         const BACK: &str = "back";
 
@@ -297,6 +306,11 @@ impl DrRustario {
                 GameSpeed::names().into_iter().map(|s| s.to_string()).collect(),
                 self.game_config.speed() as usize,
             ),
+            MenuItem::select_list(
+                RANDOM,
+                RandomMode::names().into_iter().map(|s| s.to_string()).collect(),
+                self.game_config.random() as usize,
+            ),
             MenuItem::select(START),
             MenuItem::select(BACK),
         ];
@@ -326,10 +340,12 @@ impl DrRustario {
                 if key == MenuInputKey::Quit {
                     return Ok(MainMenuAction::Quit);
                 }
-                self.menu_sound.play_chime()?;
                 match menu.read_key(key) {
                     None => match key {
-                        MenuInputKey::Start => return Ok(MainMenuAction::Start),
+                        MenuInputKey::Start => {
+                            self.menu_sound.play_select()?;
+                            return Ok(MainMenuAction::Start);
+                        },
                         MenuInputKey::Back => return Ok(MainMenuAction::Back),
                         _ => {}
                     },
@@ -341,11 +357,17 @@ impl DrRustario {
                         }
                         LEVEL => self.game_config.set_virus_level(action.parse::<u32>().unwrap()),
                         SPEED => self.game_config.set_speed(GameSpeed::from_str(action).unwrap()),
+                        RANDOM => self.game_config.set_random(RandomMode::from_str(action).unwrap()),
                         START => return Ok(MainMenuAction::Start),
-                        BACK => return Ok(MainMenuAction::Back),
+                        BACK => {
+                            self.menu_sound.play_select()?;
+                            return Ok(MainMenuAction::Back)
+                        },
                         _ => {}
                     },
                 }
+
+                self.menu_sound.play_chime()?;
             }
 
             self.canvas.set_draw_color(Color::BLACK);

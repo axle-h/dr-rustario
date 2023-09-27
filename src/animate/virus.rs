@@ -9,7 +9,6 @@ pub enum VirusAnimationType {
 
 impl VirusAnimationType {
     pub const LINEAR_STANDARD: Self = Self::Linear { fps: 3 };
-    pub const YO_YO_STANDARD: Self = Self::YoYo { fps: 3 };
 
     fn is_yo_yo(&self) -> bool {
         matches!(self, &Self::YoYo { .. })

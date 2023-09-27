@@ -1,6 +1,7 @@
 use num_format::{Locale, ToFormattedString};
 use strum::IntoEnumIterator;
 use crate::game::GameSpeed;
+use crate::game::random::RandomMode;
 
 pub const MAX_VIRUS_LEVEL: u32 = 30;
 
@@ -88,12 +89,13 @@ pub struct GameConfig {
     virus_level: u32,
     speed: GameSpeed,
     themes: MatchThemes,
-    rules: MatchRules
+    rules: MatchRules,
+    random: RandomMode
 }
 
 impl GameConfig {
-    pub fn new(players: u32, virus_level: u32, speed: GameSpeed, themes: MatchThemes, rules: MatchRules) -> Self {
-        Self { players, virus_level, speed, themes, rules }
+    pub fn new(players: u32, virus_level: u32, speed: GameSpeed, themes: MatchThemes, rules: MatchRules, random: RandomMode) -> Self {
+        Self { players, virus_level, speed, themes, rules, random }
     }
 
     pub fn players(&self) -> u32 {
@@ -120,6 +122,9 @@ impl GameConfig {
     pub fn rules(&self) -> MatchRules {
         self.rules
     }
+    pub fn random(&self) -> RandomMode {
+        self.random
+    }
 
     pub fn set_players(&mut self, players: u32) {
         self.players = players;
@@ -136,11 +141,14 @@ impl GameConfig {
     pub fn set_rules(&mut self, rules: MatchRules) {
         self.rules = rules;
     }
+    pub fn set_random(&mut self, random: RandomMode) {
+        self.random = random;
+    }
 }
 
 impl Default for GameConfig {
     fn default() -> Self {
-        Self::new(1, 0, GameSpeed::Medium, MatchThemes::All, MatchRules::Marathon)
+        Self::new(1, 0, GameSpeed::Medium, MatchThemes::All, MatchRules::Marathon, RandomMode::default())
     }
 }
 

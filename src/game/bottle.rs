@@ -258,13 +258,11 @@ impl Bottle {
 
     pub fn hard_drop(&mut self) -> Option<(u32, Vitamins)> {
         let (dropped, _) = self.dropped_vitamins()?;
+        let vitamins = self.pill?.vitamins();
         if dropped > 0 {
-            let vitamins = self.pill?.vitamins();
             self.mutate_pill(|t| t.translate(0, dropped as i32));
-            Some((dropped, vitamins))
-        } else {
-            None
         }
+        Some((dropped, vitamins))
     }
 
     pub fn lock(&mut self) -> Option<Vitamins> {

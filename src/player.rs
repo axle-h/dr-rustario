@@ -6,11 +6,9 @@ use crate::high_score::table::HighScoreTable;
 use crate::high_score::NewHighScore;
 
 use rand::{Rng, thread_rng};
-use std::time::Duration;
 use rand::prelude::ThreadRng;
 use crate::game::bottle::SendGarbage;
 use crate::game::metrics::GameMetrics;
-use crate::game::pill::VirusColor;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 
 pub struct Player {
@@ -79,7 +77,7 @@ pub struct Match {
 impl Match {
     pub fn new(game_config: GameConfig) -> Self {
         assert!(game_config.players() > 0);
-        let randoms = random(game_config.players() as usize);
+        let randoms = random(game_config.players() as usize, game_config.random());
         Self {
             players: randoms
                 .into_iter()

@@ -95,7 +95,7 @@ pub fn n64_theme<'a>(
         scene_low: scene.clone(),
         scene_medium: scene.clone(),
         scene_high: scene,
-        virus_animation_type: VirusAnimationType::YO_YO_STANDARD,
+        virus_animation_type: VirusAnimationType::YoYo { fps: 5 },
         dr_idle_animation_type: DrAnimationType::YoYo { duration: Duration::from_millis(100) },
         dr_throw_animation_type: DrAnimationType::RETRO_THROW,
         dr_victory_animation_type: DrAnimationType::N64_VICTORY,

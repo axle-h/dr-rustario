@@ -5,8 +5,9 @@ use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 use rand::distributions::Standard;
 use rand_chacha::{ChaCha8Rng, ChaChaRng};
+use strum::IntoEnumIterator;
 use crate::game::block::Block;
-use crate::game::bottle::{Bottle, BOTTLE_FLOOR, BOTTLE_HEIGHT, BOTTLE_WIDTH, TOTAL_BLOCKS};
+use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH, TOTAL_BLOCKS};
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, VirusColor};
 
@@ -28,11 +29,29 @@ impl Distribution<PillShape> for Standard {
     }
 }
 
-pub fn random(count: usize) -> Vec<GameRandom> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, strum::IntoStaticStr, strum::EnumIter, strum::EnumString)]
+pub enum RandomMode {
+    /// All pills placed in a shuffled "bag" and drawn until the bag is empty, after which a new bag is shuffled
+    #[strum(serialize = "bag")]
+    #[default]
+    Bag = 0,
+
+    /// Random pill every time
+    #[strum(serialize = "true")]
+    True = 1,
+}
+
+impl RandomMode {
+    pub fn names() -> Vec<&'static str> {
+        Self::iter().map(|e| e.into()).collect()
+    }
+}
+
+pub fn random(count: usize, mode: RandomMode) -> Vec<GameRandom> {
     let mut seed: Seed = Default::default();
     thread_rng().fill(&mut seed);
     (0..count)
-        .map(|_| GameRandom::from_seed(seed))
+        .map(|_| GameRandom::from_seed(seed, mode))
         .collect()
 }
 
@@ -122,28 +141,47 @@ impl Debug for BottleSeed {
 }
 
 pub struct GameRandom {
+    mode: RandomMode,
     pill_rng: ChaChaRng,
     bottle_rng: ChaChaRng,
     queue: VecDeque<PillShape>
 }
 
 impl GameRandom {
-    pub fn from_seed(seed: Seed) -> Self {
-        Self::new(ChaChaRng::from_seed(seed))
+    pub fn from_seed(seed: Seed, mode: RandomMode) -> Self {
+        Self::new(ChaChaRng::from_seed(seed), mode)
     }
 
     #[cfg(test)]
-    pub fn from_u64_seed(seed: u64) -> Self {
-        Self::new(ChaChaRng::seed_from_u64(seed))
+    pub fn from_u64_seed(seed: u64, mode: RandomMode) -> Self {
+        Self::new(ChaChaRng::seed_from_u64(seed), mode)
     }
 
-    pub fn new(rng: ChaChaRng) -> Self {
+    pub fn new(rng: ChaChaRng, mode: RandomMode) -> Self {
         let bottle_rng = rng.clone();
         let mut pill_rng = rng;
-        let queue = (0..PEEK_SIZE)
-            .map(|_| pill_rng.gen())
-            .collect();
-        Self { pill_rng, bottle_rng, queue }
+        let queue = match mode {
+            RandomMode::True => (0..PEEK_SIZE)
+                .map(|_| pill_rng.gen())
+                .collect(),
+            RandomMode::Bag => PillShape::ALL
+                .choose_multiple(&mut pill_rng, PillShape::ALL.len())
+                .cloned()
+                .collect()
+        };
+        Self { mode, pill_rng, bottle_rng, queue }
+    }
+
+    fn assert_bags(&mut self) {
+        while self.queue.len() <= PEEK_SIZE {
+            let bag = PillShape::ALL
+                .choose_multiple(&mut self.pill_rng, PillShape::ALL.len())
+                .cloned()
+                .collect::<Vec<PillShape>>();
+            for shape in bag {
+                self.queue.push_back(shape);
+            }
+        }
     }
 
     pub fn peek(&self) -> [PillShape; PEEK_SIZE] {
@@ -157,8 +195,21 @@ impl GameRandom {
     }
 
     pub fn next_pill(&mut self) -> PillShape {
+        match self.mode {
+            RandomMode::True => self.next_true(),
+            RandomMode::Bag => self.next_bag(),
+        }
+    }
+
+    fn next_true(&mut self) -> PillShape {
         self.queue.push_back(self.pill_rng.gen());
         self.queue.pop_front().unwrap()
+    }
+
+    fn next_bag(&mut self) -> PillShape {
+        let result = self.queue.pop_front().unwrap();
+        self.assert_bags();
+        result
     }
 
     pub fn bottle_seed(&mut self, virus_level: u32) -> Result<BottleSeed, String> {
@@ -214,14 +265,14 @@ mod tests {
 
     #[test]
     fn seeds_bottle_at_level_0() {
-        let mut source = GameRandom::from_u64_seed(123546);
+        let mut source = GameRandom::from_u64_seed(123546, RandomMode::True);
         let result = source.bottle_seed(0).expect("should generate valid bottle for this seed");
         assert_eq!(result.virus_count(), 4, "{:?}", result);
     }
 
     #[test]
     fn seeds_bottle_with_99_viruses() {
-        let mut source = GameRandom::from_u64_seed(123546);
+        let mut source = GameRandom::from_u64_seed(123546, RandomMode::True);
         let result = source.bottle_seed(30).expect("should generate valid bottle for this seed");
         assert_eq!(result.virus_count(), 99, "{:?}", result);
         println!("{:?}", result);

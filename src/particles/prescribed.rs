@@ -55,12 +55,19 @@ impl PrescribedParticles {
         }
     }
 
-    pub fn into_lattice_source<I: Iterator<Item = Point>>(self, scale: &Scale, lattice: I) -> Box<dyn ParticleSource> {
+    pub fn into_lattice_source(self, scale: &Scale, mut lattice: Vec<Point>, n_blocks: u32, is_horizontal: bool) -> Box<dyn ParticleSource> {
         match self {
             PrescribedParticles::FadeInLatticeBurstAndFall { fade_in, color } => {
+                let limit = lattice.len() as u32 / n_blocks;
+                if is_horizontal {
+                    lattice.sort_by(|p1, p2| p2.x().cmp(&p1.x()));
+                } else {
+                    lattice.sort_by(|p1, p2| p1.y().cmp(&p2.y()));
+                }
+
                 RandomParticleSource::new(
-                    scale.build_lattice(lattice),
-                    ParticleModulation::Cascade,
+                    scale.build_ephemeral_lattice(lattice.into_iter()),
+                    ParticleModulation::Constant { count: limit, step: Duration::from_millis(200) / n_blocks },
                 )
                     .with_static_properties(
                         ParticleSprite::Circle05,
@@ -407,8 +414,10 @@ impl PlayerTargetedParticles {
                 themes.player_block_snips(self.player, blocks)
             }
             PlayerParticleTarget::MaskedBlocks(blocks) => {
+                let is_horizontal = iter_all_eq(blocks.iter().map(|b| b.position.y()));
+                let n_blocks = blocks.len();
                 let points = themes.player_block_snips_masked(self.player, blocks, 5);
-                return self.particles.into_lattice_source(particle_scale, points.into_iter())
+                return self.particles.into_lattice_source(particle_scale, points, n_blocks as u32, is_horizontal)
             }
             PlayerParticleTarget::Garbage(garbage) => {
                 themes.player_block_snips(self.player, garbage.into_iter().map(|g| g.position).collect())
@@ -418,4 +427,10 @@ impl PlayerTargetedParticles {
         self.particles
             .into_source(particle_scale, target_rects.as_slice())
     }
+}
+
+pub fn iter_all_eq<T: PartialEq>(iter: impl IntoIterator<Item = T>) -> bool {
+    let mut iter = iter.into_iter();
+    iter.next().map(|first| iter.all(|elem| elem == first))
+        .unwrap_or(false)
 }
