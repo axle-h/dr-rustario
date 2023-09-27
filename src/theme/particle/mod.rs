@@ -54,7 +54,8 @@ mod sound {
     pub const FEVER_REPEAT: &[u8] = include_bytes!("fever-repeat.ogg");
     pub const FEVER_NEXT_LEVEL_INTRO: &[u8] = include_bytes!("fever-next-level-intro.ogg");
     pub const FEVER_NEXT_LEVEL_REPEAT: &[u8] = include_bytes!("fever-next-level-repeat.ogg");
-    pub const GAME_OVER: &[u8] = include_bytes!("game-over.ogg");
+    pub const GAME_OVER_INTRO: &[u8] = include_bytes!("game-over-intro.ogg");
+    pub const GAME_OVER_REPEAT: &[u8] = include_bytes!("game-over-repeat.ogg");
     pub const RECEIVE_GARBAGE: &[u8] = include_bytes!("garbage.ogg");
     pub const HARD_DROP: &[u8] = include_bytes!("hard-drop.ogg");
     pub const MOVE_PILL: &[u8] = include_bytes!("move.ogg");
@@ -343,7 +344,7 @@ pub fn particle_theme<'a>(
         sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, sound::HARD_DROP
     )?
         .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
-        .with_game_over_music(sound::GAME_OVER, None)?
+        .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
         .with_next_level_music(sound::FEVER_NEXT_LEVEL_INTRO, sound::FEVER_NEXT_LEVEL_REPEAT)?
         .with_victory_music(sound::VICTORY, None)?;
 
