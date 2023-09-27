@@ -22,7 +22,7 @@ pub struct ParticleRender<'a> {
     sprites: Texture<'a>,
     sprite_snips: HashMap<ParticleSprite, Rect>,
     particles: Particles,
-    vitamin_sprites: HashMap<ThemeName, FlatVitaminSpriteSheet<'a>>,
+    theme_sprites: HashMap<ThemeName, FlatVitaminSpriteSheet<'a>>
 }
 
 impl<'a> ParticleRender<'a> {
@@ -51,7 +51,7 @@ impl<'a> ParticleRender<'a> {
             particles,
             sprites,
             sprite_snips,
-            vitamin_sprites,
+            theme_sprites: vitamin_sprites,
         })
     }
 
@@ -80,41 +80,60 @@ impl<'a> ParticleRender<'a> {
 
             let point = self.scale.point_to_render_space(particle.position());
 
-            if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {
-                let scale = BASE_SCALE * particle.size();
-                let rect = Rect::from_center(
-                    point,
-                    (scale * snip.width() as f64).round() as u32,
-                    (scale * snip.height() as f64).round() as u32,
-                );
-                canvas.copy(&self.sprites, *snip, rect)?;
-            } else if let ParticleSprite::Pill(theme, shape) = particle.sprite() {
-                // tetromino particle
-                let scale = particle.size();
 
-                let sprite_sheet = &self.vitamin_sprites[&theme];
-                let snip = sprite_sheet.snip(shape);
-                let rect = Rect::from_center(
-                    point,
-                    (scale * snip.width() as f64).round() as u32,
-                    (scale * snip.height() as f64).round() as u32,
-                );
+            match particle.sprite() {
+                ParticleSprite::Pill(theme, shape) => {
+                    let sprite_sheet = &self.theme_sprites[&theme];
+                    let snip = sprite_sheet.snip(shape);
+                    let scale = particle.size();
+                    let rect = Rect::from_center(
+                        point,
+                        (scale * snip.width() as f64).round() as u32,
+                        (scale * snip.height() as f64).round() as u32,
+                    );
 
-                if particle.rotation() > 0.0 || particle.rotation() < 0.0 {
-                    canvas.copy_ex(
-                        sprite_sheet.texture(),
-                        snip,
-                        rect,
-                        particle.rotation(),
-                        None,
-                        false,
-                        false,
-                    )?;
-                } else {
-                    canvas.copy(sprite_sheet.texture(), snip, rect)?;
+                    if particle.rotation() > 0.0 || particle.rotation() < 0.0 {
+                        canvas.copy_ex(
+                            sprite_sheet.texture(),
+                            snip,
+                            rect,
+                            particle.rotation(),
+                            None,
+                            false,
+                            false,
+                        )?;
+                    } else {
+                        canvas.copy(sprite_sheet.texture(), snip, rect)?;
+                    }
                 }
-            } else {
-                unreachable!()
+                ParticleSprite::Virus(theme, color, _) => {
+                    let sprite_sheet = &self.theme_sprites[&theme].virus(color);
+                    let (width, height) = sprite_sheet.frame_size();
+                    let scale = particle.size();
+                    let rect = Rect::from_center(
+                        point,
+                        (scale * width as f64).round() as u32,
+                        (scale * height as f64).round() as u32,
+                    );
+
+                    let frame = particle.animation_frame();
+                    if particle.rotation() > 0.0 || particle.rotation() < 0.0 {
+                        sprite_sheet.draw_frame_ex(canvas, rect, particle.rotation(), frame)?;
+                    } else {
+                        sprite_sheet.draw_frame_scaled(canvas, rect, frame)?;
+                    }
+                }
+                _ => if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {
+                    let scale = BASE_SCALE * particle.size();
+                    let rect = Rect::from_center(
+                        point,
+                        (scale * snip.width() as f64).round() as u32,
+                        (scale * snip.height() as f64).round() as u32,
+                    );
+                    canvas.copy(&self.sprites, *snip, rect)?;
+                } else {
+                    unreachable!();
+                }
             }
         }
         Ok(())

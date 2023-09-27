@@ -5,7 +5,7 @@ use sdl2::render::{BlendMode, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
-use crate::game::pill::{left_vitamin_spawn_point, PillShape, Vitamin};
+use crate::game::pill::{LEFT_VITAMIN_SPAWN_POINT, PillShape, VirusColor, Vitamin};
 use crate::theme::{AnimationMeta, Theme, ThemeName};
 use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
@@ -79,12 +79,14 @@ pub fn retro_theme<'a>(
 
     let animation_meta = AnimationMeta {
         virus_type: options.virus_animation_type,
-        virus_frames: sprites.virus_frames(),
+        red_virus_frames: sprites.virus_frames(VirusColor::Red),
+        blue_virus_frames: sprites.virus_frames(VirusColor::Blue),
+        yellow_virus_frames: sprites.virus_frames(VirusColor::Yellow),
         vitamin_pop_frames: sprites.vitamin_pop_frames(),
         virus_pop_frames: sprites.virus_pop_frames(),
         throw_start: options.dr_hand_point,
         // we take 1 away from the throw end as thrown pills have a border TODO only do thi for NES
-        throw_end: options.geometry.point(left_vitamin_spawn_point()) - Point::new(1, 1),
+        throw_end: options.geometry.point(LEFT_VITAMIN_SPAWN_POINT) - Point::new(1, 1),
         dr_throw_type: options.dr_throw_animation_type,
         dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
         dr_victory_type: options.dr_victory_animation_type,

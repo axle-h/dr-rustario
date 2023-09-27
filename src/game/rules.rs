@@ -19,8 +19,8 @@ pub enum MatchThemes {
     #[strum(serialize = "n64")]
     N64 = 3,
 
-    #[strum(serialize = "modern")]
-    Modern = 4
+    #[strum(serialize = "particle")]
+    Particle = 4
 }
 
 impl MatchThemes {

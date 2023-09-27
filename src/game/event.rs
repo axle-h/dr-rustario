@@ -20,6 +20,7 @@ pub enum GameEvent {
     ReceivedGarbage { player: u32, garbage: Vec<Garbage> },
     DropGarbage,
     Spawn { player: u32, shape: PillShape, is_hold: bool },
+    Spawned { player: u32 },
     SpeedLevelUp,
     GameOver { player: u32 },
     Victory { player: u32 },

@@ -37,7 +37,6 @@ impl Particles {
         self.update_life(delta_time);
         self.update_particles(delta_time);
         self.emit_particles(delta);
-        // todo update color size rotation
     }
 
     pub fn clear(&mut self) {

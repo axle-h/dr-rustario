@@ -6,7 +6,8 @@ use crate::animate::PlayerAnimations;
 use crate::animate::virus::VirusAnimationType;
 use crate::game::{Game, GameSpeed};
 use crate::game::geometry::Rotation;
-use crate::game::pill::VitaminOrdinal;
+use crate::game::pill::{VirusColor, VitaminOrdinal};
+use crate::particles::particle::ParticleAnimationType;
 use crate::theme::font::{FontRender, FontTheme, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::scene::{SceneRender, SceneType};
@@ -25,7 +26,7 @@ pub mod scene;
 pub mod snes;
 pub mod n64;
 pub mod animation;
-pub mod modern;
+pub mod particle;
 pub mod helper;
 pub mod block_mask;
 
@@ -35,13 +36,15 @@ pub enum ThemeName {
     Nes,
     Snes,
     N64,
-    Modern
+    Particle
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct AnimationMeta {
     pub virus_type: VirusAnimationType,
-    pub virus_frames: usize,
+    pub red_virus_frames: usize,
+    pub blue_virus_frames: usize,
+    pub yellow_virus_frames: usize,
     pub vitamin_pop_frames: usize,
     pub virus_pop_frames: usize,
     pub throw_start: Point,
@@ -56,6 +59,20 @@ pub struct AnimationMeta {
     pub dr_game_over_frames: usize,
     pub game_over_screen_frames: usize,
     pub next_level_interstitial_frames: usize
+}
+
+impl AnimationMeta {
+    pub fn virus_particle_animation(&self, color: VirusColor) -> ParticleAnimationType {
+        let frames = match color {
+            VirusColor::Yellow => self.yellow_virus_frames,
+            VirusColor::Blue => self.blue_virus_frames,
+            VirusColor::Red => self.red_virus_frames
+        };
+        match self.virus_type {
+            VirusAnimationType::Linear { fps } => ParticleAnimationType::Linear { frames, fps },
+            VirusAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps }
+        }
+    }
 }
 
 pub struct Theme<'a> {
@@ -133,9 +150,6 @@ impl<'a> Theme<'a> {
         let (width, height) = self.background_size;
         canvas.copy(&self.background_texture, None, Rect::new(0, 0, width, height))?;
 
-        // canvas.set_draw_color(Color::RED);
-        // canvas.draw_rect(Rect::new(0, 0, width, height))?;
-
         let metrics = game.metrics();
         if let Some(game_over) = animations.game_over().state() {
             self.sprites.draw_dr(canvas, DrType::GameOver, self.dr_game_over_point, game_over.dr_frame())?;
@@ -187,9 +201,6 @@ impl<'a> Theme<'a> {
             GameSpeed::High => self.bottle_high_snip
         };
         canvas.copy(&self.bottles_texture, bottle_snip, self.bottle_bg_snip)?;
-
-        // canvas.set_draw_color(Color::BLUE);
-        // canvas.draw_rect(self.bottle_bg_snip)?;
 
         self.sprites.draw_bottle(canvas, game, &self.geometry, animations)?;
         if let Some(game_over_frame) = animations.game_over().state().and_then(|s| s.game_over_screen_frame()) {

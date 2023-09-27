@@ -81,14 +81,5 @@ All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
 There are no default player 2 controls.
 
 ## TODO
-* all assets in one zipfile?
-* bg shadows
 * lint
-* themes
-  * modern
-    * wii dr mario
-    * wii bottle
-    * font based game metrics like tetris effect
-    * wii sound effects & music
-    * particles
-    * space background
+* modern menu music?

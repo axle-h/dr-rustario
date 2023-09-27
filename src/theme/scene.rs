@@ -5,6 +5,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::game::event::GameEvent;
+use crate::game::pill::VITAMIN_SPAWN_POINTS;
 use crate::particles::prescribed::{PlayerParticleTarget, PlayerTargetedParticles, PrescribedParticles};
 use crate::scale::Scale;
 
@@ -68,11 +69,20 @@ impl<'a> SceneRender<'a> {
     pub fn emit_particles(&self, event: GameEvent) -> Option<PlayerTargetedParticles> {
         if let SceneType::Particles { base_color } = self.scene_type {
             match event {
+                GameEvent::Spawned { player } => {
+                    let target = PlayerParticleTarget::Blocks(VITAMIN_SPAWN_POINTS.to_vec());
+                    let particles = PrescribedParticles::LightBurstUpAndOut { color: base_color };
+                    Some(particles.into_targeted(player, target))
+                },
                 GameEvent::HardDrop { player, vitamins, .. } => {
                     let target = PlayerParticleTarget::Vitamins(vitamins);
                     let particles = PrescribedParticles::BurstUp { color: base_color };
                     Some(particles.into_targeted(player, target))
                 },
+                GameEvent::SendGarbage { player, .. } => Some(
+                    PrescribedParticles::PerimeterBurst { color: base_color }
+                        .into_targeted(player, PlayerParticleTarget::Bottle)
+                ),
                 GameEvent::Lock {
                     player,
                     vitamins,

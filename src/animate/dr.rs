@@ -128,10 +128,6 @@ impl DrAnimation {
         }
     }
 
-    pub fn duration(&self) -> Duration {
-        self.duration
-    }
-
     pub fn iteration(&self) -> usize {
         self.iteration
     }

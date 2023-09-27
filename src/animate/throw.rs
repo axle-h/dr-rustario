@@ -2,6 +2,7 @@ use std::f64::consts::PI;
 use std::time::Duration;
 use sdl2::rect::Point;
 use crate::animate::dr::{DrAnimation, DrAnimationType};
+use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::game::pill::{PillShape, Vitamins};
 
 const ARC_DURATION: f64 = 0.5; // secs
@@ -66,7 +67,7 @@ impl ThrowAnimation {
         }
     }
 
-    pub fn update(&mut self, delta: Duration) {
+    pub fn update(&mut self, delta: Duration) -> bool {
         let mut finished = false;
         if let Some(animation) = self.state.as_mut() {
             animation.duration += delta.as_secs_f64();
@@ -78,6 +79,9 @@ impl ThrowAnimation {
         }
         if finished {
             self.state = None;
+            true
+        } else {
+            false
         }
     }
 

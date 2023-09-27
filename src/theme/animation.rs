@@ -113,23 +113,29 @@ impl AnimationSpriteSheetData {
             }
         };
 
-        Ok(AnimationSpriteSheet { texture, frames })
+        Ok(AnimationSpriteSheet::new(texture, frames))
     }
 }
 
 pub struct AnimationSpriteSheet<'a> {
     texture: Texture<'a>,
-    frames: Vec<Rect>
+    frames: Vec<Rect>,
+    frame_width: u32,
+    frame_height: u32
 }
 
 impl<'a> AnimationSpriteSheet<'a> {
+    pub fn new(texture: Texture<'a>, frames: Vec<Rect>) -> Self {
+        let first_frame = frames.first().expect("empty animation");
+        Self { texture, frame_width: first_frame.width(), frame_height: first_frame.height(), frames }
+    }
+
     pub fn frame_count(&self) -> usize {
         self.frames.len()
     }
 
     pub fn frame_size(&self) -> (u32, u32) {
-        let first_frame = self.frames.first().expect("empty animation");
-        (first_frame.width(), first_frame.height())
+        (self.frame_width, self.frame_height)
     }
 
     pub fn draw_frame(&self, canvas: &mut WindowCanvas, dest: Point, frame: usize) -> Result<(), String> {
@@ -140,6 +146,11 @@ impl<'a> AnimationSpriteSheet<'a> {
     pub fn draw_frame_scaled(&self, canvas: &mut WindowCanvas, dest: Rect, frame: usize) -> Result<(), String> {
         let snip = self.frames[frame];
         canvas.copy(&self.texture, snip, dest)
+    }
+
+    pub fn draw_frame_ex(&self, canvas: &mut WindowCanvas, dest: Rect, rotation: f64, frame: usize) -> Result<(), String> {
+        let snip = self.frames[frame];
+        canvas.copy_ex(&self.texture, snip, dest, rotation, None, false, false)
     }
 
     pub fn scale<'b>(&self,
@@ -168,7 +179,7 @@ impl<'a> AnimationSpriteSheet<'a> {
             }
         }).map_err(|e| e.to_string())?;
 
-        Ok(AnimationSpriteSheet { texture, frames: scaled_frames })
+        Ok(AnimationSpriteSheet::new(texture, scaled_frames))
     }
 
     pub fn scale_f64<'b>(&self,
@@ -183,7 +194,18 @@ impl<'a> AnimationSpriteSheet<'a> {
         self.scale(canvas, texture_creator, width, height)
     }
 
+    pub fn clone<'b>(&self, canvas: &mut WindowCanvas, texture_creator: &'b TextureCreator<WindowContext>,) -> Result<AnimationSpriteSheet<'b>, String> {
+        let (width, height) = self.texture.size();
+        let mut texture = texture_creator.create_texture_target_blended(width , height)?;
+        canvas.with_texture_canvas(&mut texture, |c| {
+            c.copy(&self.texture, None, None).unwrap();
+        }).map_err(|e| e.to_string())?;
+
+        Ok(AnimationSpriteSheet::new(texture, self.frames.clone()))
+    }
+
     pub fn block_mask(&mut self, canvas: &mut WindowCanvas, frame: usize) -> Result<BlockMask, String> {
         BlockMask::from_texture(canvas, &mut self.texture, self.frames[frame])
     }
+
 }

@@ -7,6 +7,7 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 
 use sdl2::video::WindowContext;
 use std::time::Duration;
+use crate::animate::event::AnimationEvent;
 use crate::animate::PlayerAnimations;
 use crate::game::event::ColoredBlock;
 use crate::game::GameSpeed;
@@ -67,7 +68,7 @@ impl ThemedPlayer {
         bg_snip.center_on(scale.player_window(player).center());
         let bottle_snip = scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
         let game_snip = scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
-        let animations = PlayerAnimations::new(theme);
+        let animations = PlayerAnimations::new(player, theme);
         Self {
             player,
             bg_snip,
@@ -77,8 +78,8 @@ impl ThemedPlayer {
         }
     }
 
-    pub fn update_animations(&mut self, delta: Duration) {
-        self.animations.update(delta);
+    pub fn update_animations(&mut self, delta: Duration) -> Vec<AnimationEvent> {
+        self.animations.update(delta)
     }
 }
 
@@ -119,10 +120,10 @@ impl<'a> ScaledTheme<'a> {
         self.scale.scale_length(raw_pixels)
     }
 
-    pub fn update(&mut self, delta: Duration) {
-        for player in self.player_themes.iter_mut() {
-            player.update_animations(delta);
-        }
+    pub fn update_animations(&mut self, delta: Duration) -> Vec<AnimationEvent> {
+        self.player_themes.iter_mut()
+            .flat_map(|p| p.update_animations(delta))
+            .collect()
     }
 
     pub fn animations_mut(&mut self, player: u32) -> &mut PlayerAnimations {
@@ -168,7 +169,7 @@ impl<'a> ThemeContext<'a> {
             MatchThemes::All | MatchThemes::Nes => 0,
             MatchThemes::Snes => 1,
             MatchThemes::N64 => 2,
-            MatchThemes::Modern => 3
+            MatchThemes::Particle => 3
         };
 
         Ok(Self {
@@ -221,10 +222,17 @@ impl<'a> ThemeContext<'a> {
         &self.themes[self.current]
     }
 
-    pub fn update(&mut self, delta: Duration) {
-        for theme in self.themes.iter_mut() {
-            theme.update(delta);
+    pub fn update_animations(&mut self, delta: Duration) -> Vec<AnimationEvent> {
+        let mut events = vec![];
+        for (id, theme) in self.themes.iter_mut().enumerate() {
+            let theme_events = theme.update_animations(delta);
+            if id == self.current {
+                for event in theme_events.into_iter() {
+                    events.push(event);
+                }
+            }
         }
+        events
     }
 
     pub fn animate_destroy(&mut self, player: u32, blocks: Vec<ColoredBlock>) {

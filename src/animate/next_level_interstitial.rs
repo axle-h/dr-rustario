@@ -5,13 +5,14 @@ const INTERSTITIAL_ITERATION_DURATION: Duration = Duration::from_millis(600);
 
 #[derive(Clone, Copy, Debug)]
 pub struct State {
+    duration: Duration,
     dr: DrAnimation,
     interstitial_frame: usize
 }
 
 impl State {
     fn new(dr: DrAnimation) -> Self {
-        Self { dr, interstitial_frame: 0 }
+        Self { duration: Duration::ZERO, dr, interstitial_frame: 0 }
     }
 
     pub fn interstitial_frame(&self) -> usize {
@@ -39,10 +40,11 @@ impl NextLevelInterstitialAnimation {
 
     pub fn update(&mut self, delta: Duration) {
         if let Some(state) = self.state.as_mut() {
+            state.duration += delta;
             state.dr.update(delta);
 
             let interstitial_frame_duration = INTERSTITIAL_ITERATION_DURATION / self.interstitial_frames as u32;
-            state.interstitial_frame = (state.dr.duration().as_millis() / interstitial_frame_duration.as_millis()) as usize % self.interstitial_frames;
+            state.interstitial_frame = (state.duration.as_millis() / interstitial_frame_duration.as_millis()) as usize % self.interstitial_frames;
         }
     }
 

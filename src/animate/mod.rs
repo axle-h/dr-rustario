@@ -10,9 +10,11 @@ pub mod next_level;
 pub mod next_level_interstitial;
 pub mod idle;
 pub mod dr;
+pub mod event;
 
 use std::time::Duration;
 use crate::animate::destroy::DestroyAnimation;
+use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::animate::game_over::GameOverAnimation;
 use crate::animate::hard_drop::HardDropAnimation;
 use crate::animate::idle::IdleAnimation;
@@ -27,6 +29,7 @@ use crate::theme::Theme;
 
 #[derive(Clone, Debug)]
 pub struct PlayerAnimations {
+    player: u32,
     idle: IdleAnimation,
     virus: VirusAnimation,
     destroy: DestroyAnimation,
@@ -41,10 +44,15 @@ pub struct PlayerAnimations {
 }
 
 impl PlayerAnimations {
-    pub fn new(theme: &Theme) -> Self {
+    pub fn new(player: u32, theme: &Theme) -> Self {
         let meta = theme.animation_meta();
         let idle = IdleAnimation::new(meta.dr_idle_frames, meta.dr_idle_type);
-        let virus = VirusAnimation::new(meta.virus_frames, meta.virus_type);
+        let virus = VirusAnimation::new(
+            meta.red_virus_frames,
+            meta.blue_virus_frames,
+            meta.yellow_virus_frames,
+            meta.virus_type
+        );
         let destroy = DestroyAnimation::new(meta.vitamin_pop_frames, meta.virus_pop_frames);
         let impact = ImpactAnimation::new();
         let lock = LockAnimation::new();
@@ -65,7 +73,7 @@ impl PlayerAnimations {
             meta.next_level_interstitial_frames
         );
 
-        Self { idle, virus, destroy, impact, lock, hard_drop, throw, game_over, victory, next_level, next_level_interstitial }
+        Self { player, idle, virus, destroy, impact, lock, hard_drop, throw, game_over, victory, next_level, next_level_interstitial }
     }
 
     pub fn reset(&mut self) {
@@ -78,21 +86,26 @@ impl PlayerAnimations {
         self.throw.reset();
     }
 
-    pub fn update(&mut self, delta: Duration) {
+    pub fn update(&mut self, delta: Duration) -> Vec<AnimationEvent> {
         if delta.is_zero() {
-            return;
+            return vec![];
         }
+
+        let mut events = vec![];
         self.idle.update(delta);
         self.virus.update(delta);
         self.destroy.update(delta);
         self.impact.update(delta);
         self.lock.update(delta);
         self.hard_drop.update(delta);
-        self.throw.update(delta);
+        if self.throw.update(delta) {
+            events.push(AnimationEvent::Finished { animation: AnimationType::Throw, player: self.player });
+        }
         self.game_over.update(delta);
         self.victory.update(delta);
         self.next_level.update(delta);
         self.next_level_interstitial.update(delta);
+        events
     }
 
     pub fn is_animating(&self) -> bool {

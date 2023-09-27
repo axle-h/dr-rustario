@@ -30,18 +30,18 @@ impl BottlePoint {
         self.y += dy;
     }
 
-    pub fn translate(&self, dx: i32, dy: i32) -> Self {
+    pub const fn translate(&self, dx: i32, dy: i32) -> Self {
         Self {
             x: self.x + dx,
             y: self.y + dy
         }
     }
 
-    pub fn x(&self) -> i32 {
+    pub const fn x(&self) -> i32 {
         self.x
     }
 
-    pub fn y(&self) -> i32 {
+    pub const fn y(&self) -> i32 {
         self.y
     }
 }

@@ -190,7 +190,7 @@ impl Bottle {
             }
         }
 
-        // regardless of success we have set blocks for this tetromino
+        // regardless of success we have set blocks for this pill
         self.pill = Some(pill);
 
         if success {

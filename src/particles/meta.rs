@@ -1,8 +1,9 @@
-use crate::game::pill::PillShape;
+use crate::game::pill::{PillShape, VirusColor};
 use crate::particles::meta::ParticleSprite::*;
 use crate::theme::ThemeName;
 use sdl2::rect::Rect;
 use strum_macros::EnumIter;
+use crate::particles::particle::ParticleAnimationType;
 
 const PARTICLE_SPRITE_SIZE: u32 = 512;
 
@@ -15,7 +16,7 @@ fn snip(i: i32, j: i32) -> Rect {
     )
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, EnumIter)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
 pub enum ParticleSprite {
     Circle01,
     Circle02,
@@ -68,9 +69,10 @@ pub enum ParticleSprite {
     Twirl02,
     Twirl03,
     Pill(ThemeName, PillShape),
+    Virus(ThemeName, VirusColor, ParticleAnimationType),
 }
 
-type PillSprites = [ParticleSprite; 9];
+type ThemePills = [ParticleSprite; 9];
 
 impl ParticleSprite {
     pub const STARS: [ParticleSprite; 9] = [
@@ -78,7 +80,7 @@ impl ParticleSprite {
     ];
     pub const HOLLOW_CIRCLES: [ParticleSprite; 4] = [Circle01, Circle02, Circle03, Circle04];
 
-    const fn pills(theme: ThemeName) -> PillSprites {
+    const fn theme_sprites(theme: ThemeName) -> ThemePills {
         [
             Pill(theme, PillShape::YY),
             Pill(theme, PillShape::YB),
@@ -88,14 +90,21 @@ impl ParticleSprite {
             Pill(theme, PillShape::BR),
             Pill(theme, PillShape::RR),
             Pill(theme, PillShape::RY),
-            Pill(theme, PillShape::RB),
+            Pill(theme, PillShape::RB)
         ]
     }
 
-    pub const NES_PILLS: PillSprites = Self::pills(ThemeName::Nes);
-    pub const SNES_PILLS: PillSprites = Self::pills(ThemeName::Snes);
-    pub const N64_PILLS: PillSprites = Self::pills(ThemeName::N64);
-    pub const MODERN_PILLS: PillSprites = Self::pills(ThemeName::Modern);
+    pub const NES_PILLS: ThemePills = Self::theme_sprites(ThemeName::Nes);
+    pub const SNES_PILLS: ThemePills = Self::theme_sprites(ThemeName::Snes);
+    pub const N64_PILLS: ThemePills = Self::theme_sprites(ThemeName::N64);
+    pub const MODERN_PILLS: ThemePills = Self::theme_sprites(ThemeName::Particle);
+
+    pub fn animation(&self) -> Option<ParticleAnimationType> {
+        match self {
+            Virus(_, _, animation) => Some(*animation),
+            _ => None
+        }
+    }
 
     pub fn snip(&self) -> Option<Rect> {
         match self {
@@ -150,6 +159,7 @@ impl ParticleSprite {
             Twirl01 => Some(snip(5, 6)),
             Twirl02 => Some(snip(6, 6)),
             Pill(_, _) => None,
+            Virus(_, _, _) => None
         }
     }
 }

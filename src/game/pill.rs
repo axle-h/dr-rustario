@@ -20,8 +20,9 @@ fn rotated_pills(rotation: Rotation) -> [BottlePoint; 2] {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum VirusColor {
+    #[default]
     Yellow = 0,
     Blue = 1,
     Red = 2
@@ -130,9 +131,9 @@ pub struct Vitamin {
     position: BottlePoint
 }
 
-pub fn left_vitamin_spawn_point() -> BottlePoint {
-    NORTH_PILLS[0] + SPAWN_POINT
-}
+pub const LEFT_VITAMIN_SPAWN_POINT: BottlePoint = NORTH_PILLS[0].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
+pub const RIGHT_VITAMIN_SPAWN_POINT: BottlePoint = NORTH_PILLS[1].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
+pub const VITAMIN_SPAWN_POINTS: [BottlePoint; 2] = [LEFT_VITAMIN_SPAWN_POINT, RIGHT_VITAMIN_SPAWN_POINT];
 
 impl Vitamin {
     pub fn left(color: VirusColor, position: BottlePoint, rotation: Rotation) -> Self {

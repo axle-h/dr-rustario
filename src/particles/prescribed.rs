@@ -10,7 +10,7 @@ use crate::particles::source::{
     RandomParticleSource,
 };
 use crate::themes::ThemeContext;
-use crate::theme::modern::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
+use crate::theme::particle::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
 use crate::theme::nes::BLOCK_SIZE as NES_BLOCK_SIZE;
 use crate::theme::snes::BLOCK_SIZE as SNES_BLOCK_SIZE;
 use crate::theme::n64::BLOCK_SIZE as N64_BLOCK_SIZE;
@@ -18,12 +18,15 @@ use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
 use crate::game::event::ColoredBlock;
-use crate::game::pill::{Garbage, Vitamins};
+use crate::game::geometry::BottlePoint;
+use crate::game::pill::{Garbage, VirusColor, Vitamins};
+use crate::theme::all::AllThemeMeta;
+use crate::theme::{AnimationMeta, ThemeName};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlayerParticleTarget {
     Vitamins(Vitamins),
-    Blocks(Vec<ColoredBlock>),
+    Blocks(Vec<BottlePoint>),
     Garbage(Vec<Garbage>),
     MaskedBlocks(Vec<ColoredBlock>),
     Bottle,
@@ -72,7 +75,7 @@ impl PrescribedParticles {
                     .with_alpha((0.9, 0.1))
                     .into_box()
             }
-            _ => todo!()
+            _ => unreachable!()
         }
     }
 
@@ -177,7 +180,7 @@ pub fn prescribed_fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSour
         .into_box()
 }
 
-pub fn prescribed_vitamin_race(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
+pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllThemeMeta) -> Box<dyn ParticleSource> {
     let modulation = ParticleModulation::Constant {
         count: 1,
         step: Duration::from_millis(1000),
@@ -190,27 +193,79 @@ pub fn prescribed_vitamin_race(window: Rect, scale: &Scale) -> Box<dyn ParticleS
         window.height() - 2 * buffer_y,
     );
     let nes_block_scale = MODERN_BLOCK_SIZE as f64 / NES_BLOCK_SIZE as f64 / 2.0;
+    let nes_scale = (nes_block_scale, nes_block_scale / 5.0);
     let snes_block_scale = MODERN_BLOCK_SIZE as f64 / SNES_BLOCK_SIZE as f64 / 2.0;
+    let snes_scale = (snes_block_scale, snes_block_scale / 5.0);
     let n64_block_scale = MODERN_BLOCK_SIZE as f64 / N64_BLOCK_SIZE as f64 / 2.0;
+    let n64_scale = (n64_block_scale, n64_block_scale / 5.0);
+    let modern_scale = (1.0, 0.2);
     let rotation = (0.0, 30.0);
+    let p_virus = 1.0 / 3.0;
     RandomParticleSource::new(scale.rect_source(rect), modulation)
         .with_properties(
             ProbabilityTable::new()
                 .with_1(
-                    ParticleProperties::simple(&ParticleSprite::MODERN_PILLS, (1.0, 0.2))
+                    ParticleProperties::simple(&ParticleSprite::MODERN_PILLS, modern_scale)
                         .angular_velocity(rotation),
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Red, theme_meta.particle.virus_particle_animation(VirusColor::Red)),
+                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Blue, theme_meta.particle.virus_particle_animation(VirusColor::Blue)),
+                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Yellow, theme_meta.particle.virus_particle_animation(VirusColor::Yellow))
+                        ],
+                        modern_scale
+                    ).angular_velocity(rotation),
+                    p_virus
+                )
+
                 .with_1(
-                    ParticleProperties::simple(&ParticleSprite::NES_PILLS, (nes_block_scale, nes_block_scale / 5.0))
+                    ParticleProperties::simple(&ParticleSprite::NES_PILLS, nes_scale)
                         .angular_velocity(rotation),
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Red, theme_meta.nes.virus_particle_animation(VirusColor::Red)),
+                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Blue, theme_meta.nes.virus_particle_animation(VirusColor::Blue)),
+                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Yellow, theme_meta.nes.virus_particle_animation(VirusColor::Yellow))
+                        ],
+                        nes_scale
+                    ).angular_velocity(rotation),
+                    p_virus
+                )
+
                 .with_1(
-                    ParticleProperties::simple(&ParticleSprite::SNES_PILLS, (snes_block_scale, snes_block_scale / 5.0))
+                    ParticleProperties::simple(&ParticleSprite::SNES_PILLS, snes_scale)
                         .angular_velocity(rotation),
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Red, theme_meta.snes.virus_particle_animation(VirusColor::Red)),
+                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Blue, theme_meta.snes.virus_particle_animation(VirusColor::Blue)),
+                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Yellow, theme_meta.snes.virus_particle_animation(VirusColor::Yellow))
+                        ],
+                        snes_scale
+                    ).angular_velocity(rotation),
+                    p_virus
+                )
+
                 .with_1(
-                    ParticleProperties::simple(&ParticleSprite::N64_PILLS, (n64_block_scale, n64_block_scale / 5.0))
+                    ParticleProperties::simple(&ParticleSprite::N64_PILLS, n64_scale)
                         .angular_velocity(rotation),
+                )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Red, theme_meta.n64.virus_particle_animation(VirusColor::Red)),
+                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Blue, theme_meta.n64.virus_particle_animation(VirusColor::Blue)),
+                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Yellow, theme_meta.n64.virus_particle_animation(VirusColor::Yellow))
+                        ],
+                        n64_scale
+                    ).angular_velocity(rotation),
+                    p_virus
                 ),
         )
         .with_velocity((Vec2D::new(0.2, 0.0), Vec2D::new(0.05, 0.02)))
@@ -349,7 +404,7 @@ impl PlayerTargetedParticles {
                 themes.player_vitamin_snips(self.player, vitamins).to_vec()
             }
             PlayerParticleTarget::Blocks(blocks) => {
-                themes.player_block_snips(self.player, blocks.into_iter().map(|b| b.position).collect())
+                themes.player_block_snips(self.player, blocks)
             }
             PlayerParticleTarget::MaskedBlocks(blocks) => {
                 let points = themes.player_block_snips_masked(self.player, blocks, 5);

@@ -197,6 +197,7 @@ pub fn pills(
 pub struct FlatVitaminSpriteSheet<'a> {
     texture: Texture<'a>,
     snips: HashMap<PillShape, Rect>,
+    viruses: HashMap<VirusColor, AnimationSpriteSheet<'a>>
 }
 
 impl<'a> FlatVitaminSpriteSheet<'a> {
@@ -206,8 +207,10 @@ impl<'a> FlatVitaminSpriteSheet<'a> {
     pub fn snip(&self, shape: PillShape) -> Rect {
         self.snips[&shape]
     }
+    pub fn virus(&self, color: VirusColor) -> &AnimationSpriteSheet<'a> {
+        &self.viruses[&color]
+    }
 }
-
 
 pub struct VitaminSpriteSheetData {
     file: &'static [u8],
@@ -500,8 +503,12 @@ impl<'a> VitaminSpriteSheet<'a> {
         })
     }
 
-    pub fn virus_frames(&self) -> usize {
-        self.red_animations.virus_idle.frame_count()
+    pub fn virus_frames(&self, color: VirusColor) -> usize {
+        match color {
+            VirusColor::Yellow => self.yellow_animations.virus_idle.frame_count(),
+            VirusColor::Blue => self.blue_animations.virus_idle.frame_count(),
+            VirusColor::Red => self.red_animations.virus_idle.frame_count()
+        }
     }
 
     pub fn vitamin_pop_frames(&self) -> usize {
@@ -549,12 +556,10 @@ impl<'a> VitaminSpriteSheet<'a> {
         geometry: &BottleGeometry,
         animations: &PlayerAnimations
     ) -> Result<(), String> {
-        let virus_frame = animations.virus().frame();
-
         if let Some(spawning_viruses) = animations.next_level().state().map(|s| s.display_viruses()) {
             for virus in spawning_viruses {
                 let dest = geometry.raw_block(virus.position);
-                self.animations(virus.color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame)?;
+                self.animations(virus.color).virus_idle.draw_frame_scaled(canvas, dest, animations.virus().frame(virus.color))?;
             }
             return Ok(());
         }
@@ -595,7 +600,7 @@ impl<'a> VitaminSpriteSheet<'a> {
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, offset_y, None)?
                     }
                     Block::Garbage(color) => canvas.copy(&self.texture, self.snips(color).garbage, dest)?,
-                    Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(canvas, dest, virus_frame)?,
+                    Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(canvas, dest, animations.virus().frame(color))?,
                     Block::Ghost(color, rotation, ordinal) if draw_vitamin =>
                         self.draw_vitamin(canvas, color, rotation, ordinal, dest, 0.0, self.ghost_alpha_mod)?,
                     _ => {}
@@ -714,7 +719,16 @@ impl<'a> VitaminSpriteSheet<'a> {
             })
             .map_err(|e| e.to_string())?;
 
-        Ok(FlatVitaminSpriteSheet { texture, snips: self.pills.shapes.clone() })
+        let mut viruses = HashMap::new();
+        viruses.insert(VirusColor::Blue, self.blue_animations.virus_idle.clone(canvas, texture_creator)?);
+        viruses.insert(VirusColor::Red, self.red_animations.virus_idle.clone(canvas, texture_creator)?);
+        viruses.insert(VirusColor::Yellow, self.yellow_animations.virus_idle.clone(canvas, texture_creator)?);
+
+        Ok(FlatVitaminSpriteSheet {
+            texture,
+            snips: self.pills.shapes.clone(),
+            viruses
+        })
     }
 }
 

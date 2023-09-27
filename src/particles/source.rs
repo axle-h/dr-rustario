@@ -1,7 +1,7 @@
 use crate::particles::color::ParticleColor;
 use crate::particles::geometry::{RectF, Vec2D};
 use crate::particles::meta::ParticleSprite;
-use crate::particles::particle::{Particle, ParticleGroup, ParticleWave};
+use crate::particles::particle::{Particle, ParticleAnimation, ParticleAnimationType, ParticleGroup, ParticleWave};
 use crate::particles::quantity::{ProbabilityTable, VariableQuantity};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
@@ -49,7 +49,7 @@ pub struct ParticleProperties {
     sprites: Vec<ParticleSprite>,
     color: VariableQuantity<ParticleColor>,
     size: VariableQuantity<f64>,
-    angular_velocity: VariableQuantity<f64>,
+    angular_velocity: VariableQuantity<f64>
 }
 
 impl ParticleProperties {
@@ -65,7 +65,7 @@ impl ParticleProperties {
             sprites: sprites.to_vec(),
             color: color.into(),
             size: size.into(),
-            angular_velocity: angular_velocity.into(),
+            angular_velocity: angular_velocity.into()
         }
     }
 
@@ -165,7 +165,7 @@ impl ParticleSource for RandomParticleSource {
             self.fade_in.map(|d| d.as_secs_f64()),
             self.fade_out,
             self.orbit,
-            particles,
+            particles
         )]
     }
 }
@@ -354,7 +354,7 @@ impl RandomParticleSource {
             self.lifetime_secs.as_mut().map(|l| l.next()),
             *properties.next_sprite(),
             properties.size.next(),
-            properties.angular_velocity.next(),
+            properties.angular_velocity.next()
         )
     }
 }

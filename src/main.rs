@@ -8,6 +8,7 @@ use sdl2::{AudioSubsystem, EventPump, Sdl};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::ttf::Sdl2TtfContext;
+use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::build_info::{APP_NAME, nice_app_name};
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
@@ -28,7 +29,7 @@ use crate::particles::prescribed::{PlayerTargetedParticles, prescribed_fireworks
 use crate::particles::render::ParticleRender;
 use crate::particles::source::ParticleSource;
 use crate::player::{Match, MatchState};
-use crate::theme::all::AllThemes;
+use crate::theme::all::{AllThemeMeta, AllThemes};
 use crate::theme::pause::PausedScreen;
 use crate::themes::{PlayerTextures, TextureMode, ThemeContext};
 
@@ -161,11 +162,12 @@ impl DrRustario {
         })
     }
 
-    fn vitamin_race_particle_source(&self) -> Box<dyn ParticleSource> {
+    fn vitamin_race_particle_source(&self, theme_meta: AllThemeMeta) -> Box<dyn ParticleSource> {
         let (window_width, window_height) = self.canvas.window().size();
         prescribed_vitamin_race(
             Rect::new(0, 0, window_width, window_height),
             &self.particle_scale,
+            theme_meta
         )
     }
 
@@ -185,7 +187,7 @@ impl DrRustario {
         )
     }
 
-    pub fn title_menu(&mut self, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
+    pub fn title_menu(&mut self, all_themes: &AllThemes, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
         const PLAYERS: &str = "players";
         const HIGH_SCORES: &str = "high scores";
         const START: &str = "start";
@@ -212,7 +214,7 @@ impl DrRustario {
         )?;
 
         particles.clear();
-        particles.add_source(self.vitamin_race_particle_source());
+        particles.add_source(self.vitamin_race_particle_source(all_themes.meta()));
 
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_title_music()?;
@@ -257,7 +259,7 @@ impl DrRustario {
         }
     }
 
-    pub fn main_menu(&mut self, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
+    pub fn main_menu(&mut self, all_themes: &AllThemes, particles: &mut ParticleRender) -> Result<MainMenuAction, String> {
         const THEMES: &str = "themes";
         const MODE: &str = "mode";
         const LEVEL: &str = "level";
@@ -313,7 +315,7 @@ impl DrRustario {
         )?;
 
         particles.clear();
-        particles.add_source(self.vitamin_race_particle_source());
+        particles.add_source(self.vitamin_race_particle_source(all_themes.meta()));
 
         let mut frame_rate = FrameRate::new();
         self.menu_sound.play_menu_music()?;
@@ -617,6 +619,19 @@ impl DrRustario {
                 _ => {}
             }
 
+            // update animations
+            if !fixture.state().is_paused() {
+                let animation_events = themes.update_animations(delta);
+                for event in animation_events.into_iter() {
+                    match event {
+                        AnimationEvent::Finished { player, animation } if animation == AnimationType::Throw => {
+                            events.push(GameEvent::Spawned { player });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             // post-update events
             for event in events {
                 themes.theme().audio().receive_event(event.clone())?;
@@ -691,11 +706,6 @@ impl DrRustario {
                     }
                     themes.theme().audio().play_victory_music()?;
                 }
-            }
-
-            // update themes
-            if !fixture.state().is_paused() {
-                themes.update(delta);
             }
 
             // update particles
@@ -789,10 +799,10 @@ fn main() -> Result<(), String> {
     )?;
 
     'title: loop {
-        match dr_rustario.title_menu(&mut bg_particles)? {
+        match dr_rustario.title_menu(&all_themes, &mut bg_particles)? {
             MainMenuAction::Start => {
                 'select: loop {
-                    match dr_rustario.main_menu(&mut bg_particles)? {
+                    match dr_rustario.main_menu(&all_themes, &mut bg_particles)? {
                         MainMenuAction::Start => {
                             match dr_rustario.game(&all_themes, &mut fg_particles, &mut bg_particles)? {
                                 PostGameAction::NewHighScore(high_score) => dr_rustario.new_high_score(high_score, &mut bg_particles)?,

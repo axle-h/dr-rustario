@@ -11,6 +11,7 @@ const GAME_OVER_FRAME_DURATION: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Debug)]
 pub struct State {
+    duration: Duration,
     dr: DrAnimation,
     game_over_screen_frame: usize,
     is_complete: bool,
@@ -21,6 +22,7 @@ impl State {
     fn new(dr: DrAnimation) -> Self {
         Self {
             dr,
+            duration: Duration::ZERO,
             game_over_screen_frame: 0,
             is_complete: false,
             is_dismissed: false
@@ -40,7 +42,7 @@ impl State {
     }
 
     pub fn game_over_screen_frame(&self) -> Option<usize> {
-        if self.dr.duration() >= GAME_OVER_SCREEN_DELAY {
+        if self.duration >= GAME_OVER_SCREEN_DELAY {
             Some(self.game_over_screen_frame)
         } else {
             None
@@ -63,10 +65,10 @@ impl GameOverAnimation {
 
     pub fn update(&mut self, delta: Duration) {
         if let Some(state) = self.state.as_mut() {
+            state.duration += delta;
             state.dr.update(delta);
-            let duration = state.dr.duration();
-            state.is_complete = duration >= (GAME_OVER_SCREEN_DELAY + GAME_OVER_SCREEN_VISIBLE_FOR);
-            state.game_over_screen_frame = (duration.as_millis() / GAME_OVER_FRAME_DURATION.as_millis()) as usize
+            state.is_complete = state.duration >= (GAME_OVER_SCREEN_DELAY + GAME_OVER_SCREEN_VISIBLE_FOR);
+            state.game_over_screen_frame = (state.duration.as_millis() / GAME_OVER_FRAME_DURATION.as_millis()) as usize
                     % self.game_over_screen_frames;
         }
     }
