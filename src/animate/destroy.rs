@@ -1,7 +1,6 @@
-use std::collections::HashSet;
-use std::time::Duration;
 use crate::game::event::ColoredBlock;
-use crate::game::geometry::BottlePoint;
+
+use std::time::Duration;
 
 const POP_DURATION: Duration = Duration::from_millis(300);
 
@@ -10,7 +9,7 @@ pub struct State {
     blocks: Vec<ColoredBlock>,
     vitamin_frame: usize,
     virus_frame: usize,
-    duration: Duration
+    duration: Duration,
 }
 
 impl State {
@@ -31,7 +30,7 @@ pub struct DestroyAnimation {
     vitamin_duration: Duration,
     virus_frames: usize,
     virus_duration: Duration,
-    state: Option<State>
+    state: Option<State>,
 }
 
 impl DestroyAnimation {
@@ -39,7 +38,13 @@ impl DestroyAnimation {
         assert!(vitamin_frames > 0 && virus_frames > 0);
         let vitamin_duration = POP_DURATION / vitamin_frames as u32;
         let virus_duration = POP_DURATION / virus_frames as u32;
-        Self { vitamin_frames, vitamin_duration, virus_frames, virus_duration, state: None }
+        Self {
+            vitamin_frames,
+            vitamin_duration,
+            virus_frames,
+            virus_duration,
+            state: None,
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {
@@ -47,8 +52,10 @@ impl DestroyAnimation {
             state.duration += delta;
 
             let duration = state.duration.as_millis();
-            state.vitamin_frame = (duration / self.vitamin_duration.as_millis()) as usize % self.vitamin_frames;
-            state.virus_frame = (duration / self.virus_duration.as_millis()) as usize % self.virus_frames;
+            state.vitamin_frame =
+                (duration / self.vitamin_duration.as_millis()) as usize % self.vitamin_frames;
+            state.virus_frame =
+                (duration / self.virus_duration.as_millis()) as usize % self.virus_frames;
             if state.duration >= POP_DURATION {
                 self.state = None;
             }
@@ -60,7 +67,12 @@ impl DestroyAnimation {
     }
 
     pub fn add(&mut self, blocks: Vec<ColoredBlock>) {
-        self.state = Some(State { blocks, vitamin_frame: 0, virus_frame: 0, duration: Duration::ZERO })
+        self.state = Some(State {
+            blocks,
+            vitamin_frame: 0,
+            virus_frame: 0,
+            duration: Duration::ZERO,
+        })
     }
 
     pub fn state(&self) -> Option<&State> {

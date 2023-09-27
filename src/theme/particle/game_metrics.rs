@@ -1,6 +1,6 @@
-use sdl2::rect::Point;
 use crate::theme::font::{FontRender, MetricSnips};
-use crate::theme::geometry::BottleGeometry;
+
+use sdl2::rect::Point;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum GameMetricType {
@@ -31,7 +31,6 @@ impl GameMetricsRow {
     fn width(&self) -> u32 {
         self.value_width.max(self.label_width)
     }
-
 
     pub fn metric(&self) -> GameMetricType {
         self.metric
@@ -82,22 +81,6 @@ impl GameMetricsTable {
         Self { rows }
     }
 
-    pub fn into_right_aligned(self) -> Self {
-        let width = self.width() as i32;
-        let rows = self
-            .rows
-            .into_iter()
-            .map(|r| GameMetricsRow {
-                value: MetricSnips::right((width, r.value.point().y()), r.value.max_value()),
-                label: Point::new(width - r.label_width as i32, r.label.y()),
-                metric: r.metric,
-                label_width: r.label_width,
-                value_width: r.value_width,
-            })
-            .collect();
-        Self { rows }
-    }
-
     pub fn offset_x(&mut self, x: i32) {
         for row in self.rows.iter_mut() {
             row.value = row.value.offset(x, 0);
@@ -108,7 +91,6 @@ impl GameMetricsTable {
     pub fn width(&self) -> u32 {
         self.rows.iter().map(|r| r.width()).max().unwrap()
     }
-
 
     pub fn rows(&self) -> &Vec<GameMetricsRow> {
         &self.rows

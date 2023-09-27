@@ -1,9 +1,9 @@
-use std::time::Duration;
-use rand::thread_rng;
-use rand::seq::SliceRandom;
-use rand::prelude::ThreadRng;
 use crate::game::event::ColoredBlock;
-use crate::game::geometry::BottlePoint;
+
+use rand::prelude::ThreadRng;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use std::time::Duration;
 
 const VIRUS_POP_IN_DURATION: Duration = Duration::from_millis(1500);
 const NEXT_VIRUS_DURATION: Duration = Duration::from_millis(100);
@@ -16,11 +16,15 @@ pub struct State {
 
 impl State {
     fn new(viruses: Vec<ColoredBlock>) -> Self {
-        Self { viruses, duration: Duration::ZERO }
+        Self {
+            viruses,
+            duration: Duration::ZERO,
+        }
     }
 
     pub fn display_viruses(&self) -> Vec<ColoredBlock> {
-        let next_virus_duration = NEXT_VIRUS_DURATION.min(VIRUS_POP_IN_DURATION / self.viruses.len() as u32);
+        let next_virus_duration =
+            NEXT_VIRUS_DURATION.min(VIRUS_POP_IN_DURATION / self.viruses.len() as u32);
         let count = ((self.duration.as_millis() / next_virus_duration.as_millis()) as usize)
             .min(self.viruses.len());
         self.viruses.iter().take(count).copied().collect()
@@ -30,12 +34,15 @@ impl State {
 #[derive(Clone, Debug)]
 pub struct NextLevelAnimation {
     state: Option<State>,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl NextLevelAnimation {
     pub fn new() -> Self {
-        Self { state: None, rng: thread_rng() }
+        Self {
+            state: None,
+            rng: thread_rng(),
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {

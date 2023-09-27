@@ -1,10 +1,10 @@
-use std::time::Duration;
 use crate::game::pill::VirusColor;
+use std::time::Duration;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum VirusAnimationType {
     Linear { fps: u32 },
-    YoYo { fps: u32 }
+    YoYo { fps: u32 },
 }
 
 impl VirusAnimationType {
@@ -17,7 +17,7 @@ impl VirusAnimationType {
     pub fn fps(&self) -> u32 {
         match self {
             VirusAnimationType::Linear { fps } => *fps,
-            VirusAnimationType::YoYo { fps } => *fps
+            VirusAnimationType::YoYo { fps } => *fps,
         }
     }
 
@@ -31,12 +31,17 @@ struct VirusAnimationState {
     duration: Duration,
     frame: usize,
     invert: bool,
-    max_frame: usize
+    max_frame: usize,
 }
 
 impl VirusAnimationState {
     fn new(max_frame: usize) -> Self {
-        Self { duration: Duration::ZERO, frame: 0, invert: false, max_frame }
+        Self {
+            duration: Duration::ZERO,
+            frame: 0,
+            invert: false,
+            max_frame,
+        }
     }
 
     fn update(&mut self, delta: Duration, frame_duration: Duration, is_yo_yo: bool) {
@@ -80,18 +85,23 @@ pub struct VirusAnimation {
     blue: VirusAnimationState,
     yellow: VirusAnimationState,
     animation_type: VirusAnimationType,
-    frame_duration: Duration
+    frame_duration: Duration,
 }
 
 impl VirusAnimation {
-    pub fn new(red_frames: usize, blue_frames: usize, yellow_frames: usize, animation_type: VirusAnimationType) -> Self {
+    pub fn new(
+        red_frames: usize,
+        blue_frames: usize,
+        yellow_frames: usize,
+        animation_type: VirusAnimationType,
+    ) -> Self {
         let frame_duration = animation_type.frame_duration();
         Self {
             red: VirusAnimationState::new(red_frames),
             blue: VirusAnimationState::new(blue_frames),
             yellow: VirusAnimationState::new(yellow_frames),
             animation_type,
-            frame_duration
+            frame_duration,
         }
     }
 

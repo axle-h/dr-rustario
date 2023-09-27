@@ -1,14 +1,14 @@
-use std::collections::HashSet;
-use std::fmt::{Debug, Formatter};
-use std::ops::Range;
-use rand::rngs::ThreadRng;
-use rand::thread_rng;
-use rand::seq::SliceRandom;
-use crate::game::block::{Block, block_partner_offset};
+use crate::game::block::{block_partner_offset, Block};
 use crate::game::event::ColoredBlock;
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{Garbage, Pill, PillShape, VirusColor, Vitamin, Vitamins};
 use crate::game::random::BottleSeed;
+use rand::rngs::ThreadRng;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use std::collections::HashSet;
+use std::fmt::{Debug, Formatter};
+use std::ops::Range;
 
 pub const BOTTLE_WIDTH: u32 = 8;
 pub const BOTTLE_HEIGHT: u32 = 16;
@@ -20,7 +20,10 @@ fn index_at(x: u32, y: u32) -> usize {
 }
 
 fn index_to_point(index: usize) -> BottlePoint {
-    BottlePoint::new((index % BOTTLE_WIDTH as usize) as i32, (index / BOTTLE_WIDTH as usize) as i32)
+    BottlePoint::new(
+        (index % BOTTLE_WIDTH as usize) as i32,
+        (index / BOTTLE_WIDTH as usize) as i32,
+    )
 }
 
 fn index(point: BottlePoint) -> usize {
@@ -31,11 +34,6 @@ fn row_range(y: u32) -> Range<usize> {
     index_at(0, y)..index_at(0, y + 1)
 }
 
-fn rows_range(y_from: u32, y_to: u32) -> Range<usize> {
-    assert!(y_to >= y_from);
-    index_at(0, y_from)..index_at(0, y_to + 1)
-}
-
 pub type SendGarbage = Vec<VirusColor>;
 
 struct PatternMatchContext {
@@ -43,12 +41,18 @@ struct PatternMatchContext {
     result: HashSet<BottlePoint>,
     last_color: Option<VirusColor>,
     count: u32,
-    patterns: Vec<VirusColor>
+    patterns: Vec<VirusColor>,
 }
 
 impl PatternMatchContext {
     fn new(is_vertical: bool) -> Self {
-        Self { is_vertical, count: 0, last_color: None, result: HashSet::new(), patterns: vec![] }
+        Self {
+            is_vertical,
+            count: 0,
+            last_color: None,
+            result: HashSet::new(),
+            patterns: vec![],
+        }
     }
 
     fn reset(&mut self, is_vertical: bool) {
@@ -97,35 +101,25 @@ impl PatternMatchContext {
 pub struct Bottle {
     blocks: [Block; TOTAL_BLOCKS as usize],
     pill: Option<Pill>,
-    viruses: u32,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl Bottle {
+    #[cfg(test)]
     pub fn new() -> Self {
         Self {
             blocks: [Block::Empty; TOTAL_BLOCKS as usize],
             pill: None,
-            viruses: 0,
-            rng: thread_rng()
+            rng: thread_rng(),
         }
     }
 
     pub fn from_seed(seed: BottleSeed) -> Self {
         Self {
-            viruses: seed.count(),
             blocks: seed.into_blocks(),
             pill: None,
-            rng: thread_rng()
+            rng: thread_rng(),
         }
-    }
-
-    pub fn pill(&self) -> &Pill {
-        self.pill.as_ref().expect("no pill")
-    }
-
-    pub fn pill_mut(&mut self) -> &mut Pill {
-        self.pill.as_mut().expect("no pill")
     }
 
     pub fn row(&self, y: u32) -> &[Block] {
@@ -157,11 +151,11 @@ impl Bottle {
 
     fn set_garbage(&mut self, point: BottlePoint) {
         let index = index(point);
-        self.blocks[index] = Block::Garbage(self.blocks[index].destructible_color().expect("not a destructible block"));
-    }
-
-    pub fn set_virus_at(&mut self, x: u32, y: u32, color: VirusColor) {
-        self.set_block_at(x, y, Block::Virus(color));
+        self.blocks[index] = Block::Garbage(
+            self.blocks[index]
+                .destructible_color()
+                .expect("not a destructible block"),
+        );
     }
 
     pub fn virus_count(&self) -> u32 {
@@ -169,7 +163,9 @@ impl Bottle {
     }
 
     pub fn viruses(&self) -> Vec<ColoredBlock> {
-        self.blocks.iter().enumerate()
+        self.blocks
+            .iter()
+            .enumerate()
             .filter(|(_, b)| b.is_virus())
             .map(|(index, b)| ColoredBlock::from_block(index_to_point(index), *b))
             .collect()
@@ -299,7 +295,9 @@ impl Bottle {
             context.maybe_pattern(x, BOTTLE_FLOOR, 0);
         }
 
-        let blocks = context.result.into_iter()
+        let blocks = context
+            .result
+            .into_iter()
             .map(|p| ColoredBlock::from_block(p, self.block(p)))
             .collect();
 
@@ -366,7 +364,9 @@ impl Bottle {
             let is_floor = point.y() == BOTTLE_FLOOR as i32;
             let block = self.block(point);
             match block {
-                Block::Empty => { continue; },
+                Block::Empty => {
+                    continue;
+                }
                 Block::Stack(_, rotation, ordinal) if !is_floor => {
                     queue.push(point.translate(0, 1));
                     queue.push(point + block_partner_offset(rotation, ordinal));
@@ -376,7 +376,7 @@ impl Bottle {
                     result.insert(point);
                     queue.push(point.translate(0, 1));
                 }
-                _ => return None
+                _ => return None,
             }
         }
 
@@ -401,7 +401,8 @@ impl Bottle {
     }
 
     pub fn send_garbage(&mut self, garbage: SendGarbage) -> Vec<Garbage> {
-        let mut available_x = self.row(0)
+        let mut available_x = self
+            .row(0)
             .into_iter()
             .enumerate()
             .filter(|(_, b)| b.is_empty())
@@ -422,11 +423,16 @@ impl Bottle {
     }
 
     pub fn register_lock_placement(&mut self) -> u32 {
-        self.pill.as_mut().expect("no pill to set lock placements").register_lock_placement()
+        self.pill
+            .as_mut()
+            .expect("no pill to set lock placements")
+            .register_lock_placement()
     }
 
     pub fn lock_placements(&self) -> u32 {
-        self.pill.expect("no pill to get lock placements").lock_placements()
+        self.pill
+            .expect("no pill to get lock placements")
+            .lock_placements()
     }
 
     pub fn is_collision(&self) -> bool {
@@ -441,7 +447,11 @@ impl Bottle {
             let mut success = true;
             for p in next_points.iter() {
                 let p = p.translate(*dx, *dy);
-                if p.x() < 0 || p.x() >= BOTTLE_WIDTH as i32 || p.y() < 0 || p.y() >= BOTTLE_HEIGHT as i32 {
+                if p.x() < 0
+                    || p.x() >= BOTTLE_WIDTH as i32
+                    || p.y() < 0
+                    || p.y() >= BOTTLE_HEIGHT as i32
+                {
                     success = false;
                     break;
                 }
@@ -542,8 +552,8 @@ impl Debug for Bottle {
             for x in 0..BOTTLE_WIDTH {
                 match self.block_at(x, y) {
                     Block::Vitamin(color, _, _)
-                     | Block::Stack(color, _, _)
-                     | Block::Garbage(color) => write!(f, "{}", color.to_char())?,
+                    | Block::Stack(color, _, _)
+                    | Block::Garbage(color) => write!(f, "{}", color.to_char())?,
                     Block::Virus(color) => write!(f, "{}", color.to_char().to_ascii_uppercase())?,
                     Block::Ghost(_, _, _) => write!(f, "G")?,
                     _ => write!(f, " ")?,
@@ -558,10 +568,10 @@ impl Debug for Bottle {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::hash_map::RandomState;
+    use super::*;
     use crate::game::geometry::Rotation;
     use crate::game::pill::VitaminOrdinal;
-    use super::*;
+    use std::collections::hash_map::RandomState;
 
     #[test]
     fn spawns_pill() {
@@ -569,15 +579,33 @@ mod tests {
         let vitamins = bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(vitamins.is_some());
         bottle.has_vitamin_at(3, 0, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(4, 0, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            4,
+            0,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
     fn renders_ghost_to_floor() {
         let mut bottle = Bottle::new();
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
-        bottle.has_ghost_at(3, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_ghost_at(4, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_ghost_at(
+            3,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_ghost_at(
+            4,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -585,10 +613,21 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.having_virus(3, 15, VirusColor::Yellow);
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
-        bottle.has_ghost_at(3, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_ghost_at(4, 14, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_ghost_at(
+            3,
+            14,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_ghost_at(
+            4,
+            14,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
-
 
     #[test]
     fn ignores_move_left_when_no_pill() {
@@ -613,8 +652,20 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(bottle.left(), "{:?}", bottle);
-        bottle.has_ghost_at(2, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_ghost_at(3, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_ghost_at(
+            2,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_ghost_at(
+            3,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -640,8 +691,20 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(bottle.right(), "{:?}", bottle);
-        bottle.has_ghost_at(4, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_ghost_at(5, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_ghost_at(
+            4,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_ghost_at(
+            5,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -668,7 +731,13 @@ mod tests {
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(bottle.rotate(true));
         bottle.has_vitamin_at(3, 0, VirusColor::Red, Rotation::East, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(3, 1, VirusColor::Blue, Rotation::East, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            1,
+            VirusColor::Blue,
+            Rotation::East,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -677,7 +746,13 @@ mod tests {
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(bottle.rotate(false));
         bottle.has_vitamin_at(3, 1, VirusColor::Red, Rotation::West, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(3, 0, VirusColor::Blue, Rotation::West, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            0,
+            VirusColor::Blue,
+            Rotation::West,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -690,7 +765,13 @@ mod tests {
         }
         assert!(bottle.rotate(true));
         bottle.has_vitamin_at(7, 1, VirusColor::Red, Rotation::South, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(6, 1, VirusColor::Blue, Rotation::South, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            6,
+            1,
+            VirusColor::Blue,
+            Rotation::South,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -701,8 +782,20 @@ mod tests {
             assert!(bottle.step_down_pill());
         }
         assert!(!bottle.step_down_pill());
-        bottle.has_vitamin_at(3, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(4, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_vitamin_at(
+            4,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -714,8 +807,20 @@ mod tests {
             assert!(bottle.step_down_pill());
         }
         assert!(!bottle.step_down_pill());
-        bottle.has_vitamin_at(3, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(4, 14, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            14,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_vitamin_at(
+            4,
+            14,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -723,8 +828,20 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         assert!(bottle.hard_drop().is_some());
-        bottle.has_vitamin_at(3, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(4, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_vitamin_at(
+            4,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -733,8 +850,20 @@ mod tests {
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         bottle.having_virus(4, 15, VirusColor::Yellow);
         assert!(bottle.hard_drop().is_some());
-        bottle.has_vitamin_at(3, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_vitamin_at(4, 14, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_vitamin_at(
+            3,
+            14,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_vitamin_at(
+            4,
+            14,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -743,8 +872,20 @@ mod tests {
         bottle.try_spawn(PillShape::new(VirusColor::Red, VirusColor::Blue));
         bottle.hard_drop();
         assert!(bottle.lock().is_some());
-        bottle.has_stack_at(3, 15, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_stack_at(4, 15, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_stack_at(
+            3,
+            15,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_stack_at(
+            4,
+            15,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -762,8 +903,20 @@ mod tests {
         bottle.having_virus(2, 10, VirusColor::Yellow);
         bottle.having_virus(3, 10, VirusColor::Yellow);
 
-        bottle.having_stack(2, 11, VirusColor::Blue, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(3, 11, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.having_stack(
+            2,
+            11,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            3,
+            11,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
         bottle.having_garbage(4, 11, VirusColor::Blue);
 
         bottle.having_garbage(3, 12, VirusColor::Red);
@@ -780,8 +933,20 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.having_virus(1, 10, VirusColor::Yellow);
         bottle.having_virus(2, 10, VirusColor::Yellow);
-        bottle.having_stack(3, 10, VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(4, 10, VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right);
+        bottle.having_stack(
+            3,
+            10,
+            VirusColor::Yellow,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            4,
+            10,
+            VirusColor::Yellow,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
         bottle.having_garbage(5, 10, VirusColor::Red);
         bottle.having_garbage(1, 11, VirusColor::Yellow);
         let (pattern, patterns) = bottle.pattern();
@@ -791,8 +956,14 @@ mod tests {
             HashSet::from_iter([
                 ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
                 ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)),
-                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right))
+                ColoredBlock::from_block(
+                    BottlePoint::new(3, 10),
+                    Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 10),
+                    Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right)
+                )
             ])
         );
         assert_eq!(patterns.len(), 1);
@@ -814,8 +985,14 @@ mod tests {
             HashSet::from_iter([
                 ColoredBlock::from_block(BottlePoint::new(5, 10), Block::Virus(VirusColor::Yellow)),
                 ColoredBlock::from_block(BottlePoint::new(5, 11), Block::Virus(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(5, 12), Block::Garbage(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(5, 13), Block::Garbage(VirusColor::Yellow))
+                ColoredBlock::from_block(
+                    BottlePoint::new(5, 12),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(5, 13),
+                    Block::Garbage(VirusColor::Yellow)
+                )
             ])
         );
         assert_eq!(patterns.len(), 1);
@@ -836,9 +1013,18 @@ mod tests {
             HashSet::from_iter([
                 ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
                 ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Garbage(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Garbage(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(5, 10), Block::Garbage(VirusColor::Yellow))
+                ColoredBlock::from_block(
+                    BottlePoint::new(3, 10),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 10),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(5, 10),
+                    Block::Garbage(VirusColor::Yellow)
+                )
             ])
         );
         assert_eq!(patterns.len(), 1);
@@ -849,8 +1035,20 @@ mod tests {
         let mut bottle = Bottle::new();
         bottle.having_virus(1, 10, VirusColor::Yellow);
         bottle.having_virus(2, 10, VirusColor::Yellow);
-        bottle.having_stack(3, 10, VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(4, 10, VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right);
+        bottle.having_stack(
+            3,
+            10,
+            VirusColor::Yellow,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            4,
+            10,
+            VirusColor::Yellow,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
         bottle.having_garbage(4, 11, VirusColor::Yellow);
         bottle.having_garbage(4, 12, VirusColor::Yellow);
         bottle.having_garbage(4, 13, VirusColor::Yellow);
@@ -862,11 +1060,26 @@ mod tests {
             HashSet::from_iter([
                 ColoredBlock::from_block(BottlePoint::new(1, 10), Block::Virus(VirusColor::Yellow)),
                 ColoredBlock::from_block(BottlePoint::new(2, 10), Block::Virus(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(3, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)),
-                ColoredBlock::from_block(BottlePoint::new(4, 10), Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right)),
-                ColoredBlock::from_block(BottlePoint::new(4, 11), Block::Garbage(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(4, 12), Block::Garbage(VirusColor::Yellow)),
-                ColoredBlock::from_block(BottlePoint::new(4, 13), Block::Garbage(VirusColor::Yellow)),
+                ColoredBlock::from_block(
+                    BottlePoint::new(3, 10),
+                    Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Left)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 10),
+                    Block::Stack(VirusColor::Yellow, Rotation::North, VitaminOrdinal::Right)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 11),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 12),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
+                ColoredBlock::from_block(
+                    BottlePoint::new(4, 13),
+                    Block::Garbage(VirusColor::Yellow)
+                ),
             ])
         );
         assert_eq!(patterns.len(), 2);
@@ -907,9 +1120,24 @@ mod tests {
     #[test]
     fn destroy_generates_garbage() {
         let mut bottle = Bottle::new();
-        bottle.having_stack(5, BOTTLE_FLOOR, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(6, BOTTLE_FLOOR, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
-        bottle.destroy(vec![ColoredBlock::from_block(BottlePoint::new(5, BOTTLE_FLOOR as i32), Block::Stack(VirusColor::Red, Rotation::North, VitaminOrdinal::Left))]);
+        bottle.having_stack(
+            5,
+            BOTTLE_FLOOR,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            6,
+            BOTTLE_FLOOR,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
+        bottle.destroy(vec![ColoredBlock::from_block(
+            BottlePoint::new(5, BOTTLE_FLOOR as i32),
+            Block::Stack(VirusColor::Red, Rotation::North, VitaminOrdinal::Left),
+        )]);
         bottle.is_empty_at(5, BOTTLE_FLOOR);
         bottle.is_garbage_at(6, BOTTLE_FLOOR, VirusColor::Blue);
     }
@@ -946,16 +1174,64 @@ mod tests {
     fn step_down_kitchen_sink() {
         let mut bottle = Bottle::new();
         bottle.having_garbage(0, 14, VirusColor::Yellow);
-        bottle.having_stack(0, 13, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(1, 13, VirusColor::Red, Rotation::North, VitaminOrdinal::Right);
-        bottle.having_stack(1, 12, VirusColor::Blue, Rotation::North, VitaminOrdinal::Left);
-        bottle.having_stack(2, 12, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.having_stack(
+            0,
+            13,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            1,
+            13,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
+        bottle.having_stack(
+            1,
+            12,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.having_stack(
+            2,
+            12,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
         assert!(bottle.step_down_garbage());
         bottle.has_garbage_at(0, 15, VirusColor::Yellow);
-        bottle.has_stack_at(0, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_stack_at(1, 14, VirusColor::Red, Rotation::North, VitaminOrdinal::Right);
-        bottle.has_stack_at(1, 13, VirusColor::Blue, Rotation::North, VitaminOrdinal::Left);
-        bottle.has_stack_at(2, 13, VirusColor::Blue, Rotation::North, VitaminOrdinal::Right);
+        bottle.has_stack_at(
+            0,
+            14,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_stack_at(
+            1,
+            14,
+            VirusColor::Red,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
+        bottle.has_stack_at(
+            1,
+            13,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Left,
+        );
+        bottle.has_stack_at(
+            2,
+            13,
+            VirusColor::Blue,
+            Rotation::North,
+            VitaminOrdinal::Right,
+        );
     }
 
     #[test]
@@ -971,7 +1247,9 @@ mod tests {
     fn send_garbage() {
         let mut bottle = Bottle::new();
         assert_eq!(
-            bottle.send_garbage(vec![VirusColor::Blue, VirusColor::Red]).len(),
+            bottle
+                .send_garbage(vec![VirusColor::Blue, VirusColor::Red])
+                .len(),
             2
         );
         let mut garbage = HashSet::new();
@@ -980,26 +1258,62 @@ mod tests {
                 garbage.insert(*color);
             }
         }
-        assert_eq!(garbage, HashSet::from_iter([VirusColor::Blue, VirusColor::Red]))
+        assert_eq!(
+            garbage,
+            HashSet::from_iter([VirusColor::Blue, VirusColor::Red])
+        )
     }
 
     trait BottleTestHarness {
         fn is_empty(&self);
         fn is_empty_at(&self, x: u32, y: u32);
         fn is_garbage_at(&self, x: u32, y: u32, color: VirusColor);
-        fn has_vitamin_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal);
-        fn has_stack_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal);
+        fn has_vitamin_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        );
+        fn has_stack_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        );
         fn has_garbage_at(&self, x: u32, y: u32, color: VirusColor);
-        fn has_ghost_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal);
+        fn has_ghost_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        );
         fn has_virus_at(&self, x: u32, y: u32, color: VirusColor);
         fn having_virus(&mut self, x: u32, y: u32, color: VirusColor);
-        fn having_stack(&mut self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal);
+        fn having_stack(
+            &mut self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        );
         fn having_garbage(&mut self, x: u32, y: u32, color: VirusColor);
     }
 
     impl BottleTestHarness for Bottle {
         fn is_empty(&self) {
-            assert_eq!(self.blocks, [Block::Empty; TOTAL_BLOCKS as usize], "{:?}", self);
+            assert_eq!(
+                self.blocks,
+                [Block::Empty; TOTAL_BLOCKS as usize],
+                "{:?}",
+                self
+            );
         }
 
         fn is_empty_at(&self, x: u32, y: u32) {
@@ -1007,10 +1321,22 @@ mod tests {
         }
 
         fn is_garbage_at(&self, x: u32, y: u32, color: VirusColor) {
-            assert_eq!(self.blocks[index_at(x, y)], Block::Garbage(color), "{:?}", self);
+            assert_eq!(
+                self.blocks[index_at(x, y)],
+                Block::Garbage(color),
+                "{:?}",
+                self
+            );
         }
 
-        fn has_vitamin_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal) {
+        fn has_vitamin_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        ) {
             assert_eq!(
                 self.blocks[index_at(x, y)],
                 Block::Vitamin(color, rotation, ordinal),
@@ -1019,7 +1345,14 @@ mod tests {
             );
         }
 
-        fn has_stack_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal) {
+        fn has_stack_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        ) {
             assert_eq!(
                 self.blocks[index_at(x, y)],
                 Block::Stack(color, rotation, ordinal),
@@ -1029,10 +1362,22 @@ mod tests {
         }
 
         fn has_garbage_at(&self, x: u32, y: u32, color: VirusColor) {
-            assert_eq!(self.blocks[index_at(x, y)], Block::Garbage(color), "{:?}", self);
+            assert_eq!(
+                self.blocks[index_at(x, y)],
+                Block::Garbage(color),
+                "{:?}",
+                self
+            );
         }
 
-        fn has_ghost_at(&self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal) {
+        fn has_ghost_at(
+            &self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        ) {
             assert_eq!(
                 self.blocks[index_at(x, y)],
                 Block::Ghost(color, rotation, ordinal),
@@ -1042,14 +1387,26 @@ mod tests {
         }
 
         fn has_virus_at(&self, x: u32, y: u32, color: VirusColor) {
-            assert_eq!(self.blocks[index_at(x, y)], Block::Virus(color), "{:?}", self);
+            assert_eq!(
+                self.blocks[index_at(x, y)],
+                Block::Virus(color),
+                "{:?}",
+                self
+            );
         }
 
         fn having_virus(&mut self, x: u32, y: u32, color: VirusColor) {
             self.blocks[index_at(x, y)] = Block::Virus(color);
         }
 
-        fn having_stack(&mut self, x: u32, y: u32, color: VirusColor, rotation: Rotation, ordinal: VitaminOrdinal) {
+        fn having_stack(
+            &mut self,
+            x: u32,
+            y: u32,
+            color: VirusColor,
+            rotation: Rotation,
+            ordinal: VitaminOrdinal,
+        ) {
             self.blocks[index_at(x, y)] = Block::Stack(color, rotation, ordinal);
         }
 
@@ -1057,6 +1414,4 @@ mod tests {
             self.blocks[index_at(x, y)] = Block::Garbage(color);
         }
     }
-
-
 }

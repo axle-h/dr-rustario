@@ -1,5 +1,5 @@
-use std::time::Duration;
 use crate::animate::dr::{DrAnimation, DrAnimationType};
+use std::time::Duration;
 
 const VISIBLE_FOR: Duration = Duration::from_secs(10);
 
@@ -7,12 +7,16 @@ const VISIBLE_FOR: Duration = Duration::from_secs(10);
 pub struct State {
     duration: Duration,
     dr: DrAnimation,
-    is_complete: bool
+    is_complete: bool,
 }
 
 impl State {
     fn new(dr_animation: DrAnimation) -> Self {
-        Self { duration: Duration::ZERO, dr: dr_animation, is_complete: false }
+        Self {
+            duration: Duration::ZERO,
+            dr: dr_animation,
+            is_complete: false,
+        }
     }
 
     pub fn dr_frame(&self) -> usize {
@@ -28,12 +32,16 @@ impl State {
 pub struct VictoryAnimation {
     dr_frames: usize,
     dr_type: DrAnimationType,
-    state: Option<State>
+    state: Option<State>,
 }
 
 impl VictoryAnimation {
     pub fn new(dr_frames: usize, dr_type: DrAnimationType) -> Self {
-        Self { dr_frames, dr_type, state: None }
+        Self {
+            dr_frames,
+            dr_type,
+            state: None,
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {

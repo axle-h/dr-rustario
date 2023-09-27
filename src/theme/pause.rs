@@ -17,8 +17,7 @@ impl<'a> PausedScreen<'a> {
         (window_width, window_height): (u32, u32),
     ) -> Result<Self, String> {
         let font = FontType::Handjet.load(ttf, window_width / 16)?;
-        let font_texture =
-            FontTexture::from_string(&font, texture_creator, "pause", Color::WHITE)?;
+        let font_texture = FontTexture::from_string(&font, texture_creator, "pause", Color::WHITE)?;
         let font_rect = Rect::from_center(
             (window_width as i32 / 2, window_height as i32 / 2),
             font_texture.width,

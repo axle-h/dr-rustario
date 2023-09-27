@@ -22,7 +22,7 @@ pub struct ParticleRender<'a> {
     sprites: Texture<'a>,
     sprite_snips: HashMap<ParticleSprite, Rect>,
     particles: Particles,
-    theme_sprites: HashMap<ThemeName, FlatVitaminSpriteSheet<'a>>
+    theme_sprites: HashMap<ThemeName, FlatVitaminSpriteSheet<'a>>,
 }
 
 impl<'a> ParticleRender<'a> {
@@ -43,7 +43,12 @@ impl<'a> ParticleRender<'a> {
 
         let vitamin_sprites = all_themes
             .into_iter()
-            .map(|theme| (theme.name(), theme.sprites().flatten(canvas, texture_creator).unwrap()))
+            .map(|theme| {
+                (
+                    theme.name(),
+                    theme.sprites().flatten(canvas, texture_creator).unwrap(),
+                )
+            })
             .collect();
 
         Ok(Self {
@@ -79,7 +84,6 @@ impl<'a> ParticleRender<'a> {
             }
 
             let point = self.scale.point_to_render_space(particle.position());
-
 
             match particle.sprite() {
                 ParticleSprite::Pill(theme, shape) => {
@@ -123,16 +127,18 @@ impl<'a> ParticleRender<'a> {
                         sprite_sheet.draw_frame_scaled(canvas, rect, frame)?;
                     }
                 }
-                _ => if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {
-                    let scale = BASE_SCALE * particle.size();
-                    let rect = Rect::from_center(
-                        point,
-                        (scale * snip.width() as f64).round() as u32,
-                        (scale * snip.height() as f64).round() as u32,
-                    );
-                    canvas.copy(&self.sprites, *snip, rect)?;
-                } else {
-                    unreachable!();
+                _ => {
+                    if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {
+                        let scale = BASE_SCALE * particle.size();
+                        let rect = Rect::from_center(
+                            point,
+                            (scale * snip.width() as f64).round() as u32,
+                            (scale * snip.height() as f64).round() as u32,
+                        );
+                        canvas.copy(&self.sprites, *snip, rect)?;
+                    } else {
+                        unreachable!();
+                    }
                 }
             }
         }

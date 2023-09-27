@@ -1,11 +1,13 @@
+use crate::game::random::RandomMode;
+use crate::game::GameSpeed;
 use num_format::{Locale, ToFormattedString};
 use strum::IntoEnumIterator;
-use crate::game::GameSpeed;
-use crate::game::random::RandomMode;
 
 pub const MAX_VIRUS_LEVEL: u32 = 30;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter, strum::EnumString)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter, strum::EnumString,
+)]
 pub enum MatchThemes {
     /// Run themes in order, switching at the next level
     #[strum(serialize = "all")]
@@ -21,7 +23,7 @@ pub enum MatchThemes {
     N64 = 3,
 
     #[strum(serialize = "particle")]
-    Particle = 4
+    Particle = 4,
 }
 
 impl MatchThemes {
@@ -42,7 +44,7 @@ pub enum MatchRules {
     /// Race to some score
     ScoreSprint { score: u32 },
     /// Race through all of the themes, one per virus level
-    ThemeSprint
+    ThemeSprint,
 }
 
 impl MatchRules {
@@ -52,21 +54,23 @@ impl MatchRules {
     pub const VS_MODES: [Self; 3] = [
         Self::ONE_LEVEL_SPRINT,
         Self::ThemeSprint,
-        Self::DEFAULT_SCORE_SPRINT
+        Self::DEFAULT_SCORE_SPRINT,
     ];
     pub const SINGLE_PLAYER_MODES: [Self; 4] = [
         Self::Marathon,
         Self::ONE_LEVEL_SPRINT,
         Self::ThemeSprint,
-        Self::DEFAULT_SCORE_SPRINT
+        Self::DEFAULT_SCORE_SPRINT,
     ];
 
     pub fn name(&self) -> String {
         match self {
             MatchRules::Marathon => "marathon".to_string(),
             MatchRules::LevelSprint { levels } => format!("{} level sprint", levels),
-            MatchRules::ScoreSprint { score } => format!("{} point sprint", score.to_formatted_string(&Locale::en)),
-            MatchRules::ThemeSprint => "theme sprint".to_string()
+            MatchRules::ScoreSprint { score } => {
+                format!("{} point sprint", score.to_formatted_string(&Locale::en))
+            }
+            MatchRules::ThemeSprint => "theme sprint".to_string(),
         }
     }
 
@@ -90,12 +94,26 @@ pub struct GameConfig {
     speed: GameSpeed,
     themes: MatchThemes,
     rules: MatchRules,
-    random: RandomMode
+    random: RandomMode,
 }
 
 impl GameConfig {
-    pub fn new(players: u32, virus_level: u32, speed: GameSpeed, themes: MatchThemes, rules: MatchRules, random: RandomMode) -> Self {
-        Self { players, virus_level, speed, themes, rules, random }
+    pub fn new(
+        players: u32,
+        virus_level: u32,
+        speed: GameSpeed,
+        themes: MatchThemes,
+        rules: MatchRules,
+        random: RandomMode,
+    ) -> Self {
+        Self {
+            players,
+            virus_level,
+            speed,
+            themes,
+            rules,
+            random,
+        }
     }
 
     pub fn players(&self) -> u32 {
@@ -148,7 +166,14 @@ impl GameConfig {
 
 impl Default for GameConfig {
     fn default() -> Self {
-        Self::new(1, 0, GameSpeed::Medium, MatchThemes::All, MatchRules::Marathon, RandomMode::default())
+        Self::new(
+            1,
+            0,
+            GameSpeed::Medium,
+            MatchThemes::All,
+            MatchRules::Marathon,
+            RandomMode::default(),
+        )
     }
 }
 

@@ -25,7 +25,7 @@ pub enum VirusColor {
     #[default]
     Yellow = 0,
     Blue = 1,
-    Red = 2
+    Red = 2,
 }
 
 impl VirusColor {
@@ -35,7 +35,7 @@ impl VirusColor {
         match self {
             VirusColor::Yellow => VirusColor::Blue,
             VirusColor::Blue => VirusColor::Red,
-            VirusColor::Red => VirusColor::Yellow
+            VirusColor::Red => VirusColor::Yellow,
         }
     }
 }
@@ -56,16 +56,21 @@ impl TryFrom<usize> for VirusColor {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PillShape {
     left_color: VirusColor,
-    right_color: VirusColor
+    right_color: VirusColor,
 }
 
 impl Default for PillShape {
-    fn default() -> Self { Self::RB }
+    fn default() -> Self {
+        Self::RB
+    }
 }
 
 impl PillShape {
     pub const fn new(left_color: VirusColor, right_color: VirusColor) -> Self {
-        Self { left_color, right_color }
+        Self {
+            left_color,
+            right_color,
+        }
     }
 
     pub const YY: Self = Self::new(VirusColor::Yellow, VirusColor::Yellow);
@@ -81,9 +86,15 @@ impl PillShape {
     pub const RB: Self = Self::new(VirusColor::Red, VirusColor::Blue);
 
     pub const ALL: [Self; 9] = [
-        Self::YY, Self::YB, Self::YR,
-        Self::BB, Self::BY, Self::BR,
-        Self::RR, Self::RY, Self::RB
+        Self::YY,
+        Self::YB,
+        Self::YR,
+        Self::BB,
+        Self::BY,
+        Self::BR,
+        Self::RR,
+        Self::RY,
+        Self::RB,
     ];
 
     pub fn left_color(&self) -> VirusColor {
@@ -99,7 +110,7 @@ impl VirusColor {
         match self {
             VirusColor::Red => 'r',
             VirusColor::Blue => 'b',
-            VirusColor::Yellow => 'y'
+            VirusColor::Yellow => 'y',
         }
     }
 }
@@ -108,13 +119,13 @@ impl VirusColor {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VitaminOrdinal {
     Left = 0,
-    Right = 1
+    Right = 1,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Garbage {
     pub color: VirusColor,
-    pub position: BottlePoint
+    pub position: BottlePoint,
 }
 
 impl Garbage {
@@ -128,26 +139,47 @@ pub struct Vitamin {
     ordinal: VitaminOrdinal,
     rotation: Rotation,
     color: VirusColor,
-    position: BottlePoint
+    position: BottlePoint,
 }
 
-pub const LEFT_VITAMIN_SPAWN_POINT: BottlePoint = NORTH_PILLS[0].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
-pub const RIGHT_VITAMIN_SPAWN_POINT: BottlePoint = NORTH_PILLS[1].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
-pub const VITAMIN_SPAWN_POINTS: [BottlePoint; 2] = [LEFT_VITAMIN_SPAWN_POINT, RIGHT_VITAMIN_SPAWN_POINT];
+pub const LEFT_VITAMIN_SPAWN_POINT: BottlePoint =
+    NORTH_PILLS[0].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
+pub const RIGHT_VITAMIN_SPAWN_POINT: BottlePoint =
+    NORTH_PILLS[1].translate(SPAWN_POINT.x(), SPAWN_POINT.y());
+pub const VITAMIN_SPAWN_POINTS: [BottlePoint; 2] =
+    [LEFT_VITAMIN_SPAWN_POINT, RIGHT_VITAMIN_SPAWN_POINT];
 
 impl Vitamin {
     pub fn left(color: VirusColor, position: BottlePoint, rotation: Rotation) -> Self {
-        Self { ordinal: VitaminOrdinal::Left, color, position, rotation }
+        Self {
+            ordinal: VitaminOrdinal::Left,
+            color,
+            position,
+            rotation,
+        }
     }
 
     pub fn right(color: VirusColor, position: BottlePoint, rotation: Rotation) -> Self {
-        Self { ordinal: VitaminOrdinal::Right, color, position, rotation }
+        Self {
+            ordinal: VitaminOrdinal::Right,
+            color,
+            position,
+            rotation,
+        }
     }
 
     pub fn vitamins(shape: PillShape) -> Vitamins {
         [
-            Vitamin::left(shape.left_color, NORTH_PILLS[0] + SPAWN_POINT, Rotation::North),
-            Vitamin::right(shape.right_color, NORTH_PILLS[1] + SPAWN_POINT, Rotation::North)
+            Vitamin::left(
+                shape.left_color,
+                NORTH_PILLS[0] + SPAWN_POINT,
+                Rotation::North,
+            ),
+            Vitamin::right(
+                shape.right_color,
+                NORTH_PILLS[1] + SPAWN_POINT,
+                Rotation::North,
+            ),
         ]
     }
 
@@ -166,7 +198,6 @@ impl Vitamin {
     pub fn translate(&mut self, dx: i32, dy: i32) {
         self.position.translate_mut(dx, dy);
     }
-
 
     pub fn rotation(&self) -> Rotation {
         self.rotation
@@ -191,7 +222,7 @@ impl Pill {
             position: SPAWN_POINT,
             rotation: Rotation::North,
             lock_placements: 0,
-            y_min: SPAWN_POINT.y()
+            y_min: SPAWN_POINT.y(),
         }
     }
 
@@ -206,13 +237,12 @@ impl Pill {
     pub fn available_wall_kicks(&self) -> &[(i32, i32)] {
         match self.rotation {
             Rotation::North | Rotation::South => WALL_KICKS_H_TO_V,
-            Rotation::East | Rotation::West => WALL_KICKS_V_TO_H
+            Rotation::East | Rotation::West => WALL_KICKS_V_TO_H,
         }
     }
 
     pub fn next_rotation(&self, clockwise: bool) -> [BottlePoint; 2] {
-        rotated_pills(self.rotation.rotate(clockwise))
-            .map(|p| p + self.position)
+        rotated_pills(self.rotation.rotate(clockwise)).map(|p| p + self.position)
     }
 
     pub fn rotate(&mut self, clockwise: bool, kick_x: i32, kick_y: i32) {
@@ -244,9 +274,6 @@ impl Pill {
         self.lock_placements
     }
 
-    pub fn position(&self) -> BottlePoint {
-        self.position
-    }
     pub fn rotation(&self) -> Rotation {
         self.rotation
     }
@@ -267,10 +294,13 @@ mod tests {
         assert_eq!(pill.lock_placements, 0);
         assert_eq!(pill.y_min, -1);
 
-        assert_eq!(pill.vitamins, [
-            Vitamin::left(VirusColor::Red, BottlePoint::new(3, 0), Rotation::North),
-            Vitamin::right(VirusColor::Blue, BottlePoint::new(4, 0), Rotation::North)
-        ]);
+        assert_eq!(
+            pill.vitamins,
+            [
+                Vitamin::left(VirusColor::Red, BottlePoint::new(3, 0), Rotation::North),
+                Vitamin::right(VirusColor::Blue, BottlePoint::new(4, 0), Rotation::North)
+            ]
+        );
     }
 
     #[test]
@@ -279,10 +309,13 @@ mod tests {
         pill.rotate(true, 0, 1);
         assert_eq!(pill.rotation, Rotation::East);
         assert_eq!(pill.position, BottlePoint::new(3, 0)); // kicked down 1
-        assert_eq!(pill.vitamins, [
-            Vitamin::left(VirusColor::Red, BottlePoint::new(3, 0),Rotation::East),
-            Vitamin::right(VirusColor::Blue, BottlePoint::new(3, 1), Rotation::East)
-        ]);
+        assert_eq!(
+            pill.vitamins,
+            [
+                Vitamin::left(VirusColor::Red, BottlePoint::new(3, 0), Rotation::East),
+                Vitamin::right(VirusColor::Blue, BottlePoint::new(3, 1), Rotation::East)
+            ]
+        );
     }
 
     #[test]
@@ -291,10 +324,13 @@ mod tests {
         pill.rotate(false, 0, 1);
         assert_eq!(pill.rotation, Rotation::West);
         assert_eq!(pill.position, BottlePoint::new(3, 0)); // kicked down 1
-        assert_eq!(pill.vitamins, [
-            Vitamin::left(VirusColor::Red, BottlePoint::new(3, 1), Rotation::West),
-            Vitamin::right(VirusColor::Blue, BottlePoint::new(3, 0), Rotation::West)
-        ]);
+        assert_eq!(
+            pill.vitamins,
+            [
+                Vitamin::left(VirusColor::Red, BottlePoint::new(3, 1), Rotation::West),
+                Vitamin::right(VirusColor::Blue, BottlePoint::new(3, 0), Rotation::West)
+            ]
+        );
     }
 
     #[test]

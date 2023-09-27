@@ -1,6 +1,6 @@
-use sdl2::{get_error, libc};
 use sdl2::surface::Surface;
 use sdl2::sys::{image, SDL_RWFromMem};
+use sdl2::{get_error, libc};
 
 const ICON_FILE: &[u8] = include_bytes!("../icon.ico");
 

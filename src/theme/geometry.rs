@@ -1,13 +1,12 @@
-use sdl2::rect::{Point, Rect};
 use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH};
 use crate::game::geometry::BottlePoint;
-use crate::game::pill::Vitamins;
+
+use sdl2::rect::{Point, Rect};
 
 #[derive(Debug, Copy, Clone)]
 pub struct BottleGeometry {
     raw_block_size: u32,
     block_size: u32,
-    block_overlap: i32,
     height: u32,
     width: u32,
     offset: Point,
@@ -21,7 +20,6 @@ impl BottleGeometry {
         Self {
             raw_block_size,
             block_size,
-            block_overlap,
             height,
             width,
             offset: offset.into(),
@@ -36,10 +34,6 @@ impl BottleGeometry {
         j * self.block_size as i32 + self.offset.y()
     }
 
-    pub fn block_overlap(&self) -> i32 {
-        self.block_overlap
-    }
-
     pub fn block_size(&self) -> u32 {
         self.block_size
     }
@@ -52,15 +46,12 @@ impl BottleGeometry {
         self.width
     }
 
-    pub fn point<P : Into<BottlePoint>>(&self, point: P) -> Point {
+    pub fn point<P: Into<BottlePoint>>(&self, point: P) -> Point {
         let point = point.into();
-        Point::new(
-            self.i_to_x(point.x()),
-            self.j_to_y(point.y())
-        )
+        Point::new(self.i_to_x(point.x()), self.j_to_y(point.y()))
     }
 
-    pub fn raw_block<P : Into<BottlePoint>>(&self, point: P) -> Rect {
+    pub fn raw_block<P: Into<BottlePoint>>(&self, point: P) -> Rect {
         let point = point.into();
         Rect::new(
             self.i_to_x(point.x()),

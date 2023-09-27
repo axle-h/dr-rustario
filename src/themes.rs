@@ -1,21 +1,20 @@
-use std::collections::HashSet;
 use crate::scale::Scale;
 use crate::theme::all::AllThemes;
 use crate::theme::Theme;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 
-use sdl2::video::WindowContext;
-use std::time::Duration;
 use crate::animate::event::AnimationEvent;
 use crate::animate::PlayerAnimations;
 use crate::game::event::ColoredBlock;
-use crate::game::GameSpeed;
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, Vitamins};
 use crate::game::rules::{GameConfig, MatchThemes};
+use crate::game::GameSpeed;
 use crate::player::MatchState;
-use crate::theme::scene::SceneRender;
+
+use sdl2::video::WindowContext;
+use std::time::Duration;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
 
@@ -54,11 +53,10 @@ pub enum TextureMode {
 
 #[derive(Clone, Debug)]
 struct ThemedPlayer {
-    player: u32,
     bg_snip: Rect,
     bottle_snip: Rect,
     game_snip: Rect,
-    animations: PlayerAnimations
+    animations: PlayerAnimations,
 }
 
 impl ThemedPlayer {
@@ -66,15 +64,16 @@ impl ThemedPlayer {
         let (theme_width, theme_height) = theme.background_size();
         let mut bg_snip = scale.scale_rect(Rect::new(0, 0, theme_width, theme_height));
         bg_snip.center_on(scale.player_window(player).center());
-        let bottle_snip = scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
-        let game_snip = scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
+        let bottle_snip =
+            scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
+        let game_snip =
+            scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
         let animations = PlayerAnimations::new(player, theme);
         Self {
-            player,
             bg_snip,
             bottle_snip,
             game_snip,
-            animations
+            animations,
         }
     }
 
@@ -88,7 +87,7 @@ pub struct ScaledTheme<'a> {
     bg_source_snip: Rect,
     bottle_source_snip: Rect,
     player_themes: Vec<ThemedPlayer>,
-    scale: Scale
+    scale: Scale,
 }
 
 impl<'a> ScaledTheme<'a> {
@@ -115,28 +114,35 @@ impl<'a> ScaledTheme<'a> {
         }
     }
 
-    pub fn rows_to_pixels(&self, value: u32) -> u32 {
-        let raw_pixels = self.theme.geometry().block_size() * value;
-        self.scale.scale_length(raw_pixels)
-    }
-
     pub fn update_animations(&mut self, delta: Duration) -> Vec<AnimationEvent> {
-        self.player_themes.iter_mut()
+        self.player_themes
+            .iter_mut()
             .flat_map(|p| p.update_animations(delta))
             .collect()
     }
 
     pub fn animations_mut(&mut self, player: u32) -> &mut PlayerAnimations {
-        &mut self.player_themes.get_mut(player as usize).unwrap().animations
+        &mut self
+            .player_themes
+            .get_mut(player as usize)
+            .unwrap()
+            .animations
     }
 
     pub fn is_pause_required_for_animation(&self, player: u32) -> bool {
-        self.player_themes[player as usize].animations.is_animating()
+        self.player_themes[player as usize]
+            .animations
+            .is_animating()
     }
 
     pub fn is_animating_next_level_interstitial(&self) -> bool {
         for player in self.player_themes.iter() {
-            if player.animations.next_level_interstitial().state().is_some() {
+            if player
+                .animations
+                .next_level_interstitial()
+                .state()
+                .is_some()
+            {
                 return true;
             }
         }
@@ -169,7 +175,7 @@ impl<'a> ThemeContext<'a> {
             MatchThemes::All | MatchThemes::Nes => 0,
             MatchThemes::Snes => 1,
             MatchThemes::N64 => 2,
-            MatchThemes::Particle => 3
+            MatchThemes::Particle => 3,
         };
 
         Ok(Self {
@@ -207,11 +213,7 @@ impl<'a> ThemeContext<'a> {
 
     pub fn player_bottle_snip(&self, player: u32) -> Rect {
         let theme = &self.themes[self.current];
-        theme
-            .player_themes
-            .get(player as usize)
-            .unwrap()
-            .game_snip
+        theme.player_themes.get(player as usize).unwrap().game_snip
     }
 
     pub fn player_animations(&self, player: u32) -> &PlayerAnimations {
@@ -237,7 +239,10 @@ impl<'a> ThemeContext<'a> {
 
     pub fn animate_destroy(&mut self, player: u32, blocks: Vec<ColoredBlock>) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).destroy_mut().add(blocks.clone());
+            theme
+                .animations_mut(player)
+                .destroy_mut()
+                .add(blocks.clone());
         }
     }
 
@@ -255,13 +260,19 @@ impl<'a> ThemeContext<'a> {
 
     pub fn animate_hard_drop(&mut self, player: u32, vitamins: Vitamins, dropped_rows: u32) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).hard_drop_mut().hard_drop(vitamins, dropped_rows);
+            theme
+                .animations_mut(player)
+                .hard_drop_mut()
+                .hard_drop(vitamins, dropped_rows);
         }
     }
 
     pub fn animate_spawn(&mut self, player: u32, shape: PillShape, is_hold: bool) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).throw_mut().throw(shape, is_hold);
+            theme
+                .animations_mut(player)
+                .throw_mut()
+                .throw(shape, is_hold);
         }
     }
 
@@ -279,20 +290,29 @@ impl<'a> ThemeContext<'a> {
 
     pub fn animate_next_level_interstitial(&mut self, player: u32) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).next_level_interstitial_mut().display();
+            theme
+                .animations_mut(player)
+                .next_level_interstitial_mut()
+                .display();
         }
     }
 
     pub fn animate_next_level(&mut self, player: u32, viruses: &[ColoredBlock]) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).next_level_mut().next_level(viruses);
+            theme
+                .animations_mut(player)
+                .next_level_mut()
+                .next_level(viruses);
         }
     }
 
     pub fn maybe_dismiss_next_level_interstitial(&mut self, player: u32) -> bool {
         let mut result = false;
         for index in 0..self.themes.len() {
-            let theme_result = self.themes[index].animations_mut(player).next_level_interstitial_mut().dismiss();
+            let theme_result = self.themes[index]
+                .animations_mut(player)
+                .next_level_interstitial_mut()
+                .dismiss();
             if index == self.current {
                 result = theme_result;
             }
@@ -315,7 +335,13 @@ impl<'a> ThemeContext<'a> {
 
     pub fn is_any_game_over_dismissed(&self) -> bool {
         for player in self.themes[self.current].player_themes.iter() {
-            if player.animations.game_over().state().map(|s| s.is_dismissed()).unwrap_or(false) {
+            if player
+                .animations
+                .game_over()
+                .state()
+                .map(|s| s.is_dismissed())
+                .unwrap_or(false)
+            {
                 return true;
             }
         }
@@ -339,7 +365,12 @@ impl<'a> ThemeContext<'a> {
         true
     }
 
-    pub fn fade_into_next_theme(&mut self, canvas: &mut WindowCanvas, match_state: MatchState, is_single_player: bool) -> Result<(), String> {
+    pub fn fade_into_next_theme(
+        &mut self,
+        canvas: &mut WindowCanvas,
+        match_state: MatchState,
+        is_single_player: bool,
+    ) -> Result<(), String> {
         for theme in self.themes.iter_mut() {
             for player in theme.player_themes.iter_mut() {
                 player.animations.reset();
@@ -352,7 +383,9 @@ impl<'a> ThemeContext<'a> {
         // handle music
         let audio = self.theme().audio();
         match match_state {
-            MatchState::Normal if self.is_animating_next_level_interstitial() => audio.play_next_level_music()?,
+            MatchState::Normal if self.is_animating_next_level_interstitial() => {
+                audio.play_next_level_music()?
+            }
             MatchState::Normal => audio.fade_in_game_music()?,
             MatchState::Paused => {
                 audio.play_game_music()?;
@@ -397,7 +430,7 @@ impl<'a> ThemeContext<'a> {
         &mut self,
         canvas: &mut WindowCanvas,
         texture_refs: &mut [(&mut Texture, TextureMode)],
-        delta: Duration
+        delta: Duration,
     ) -> Result<(), String> {
         let current = self.current();
         for (texture, texture_mode) in texture_refs.iter_mut() {
@@ -443,7 +476,8 @@ impl<'a> ThemeContext<'a> {
         let theme = &self.themes[self.current];
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
-        points.into_iter()
+        points
+            .into_iter()
             .map(|p| geometry.raw_block(p))
             .map(|r| {
                 theme
@@ -453,21 +487,34 @@ impl<'a> ThemeContext<'a> {
             .collect()
     }
 
-    pub fn player_block_snips_masked(&self, player: u32, blocks: Vec<ColoredBlock>, lattice_spacing: u32) -> Vec<Point> {
+    pub fn player_block_snips_masked(
+        &self,
+        player: u32,
+        blocks: Vec<ColoredBlock>,
+        lattice_spacing: u32,
+    ) -> Vec<Point> {
         let theme = &self.themes[self.current];
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
         let sprites = theme.theme.sprites();
 
-        blocks.into_iter()
+        blocks
+            .into_iter()
             .flat_map(|b| {
                 if b.is_virus {
                     sprites.virus_mask(b.color)
                 } else {
                     sprites.garbage_mask()
-                }.lattice(geometry.point(b.position), lattice_spacing)
+                }
+                .lattice(geometry.point(b.position), lattice_spacing)
             })
-            .map(|p| theme.scale.scale_and_offset_point(p, player.bottle_snip.x(), player.bottle_snip.y()))
+            .map(|p| {
+                theme.scale.scale_and_offset_point(
+                    p,
+                    player.bottle_snip.x(),
+                    player.bottle_snip.y(),
+                )
+            })
             .collect()
     }
 
@@ -475,13 +522,11 @@ impl<'a> ThemeContext<'a> {
         let theme = &self.themes[self.current];
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
-        vitamins
-            .map(|v| geometry.raw_block(v.position()))
-            .map(|r| {
-                theme
-                    .scale
-                    .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
-            })
+        vitamins.map(|v| geometry.raw_block(v.position())).map(|r| {
+            theme
+                .scale
+                .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
+        })
     }
 
     pub fn render_scene_particles(&self) -> bool {

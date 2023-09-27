@@ -1,5 +1,5 @@
-use std::time::Duration;
 use crate::game::pill::Vitamins;
+use std::time::Duration;
 
 const FRAME_DURATION: f64 = 0.004; // 4 millis
 const MAX_ALPHA: u8 = 100;
@@ -21,7 +21,7 @@ impl State {
             vitamins,
             max_frames: max_frames.round() as u32,
             duration: 0.0,
-            frame: 0
+            frame: 0,
         }
     }
 
@@ -29,14 +29,16 @@ impl State {
         let mut result = vec![];
         let trail_frames = self.frame.min(MAX_TRAIL_FRAMES);
         for j in 1..=trail_frames {
-            let alpha_mod = MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / trail_frames as f64).round() as u8;
+            let alpha_mod =
+                MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / trail_frames as f64).round() as u8;
             let offset_y = -1.0 * STEP_SIZE * j as f64;
             result.push(HardDropAnimationFrame::new(offset_y, alpha_mod));
         }
 
         // fall
         for j in 1..=self.frame {
-            let alpha_mod = MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / self.max_frames as f64).round() as u8;
+            let alpha_mod =
+                MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / self.max_frames as f64).round() as u8;
             let offset_y = STEP_SIZE * j as f64;
             result.push(HardDropAnimationFrame::new(offset_y, alpha_mod));
         }
@@ -52,18 +54,21 @@ impl State {
 #[derive(Clone, Copy, Debug)]
 pub struct HardDropAnimationFrame {
     pub offset_y: f64,
-    pub alpha_mod: u8
+    pub alpha_mod: u8,
 }
 
 impl HardDropAnimationFrame {
     pub fn new(offset_y: f64, alpha_mod: u8) -> Self {
-        Self { offset_y, alpha_mod }
+        Self {
+            offset_y,
+            alpha_mod,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct HardDropAnimation {
-    state: Option<State>
+    state: Option<State>,
 }
 
 impl HardDropAnimation {

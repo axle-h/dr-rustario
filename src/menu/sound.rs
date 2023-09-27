@@ -1,8 +1,7 @@
-use std::rc::Rc;
 use crate::config::AudioConfig;
 use crate::theme::sound::{LoadSound, Playable, StructuredMusic};
-use sdl2::mixer::{Chunk, Music};
-
+use sdl2::mixer::Chunk;
+use std::rc::Rc;
 
 // const CHIME: &[u8] = include_bytes!("retro/chime.ogg");
 // const TITLE_INTRO: &'static [u8] = include_bytes!("retro/title-intro.ogg");

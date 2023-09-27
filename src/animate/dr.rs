@@ -3,29 +3,39 @@ use std::time::Duration;
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum DrAnimationType {
     Static,
-    Linear { duration: Duration },
-    YoYo { duration: Duration },
-    LinearWithPause  { duration: Duration, pause_for: Duration, resume_from_frame: usize }
+    Linear {
+        duration: Duration,
+    },
+    YoYo {
+        duration: Duration,
+    },
+    LinearWithPause {
+        duration: Duration,
+        pause_for: Duration,
+        resume_from_frame: usize,
+    },
 }
 
 impl DrAnimationType {
     pub const RETRO_THROW: Self = Self::LinearWithPause {
         duration: Duration::from_millis(100),
         pause_for: Duration::from_millis(200),
-        resume_from_frame: 0
+        resume_from_frame: 0,
     };
 
-    pub const NES_SNES_VICTORY: Self = Self::Linear { duration: Duration::from_millis(250) };
+    pub const NES_SNES_VICTORY: Self = Self::Linear {
+        duration: Duration::from_millis(250),
+    };
     pub const N64_VICTORY: Self = Self::LinearWithPause {
         duration: Duration::from_millis(150),
         pause_for: Duration::from_millis(2000),
-        resume_from_frame: 0
+        resume_from_frame: 0,
     };
 
     pub const N64_GAME_OVER: Self = Self::LinearWithPause {
         duration: Duration::from_millis(150),
         pause_for: Duration::from_millis(2000),
-        resume_from_frame: 18
+        resume_from_frame: 18,
     };
 }
 
@@ -37,7 +47,7 @@ pub struct DrAnimation {
     frame: usize,
     invert: bool,
     iteration: usize,
-    max_frame: usize
+    max_frame: usize,
 }
 
 impl DrAnimation {
@@ -49,7 +59,7 @@ impl DrAnimation {
             frame: 0,
             invert: false,
             iteration: 0,
-            max_frame
+            max_frame,
         }
     }
 
@@ -60,13 +70,21 @@ impl DrAnimation {
                 self.frame = 0;
                 self.iteration = 0;
             }
-            DrAnimationType::Linear { duration: frame_duration } => {
+            DrAnimationType::Linear {
+                duration: frame_duration,
+            } => {
                 self.next_linear(frame_duration, false);
             }
-            DrAnimationType::YoYo { duration: frame_duration } => {
+            DrAnimationType::YoYo {
+                duration: frame_duration,
+            } => {
                 self.next_linear(frame_duration, true);
             }
-            DrAnimationType::LinearWithPause { duration: frame_duration, pause_for, resume_from_frame } => {
+            DrAnimationType::LinearWithPause {
+                duration: frame_duration,
+                pause_for,
+                resume_from_frame,
+            } => {
                 if let Some(paused_for) = self.paused_for {
                     // maybe unpause
                     self.paused_for = paused_for.checked_sub(delta);
@@ -119,7 +137,6 @@ impl DrAnimation {
         self.invert = false;
     }
 
-
     pub fn frame(&self) -> usize {
         if self.invert {
             self.max_frame - self.frame - 1
@@ -132,4 +149,3 @@ impl DrAnimation {
         self.iteration
     }
 }
-

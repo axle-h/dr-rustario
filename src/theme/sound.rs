@@ -1,9 +1,9 @@
-use std::cell::UnsafeCell;
-use std::rc::Rc;
+use sdl2::get_error;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::rwops::RWops;
 use sdl2::sys::mixer;
-use sdl2::get_error;
+
+use std::rc::Rc;
 
 use crate::config::AudioConfig;
 use crate::game::event::GameEvent;
@@ -13,7 +13,7 @@ static mut NEXT_MUSIC: Option<Rc<StructuredMusic>> = None;
 pub struct StructuredMusic {
     intro: Option<Music<'static>>,
     repeating: Music<'static>,
-    loops: i32
+    loops: i32,
 }
 
 impl StructuredMusic {
@@ -21,7 +21,7 @@ impl StructuredMusic {
         Ok(Self {
             intro: Some(Music::from_static_bytes(intro)?),
             repeating: Music::from_static_bytes(repeating)?,
-            loops: -1
+            loops: -1,
         })
     }
 
@@ -29,7 +29,7 @@ impl StructuredMusic {
         Ok(Self {
             intro: None,
             repeating: Music::from_static_bytes(repeating)?,
-            loops: 1
+            loops: 1,
         })
     }
 
@@ -37,7 +37,7 @@ impl StructuredMusic {
         Ok(Self {
             intro: None,
             repeating: Music::from_static_bytes(repeating)?,
-            loops: -1
+            loops: -1,
         })
     }
 
@@ -123,11 +123,11 @@ pub struct AudioTheme {
     speed_level_up: Chunk,
     receive_garbage: Chunk,
     next_level_jingle: Chunk,
-    hard_drop: Option<Chunk>
+    hard_drop: Option<Chunk>,
 }
 
 impl AudioTheme {
-    pub fn new<H : Into<Option<&'static [u8]>>>(
+    pub fn new<H: Into<Option<&'static [u8]>>>(
         config: AudioConfig,
         pill_move: &[u8],
         rotate: &[u8],
@@ -140,7 +140,7 @@ impl AudioTheme {
         speed_level_up: &[u8],
         receive_garbage: &[u8],
         next_level_jingle: &[u8],
-        hard_drop: H
+        hard_drop: H,
     ) -> Result<Self, String> {
         let mut next_level_jingle = config.load_chunk(next_level_jingle)?;
         next_level_jingle.set_volume(next_level_jingle.get_volume() / 2);
@@ -161,16 +161,24 @@ impl AudioTheme {
             speed_level_up: config.load_chunk(speed_level_up)?,
             receive_garbage: config.load_chunk(receive_garbage)?,
             next_level_jingle,
-            hard_drop: hard_drop.into().map(|c| config.load_chunk(c).unwrap())
+            hard_drop: hard_drop.into().map(|c| config.load_chunk(c).unwrap()),
         })
     }
 
-    pub fn with_game_music(mut self, intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
+    pub fn with_game_music(
+        mut self,
+        intro: &'static [u8],
+        repeating: &'static [u8],
+    ) -> Result<Self, String> {
         self.game_music = Some(StructuredMusic::new(intro, repeating)?.into_rc());
         Ok(self)
     }
 
-    pub fn with_game_over_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+    pub fn with_game_over_music<R: Into<Option<&'static [u8]>>>(
+        mut self,
+        music: &'static [u8],
+        repeating: R,
+    ) -> Result<Self, String> {
         if let Some(repeating) = repeating.into() {
             self.game_over_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
         } else {
@@ -179,7 +187,11 @@ impl AudioTheme {
         Ok(self)
     }
 
-    pub fn with_next_level_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+    pub fn with_next_level_music<R: Into<Option<&'static [u8]>>>(
+        mut self,
+        music: &'static [u8],
+        repeating: R,
+    ) -> Result<Self, String> {
         if let Some(repeating) = repeating.into() {
             self.next_level_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
         } else {
@@ -188,7 +200,11 @@ impl AudioTheme {
         Ok(self)
     }
 
-    pub fn with_victory_music<R : Into<Option<&'static [u8]>>>(mut self, music: &'static [u8], repeating: R) -> Result<Self, String> {
+    pub fn with_victory_music<R: Into<Option<&'static [u8]>>>(
+        mut self,
+        music: &'static [u8],
+        repeating: R,
+    ) -> Result<Self, String> {
         if let Some(repeating) = repeating.into() {
             self.victory_music = Some(StructuredMusic::new(music, repeating)?.into_rc());
         } else {
@@ -231,8 +247,12 @@ impl AudioTheme {
             GameEvent::Move => self.move_pill.play(),
             GameEvent::Rotate => self.rotate.play(),
             GameEvent::Lock { .. } | GameEvent::DropGarbage => self.drop.play(),
-            GameEvent::HardDrop { .. } => self.hard_drop.as_ref().map(|c| c.play()).unwrap_or(Ok(())),
-            GameEvent::Destroy { blocks, is_combo, .. } => {
+            GameEvent::HardDrop { .. } => {
+                self.hard_drop.as_ref().map(|c| c.play()).unwrap_or(Ok(()))
+            }
+            GameEvent::Destroy {
+                blocks, is_combo, ..
+            } => {
                 if blocks.iter().any(|b| b.is_virus) {
                     if is_combo {
                         self.destroy_virus_combo.play()
@@ -246,19 +266,18 @@ impl AudioTheme {
                         self.destroy_vitamin.play()
                     }
                 }
-            },
+            }
             GameEvent::ReceivedGarbage { .. } => self.receive_garbage.play(),
             GameEvent::SpeedLevelUp => self.speed_level_up.play(),
             GameEvent::Paused => {
                 Music::pause();
                 self.paused.play()
-            },
+            }
             GameEvent::UnPaused => {
                 Music::resume();
                 Ok(())
             }
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 }
-

@@ -1,23 +1,21 @@
-use std::collections::HashMap;
-use std::time::Duration;
-use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
-use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
 use crate::config::Config;
-use crate::game::MAX_SCORE;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
-use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockAnimations, BlockAnimationsData, BlockPoints, pills, VitaminSpriteSheetData};
-use crate::theme::{Theme, ThemeName};
+use crate::game::MAX_SCORE;
 use crate::theme::animation::AnimationSpriteSheetData;
-use crate::theme::font::{alpha_sprites, FontRenderOptions, FontThemeOptions, MetricSnips};
+use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::retro::{retro_theme, RetroThemeOptions};
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
+use crate::theme::sprite_sheet::{pills, BlockAnimationsData, BlockPoints, VitaminSpriteSheetData};
+use crate::theme::{Theme, ThemeName};
+use sdl2::pixels::Color;
+use sdl2::rect::Point;
+use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
 
 mod sprites {
     pub const VITAMINS: &[u8] = include_bytes!("vitamins.png");
@@ -70,17 +68,20 @@ fn blocks(j: i32) -> BlockPoints {
         [block(2, j), block(3, j)],
         [block(1, j), block(0, j)],
         [block(3, j), block(2, j)],
-        block(4, j)
+        block(4, j),
     )
 }
 
 fn animations(j: i32) -> BlockAnimationsData {
     BlockAnimationsData::non_exclusive_linear(
         sprites::VITAMINS,
-        block(6, j), 2,
-        block(5, j), 1,
-        block(5, j), 1,
-        BLOCK_SIZE
+        block(6, j),
+        2,
+        block(5, j),
+        1,
+        block(5, j),
+        1,
+        BLOCK_SIZE,
     )
 }
 
@@ -91,13 +92,25 @@ fn pill(i: i32, j: i32) -> Point {
 pub fn nes_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
-    config: Config
+    config: Config,
 ) -> Result<Theme<'a>, String> {
     let options = RetroThemeOptions {
         name: ThemeName::Nes,
-        scene_low: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x00, 0x3f, 0x00)] },
-        scene_medium: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x2d, 0x05, 0x85)] },
-        scene_high: SceneType::Checkerboard { width: 8, height: 8, colors: [Color::BLACK, Color::RGB(0x58, 0x58, 0x58)] },
+        scene_low: SceneType::Checkerboard {
+            width: 8,
+            height: 8,
+            colors: [Color::BLACK, Color::RGB(0x00, 0x3f, 0x00)],
+        },
+        scene_medium: SceneType::Checkerboard {
+            width: 8,
+            height: 8,
+            colors: [Color::BLACK, Color::RGB(0x2d, 0x05, 0x85)],
+        },
+        scene_high: SceneType::Checkerboard {
+            width: 8,
+            height: 8,
+            colors: [Color::BLACK, Color::RGB(0x58, 0x58, 0x58)],
+        },
         virus_animation_type: VirusAnimationType::LINEAR_STANDARD,
         dr_idle_animation_type: DrAnimationType::Static,
         dr_throw_animation_type: DrAnimationType::RETRO_THROW,
@@ -106,10 +119,17 @@ pub fn nes_theme<'a>(
         sprites: VitaminSpriteSheetData::new(
             sprites::VITAMINS,
             pills(
-                    PILL_WIDTH, PILL_HEIGHT,
-                pill(0, 0), pill(1, 0), pill(2, 0),
-                pill(0, 1), pill(1, 1), pill(2, 1),
-                pill(0, 2), pill(1, 2), pill(2, 2)
+                PILL_WIDTH,
+                PILL_HEIGHT,
+                pill(0, 0),
+                pill(1, 0),
+                pill(2, 0),
+                pill(0, 1),
+                pill(1, 1),
+                pill(2, 1),
+                pill(0, 2),
+                pill(1, 2),
+                pill(2, 2),
             ),
             (PILL_WIDTH, PILL_HEIGHT),
             blocks(0),
@@ -124,23 +144,36 @@ pub fn nes_theme<'a>(
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 1),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 2),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 1),
-            None
+            None,
         ),
         geometry: BottleGeometry::new(7, 1, (8, 40)),
         audio: AudioTheme::new(
-            config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
-            sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
-            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, None
-            )?
-            .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
-            .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
-            .with_next_level_music(sound::FEVER_NEXT_LEVEL_INTRO, sound::FEVER_NEXT_LEVEL_REPEAT)?
-            .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
+            config.audio,
+            sound::MOVE_PILL,
+            sound::ROTATE,
+            sound::DROP,
+            sound::DESTROY_VIRUS,
+            sound::DESTROY_VIRUS_COMBO,
+            sound::DESTROY_VITAMIN,
+            sound::DESTROY_VITAMIN_COMBO,
+            sound::PAUSE,
+            sound::SPEED_LEVEL_UP,
+            sound::RECEIVE_GARBAGE,
+            sound::NEXT_LEVEL_JINGLE,
+            None,
+        )?
+        .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
+        .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
+        .with_next_level_music(
+            sound::FEVER_NEXT_LEVEL_INTRO,
+            sound::FEVER_NEXT_LEVEL_REPEAT,
+        )?
+        .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::simple(
             FontRenderOptions::numeric_sprites(sprites::FONT, texture_creator, 1)?,
             MetricSnips::zero_fill((92, 113), MAX_SCORE),
             MetricSnips::zero_fill((123, 134), MAX_VIRUS_LEVEL),
-            MetricSnips::zero_fill((123, 155), MAX_VIRUSES)
+            MetricSnips::zero_fill((123, 155), MAX_VIRUSES),
         ),
         bottles_file: sprites::BOTTLES,
         bottle_low: Point::new(81, 0),

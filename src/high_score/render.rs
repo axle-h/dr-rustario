@@ -1,6 +1,7 @@
 use crate::high_score::table::{HighScore, HighScoreTable};
 
 use crate::font::{FontTexture, FontType};
+use crate::high_score::event::HighScoreEntryEvent;
 use crate::high_score::NewHighScore;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
@@ -8,7 +9,6 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::{Font, Sdl2TtfContext};
 use sdl2::video::WindowContext;
 use std::cmp::min;
-use crate::high_score::event::HighScoreEntryEvent;
 
 const NAME_CHARACTERS: usize = 5;
 const CARET_HEIGHT: u32 = 2;

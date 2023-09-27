@@ -1,6 +1,6 @@
-use std::ops::Neg;
 use crate::game::geometry::{BottlePoint, Rotation};
 use crate::game::pill::{VirusColor, VitaminOrdinal};
+use std::ops::Neg;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Block {
@@ -31,21 +31,20 @@ pub fn block_partner_offset(rotation: Rotation, ordinal: VitaminOrdinal) -> Bott
 
     match ordinal {
         VitaminOrdinal::Left => offset,
-        VitaminOrdinal::Right => offset.neg()
+        VitaminOrdinal::Right => offset.neg(),
     }
 }
 
 impl Block {
     pub fn is_destructible(&self) -> bool {
-        matches!(self, Block::Virus(_) | Block::Garbage(_) | Block::Stack(_, _, _))
+        matches!(
+            self,
+            Block::Virus(_) | Block::Garbage(_) | Block::Stack(_, _, _)
+        )
     }
 
     pub fn is_empty(&self) -> bool {
         self == &Block::Empty
-    }
-
-    pub fn is_garbage(&self) -> bool {
-        matches!(self, Block::Garbage(_))
     }
 
     pub fn is_virus(&self) -> bool {
@@ -55,10 +54,8 @@ impl Block {
     /// gets the color of any destructible colored block
     pub fn destructible_color(&self) -> Option<VirusColor> {
         match self {
-            Block::Stack(color, _, _)
-            | Block::Garbage(color)
-            | Block::Virus(color) => Some(*color),
-            _ => None
+            Block::Stack(color, _, _) | Block::Garbage(color) | Block::Virus(color) => Some(*color),
+            _ => None,
         }
     }
 

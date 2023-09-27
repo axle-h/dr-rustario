@@ -1,9 +1,9 @@
 use crate::game::pill::{PillShape, VirusColor};
 use crate::particles::meta::ParticleSprite::*;
+use crate::particles::particle::ParticleAnimationType;
 use crate::theme::ThemeName;
 use sdl2::rect::Rect;
 use strum_macros::EnumIter;
-use crate::particles::particle::ParticleAnimationType;
 
 const PARTICLE_SPRITE_SIZE: u32 = 512;
 
@@ -90,7 +90,7 @@ impl ParticleSprite {
             Pill(theme, PillShape::BR),
             Pill(theme, PillShape::RR),
             Pill(theme, PillShape::RY),
-            Pill(theme, PillShape::RB)
+            Pill(theme, PillShape::RB),
         ]
     }
 
@@ -102,7 +102,7 @@ impl ParticleSprite {
     pub fn animation(&self) -> Option<ParticleAnimationType> {
         match self {
             Virus(_, _, animation) => Some(*animation),
-            _ => None
+            _ => None,
         }
     }
 
@@ -159,7 +159,7 @@ impl ParticleSprite {
             Twirl01 => Some(snip(5, 6)),
             Twirl02 => Some(snip(6, 6)),
             Pill(_, _) => None,
-            Virus(_, _, _) => None
+            Virus(_, _, _) => None,
         }
     }
 }

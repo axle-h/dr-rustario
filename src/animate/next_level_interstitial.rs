@@ -1,5 +1,5 @@
-use std::time::Duration;
 use crate::animate::dr::{DrAnimation, DrAnimationType};
+use std::time::Duration;
 
 const INTERSTITIAL_ITERATION_DURATION: Duration = Duration::from_millis(600);
 
@@ -7,12 +7,16 @@ const INTERSTITIAL_ITERATION_DURATION: Duration = Duration::from_millis(600);
 pub struct State {
     duration: Duration,
     dr: DrAnimation,
-    interstitial_frame: usize
+    interstitial_frame: usize,
 }
 
 impl State {
     fn new(dr: DrAnimation) -> Self {
-        Self { duration: Duration::ZERO, dr, interstitial_frame: 0 }
+        Self {
+            duration: Duration::ZERO,
+            dr,
+            interstitial_frame: 0,
+        }
     }
 
     pub fn interstitial_frame(&self) -> usize {
@@ -22,7 +26,6 @@ impl State {
     pub fn dr_frame(&self) -> usize {
         self.dr.frame()
     }
-
 }
 
 #[derive(Clone, Debug)]
@@ -30,12 +33,17 @@ pub struct NextLevelInterstitialAnimation {
     state: Option<State>,
     dr_type: DrAnimationType,
     dr_frames: usize,
-    interstitial_frames: usize
+    interstitial_frames: usize,
 }
 
 impl NextLevelInterstitialAnimation {
     pub fn new(dr_type: DrAnimationType, dr_frames: usize, interstitial_frames: usize) -> Self {
-        Self { state: None, dr_type, dr_frames, interstitial_frames }
+        Self {
+            state: None,
+            dr_type,
+            dr_frames,
+            interstitial_frames,
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {
@@ -43,8 +51,11 @@ impl NextLevelInterstitialAnimation {
             state.duration += delta;
             state.dr.update(delta);
 
-            let interstitial_frame_duration = INTERSTITIAL_ITERATION_DURATION / self.interstitial_frames as u32;
-            state.interstitial_frame = (state.duration.as_millis() / interstitial_frame_duration.as_millis()) as usize % self.interstitial_frames;
+            let interstitial_frame_duration =
+                INTERSTITIAL_ITERATION_DURATION / self.interstitial_frames as u32;
+            state.interstitial_frame =
+                (state.duration.as_millis() / interstitial_frame_duration.as_millis()) as usize
+                    % self.interstitial_frames;
         }
     }
 

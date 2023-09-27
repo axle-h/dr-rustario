@@ -1,23 +1,23 @@
-use std::collections::HashMap;
-use std::time::Duration;
-use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
-use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
-use crate::config::{AudioConfig, Config};
-use crate::game::MAX_SCORE;
+use crate::config::Config;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
-use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockAnimationsData, BlockPoints, pills, VitaminSpriteSheetData};
-use crate::theme::{Theme, ThemeName};
+use crate::game::MAX_SCORE;
 use crate::theme::animation::AnimationSpriteSheetData;
-use crate::theme::font::{alpha_sprites, FontRenderOptions, FontThemeOptions, MetricSnips, ThemedNumeric};
+use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips, ThemedNumeric};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::retro::{retro_theme, RetroThemeOptions};
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
+use crate::theme::sprite_sheet::{pills, BlockAnimationsData, BlockPoints, VitaminSpriteSheetData};
+use crate::theme::{Theme, ThemeName};
+
+use sdl2::rect::Point;
+use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
+
+use std::time::Duration;
 
 mod sprites {
     pub const VITAMINS: &[u8] = include_bytes!("vitamins.png");
@@ -64,31 +64,31 @@ fn blocks(j: i32) -> BlockPoints {
         [block(0, j), block(1, j)],
         [block(3, j), block(2, j)],
         [block(1, j), block(0, j)],
-        block(4, j)
+        block(4, j),
     )
 }
 
 fn animations(j: i32) -> BlockAnimationsData {
     BlockAnimationsData::non_exclusive_linear(
         sprites::VITAMINS,
-        block(7, j), 4,
-        block(11, j), 2,
-        block(5, j), 2,
-        BLOCK_SIZE
+        block(7, j),
+        4,
+        block(11, j),
+        2,
+        block(5, j),
+        2,
+        BLOCK_SIZE,
     )
 }
-
-fn match_end(i: i32, j: i32) -> Point {
-    Point::new(i * 65 + 1, j * 129 + 1)
-}
-
 
 pub fn n64_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
-    config: Config
+    config: Config,
 ) -> Result<Theme<'a>, String> {
-    let scene = SceneType::Tile { texture: sprites::BACKGROUND_TILE };
+    let scene = SceneType::Tile {
+        texture: sprites::BACKGROUND_TILE,
+    };
 
     let options = RetroThemeOptions {
         name: ThemeName::N64,
@@ -96,17 +96,26 @@ pub fn n64_theme<'a>(
         scene_medium: scene.clone(),
         scene_high: scene,
         virus_animation_type: VirusAnimationType::YoYo { fps: 5 },
-        dr_idle_animation_type: DrAnimationType::YoYo { duration: Duration::from_millis(100) },
+        dr_idle_animation_type: DrAnimationType::YoYo {
+            duration: Duration::from_millis(100),
+        },
         dr_throw_animation_type: DrAnimationType::RETRO_THROW,
         dr_victory_animation_type: DrAnimationType::N64_VICTORY,
         dr_game_over_animation_type: DrAnimationType::N64_GAME_OVER,
         sprites: VitaminSpriteSheetData::new(
             sprites::VITAMINS,
             pills(
-                BLOCK_SIZE * 2, BLOCK_SIZE,
-                block(13, 0), block(15, 0), block(17, 0),
-                block(13, 1), block(15, 1), block(17, 1),
-                block(13, 2), block(15, 2), block(17, 2)
+                BLOCK_SIZE * 2,
+                BLOCK_SIZE,
+                block(13, 0),
+                block(15, 0),
+                block(17, 0),
+                block(13, 1),
+                block(15, 1),
+                block(17, 1),
+                block(13, 2),
+                block(15, 2),
+                block(17, 2),
             ),
             (BLOCK_SIZE * 2, BLOCK_SIZE),
             blocks(0),
@@ -121,26 +130,36 @@ pub fn n64_theme<'a>(
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 21),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 13),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 6),
-            None
+            None,
         ),
         geometry: BottleGeometry::new(BLOCK_SIZE, 0, (8, 41)),
         audio: AudioTheme::new(
-            config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
-            sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
-            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, None
+            config.audio,
+            sound::MOVE_PILL,
+            sound::ROTATE,
+            sound::DROP,
+            sound::DESTROY_VIRUS,
+            sound::DESTROY_VIRUS_COMBO,
+            sound::DESTROY_VITAMIN,
+            sound::DESTROY_VITAMIN_COMBO,
+            sound::PAUSE,
+            sound::SPEED_LEVEL_UP,
+            sound::RECEIVE_GARBAGE,
+            sound::NEXT_LEVEL_JINGLE,
+            None,
         )?
-            .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
-            .with_game_over_music(sound::GAME_OVER, None)?
-            .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
-            .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
+        .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
+        .with_game_over_music(sound::GAME_OVER, None)?
+        .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
+        .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::new(
             vec![
                 FontRenderOptions::numeric_sprites(sprites::FONT_SMALL, texture_creator, 1)?,
-                FontRenderOptions::numeric_sprites(sprites::FONT_LARGE, texture_creator, 0)?
+                FontRenderOptions::numeric_sprites(sprites::FONT_LARGE, texture_creator, 0)?,
             ],
             ThemedNumeric::new(0, MetricSnips::zero_fill((111, 105), MAX_SCORE)),
             ThemedNumeric::new(1, MetricSnips::zero_fill((131, 143), MAX_VIRUS_LEVEL)),
-            ThemedNumeric::new(1, MetricSnips::zero_fill((131, 183), MAX_VIRUSES))
+            ThemedNumeric::new(1, MetricSnips::zero_fill((131, 183), MAX_VIRUSES)),
         ),
         bottles_file: sprites::BOTTLES,
         bottle_low: Point::new(0, 0),
@@ -162,7 +181,7 @@ pub fn n64_theme<'a>(
         peek_point: Point::new(110, 55),
         peek_offset: 10,
         peek_max: 2,
-        peek_scale: Some(0.82)
+        peek_scale: Some(0.82),
     };
 
     retro_theme(canvas, texture_creator, options)

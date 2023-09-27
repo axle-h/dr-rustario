@@ -1,6 +1,6 @@
-use crate::game::GameSpeed;
 use crate::game::pill::PillShape;
 use crate::game::random::PEEK_SIZE;
+use crate::game::GameSpeed;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GameMetrics {
@@ -14,8 +14,24 @@ pub struct GameMetrics {
 }
 
 impl GameMetrics {
-    pub fn new(player: u32, virus_level: u32, speed: GameSpeed, viruses: u32, score: u32, queue: [PillShape; PEEK_SIZE], hold: Option<PillShape>) -> Self {
-        Self { player, virus_level, speed, viruses, score, queue, hold }
+    pub fn new(
+        player: u32,
+        virus_level: u32,
+        speed: GameSpeed,
+        viruses: u32,
+        score: u32,
+        queue: [PillShape; PEEK_SIZE],
+        hold: Option<PillShape>,
+    ) -> Self {
+        Self {
+            player,
+            virus_level,
+            speed,
+            viruses,
+            score,
+            queue,
+            hold,
+        }
     }
 
     pub fn player(&self) -> u32 {
@@ -23,9 +39,6 @@ impl GameMetrics {
     }
     pub fn virus_level(&self) -> u32 {
         self.virus_level
-    }
-    pub fn speed(&self) -> GameSpeed {
-        self.speed
     }
     pub fn virus_count(&self) -> u32 {
         self.viruses

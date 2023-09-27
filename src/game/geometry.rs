@@ -11,20 +11,6 @@ impl BottlePoint {
         Self { x, y }
     }
 
-    pub fn rotate(self, clockwise: bool) -> BottlePoint {
-        if clockwise {
-            BottlePoint {
-                x: self.y,
-                y: -self.x,
-            }
-        } else {
-            BottlePoint {
-                x: -self.y,
-                y: self.x,
-            }
-        }
-    }
-
     pub fn translate_mut(&mut self, dx: i32, dy: i32) {
         self.x += dx;
         self.y += dy;
@@ -33,7 +19,7 @@ impl BottlePoint {
     pub const fn translate(&self, dx: i32, dy: i32) -> Self {
         Self {
             x: self.x + dx,
-            y: self.y + dy
+            y: self.y + dy,
         }
     }
 
@@ -120,14 +106,6 @@ impl Rotation {
                     Rotation::South
                 }
             }
-        }
-    }
-    pub fn angle(&self) -> f64 {
-        match self {
-            Rotation::North => 0.0,
-            Rotation::East => 90.0,
-            Rotation::South => 180.0,
-            Rotation::West => 270.0,
         }
     }
 }

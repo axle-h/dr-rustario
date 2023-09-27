@@ -1,31 +1,33 @@
-use crate::config::Config;
 use crate::game::event::GameEvent;
-use crate::game::random::{GameRandom, random};
+use crate::game::random::{random, GameRandom};
 use crate::game::Game;
 use crate::high_score::table::HighScoreTable;
 use crate::high_score::NewHighScore;
 
-use rand::{Rng, thread_rng};
-use rand::prelude::ThreadRng;
 use crate::game::bottle::SendGarbage;
 use crate::game::metrics::GameMetrics;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
+use rand::prelude::ThreadRng;
+use rand::{thread_rng, Rng};
 
 pub struct Player {
     player: u32,
     game: Game,
-    winner: bool
+    winner: bool,
 }
 
 impl Player {
     pub fn new(player: u32, random: GameRandom, game_config: GameConfig) -> Result<Self, String> {
-        Ok(
-            Self {
+        Ok(Self {
+            player,
+            game: Game::new(
                 player,
-                game: Game::new(player, game_config.virus_level(), game_config.speed(), random)?,
-                winner: false
-            }
-        )
+                game_config.virus_level(),
+                game_config.speed(),
+                random,
+            )?,
+            winner: false,
+        })
     }
 
     pub fn player(&self) -> u32 {
@@ -71,7 +73,7 @@ pub struct Match {
     high_scores: HighScoreTable,
     state: MatchState,
     game_config: GameConfig,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl Match {
@@ -87,7 +89,7 @@ impl Match {
             high_scores: HighScoreTable::load().unwrap(),
             state: MatchState::Normal,
             game_config,
-            rng: thread_rng()
+            rng: thread_rng(),
         }
     }
 
@@ -117,9 +119,13 @@ impl Match {
 
     pub fn next_level_ends_match(&self, player: u32) -> bool {
         match self.game_config.rules() {
-            MatchRules::LevelSprint { levels: sprint_levels } => self.player(player).game().completed_levels() + 1 >= sprint_levels,
-            MatchRules::ThemeSprint => self.player(player).game().completed_levels() + 1 >= MatchThemes::count() as u32,
-            _ => false
+            MatchRules::LevelSprint {
+                levels: sprint_levels,
+            } => self.player(player).game().completed_levels() + 1 >= sprint_levels,
+            MatchRules::ThemeSprint => {
+                self.player(player).game().completed_levels() + 1 >= MatchThemes::count() as u32
+            }
+            _ => false,
         }
     }
 
@@ -149,7 +155,7 @@ impl Match {
                 }
             }
             MatchRules::LevelSprint {
-                levels: sprint_levels
+                levels: sprint_levels,
             } => {
                 let best_game = self.highest_virus_level();
                 let completed_levels = best_game.virus_level() - self.game_config.virus_level();
@@ -212,7 +218,11 @@ impl Match {
         } else {
             other_players[self.rng.gen_range(0..other_players.len())]
         };
-        self.players.get_mut(pid).unwrap().game.send_garbage(garbage);
+        self.players
+            .get_mut(pid)
+            .unwrap()
+            .game
+            .send_garbage(garbage);
     }
 
     fn highest_score(&self) -> GameMetrics {

@@ -1,4 +1,6 @@
-
+use crate::game::event::ColoredBlock;
+use crate::game::geometry::BottlePoint;
+use crate::game::pill::{Garbage, VirusColor, Vitamins};
 use crate::particles::color::ParticleColor;
 use crate::particles::geometry::Vec2D;
 use crate::particles::meta::ParticleSprite;
@@ -9,19 +11,16 @@ use crate::particles::source::{
     AggregateParticleSource, ParticleModulation, ParticleProperties, ParticleSource,
     RandomParticleSource,
 };
-use crate::themes::ThemeContext;
-use crate::theme::particle::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
-use crate::theme::nes::BLOCK_SIZE as NES_BLOCK_SIZE;
-use crate::theme::snes::BLOCK_SIZE as SNES_BLOCK_SIZE;
+use crate::theme::all::AllThemeMeta;
 use crate::theme::n64::BLOCK_SIZE as N64_BLOCK_SIZE;
+use crate::theme::nes::BLOCK_SIZE as NES_BLOCK_SIZE;
+use crate::theme::particle::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
+use crate::theme::snes::BLOCK_SIZE as SNES_BLOCK_SIZE;
+use crate::theme::ThemeName;
+use crate::themes::ThemeContext;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
-use crate::game::event::ColoredBlock;
-use crate::game::geometry::BottlePoint;
-use crate::game::pill::{Garbage, VirusColor, Vitamins};
-use crate::theme::all::AllThemeMeta;
-use crate::theme::{AnimationMeta, ThemeName};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlayerParticleTarget {
@@ -55,7 +54,13 @@ impl PrescribedParticles {
         }
     }
 
-    pub fn into_lattice_source(self, scale: &Scale, mut lattice: Vec<Point>, n_blocks: u32, is_horizontal: bool) -> Box<dyn ParticleSource> {
+    pub fn into_lattice_source(
+        self,
+        scale: &Scale,
+        mut lattice: Vec<Point>,
+        n_blocks: u32,
+        is_horizontal: bool,
+    ) -> Box<dyn ParticleSource> {
         match self {
             PrescribedParticles::FadeInLatticeBurstAndFall { fade_in, color } => {
                 let limit = lattice.len() as u32 / n_blocks;
@@ -67,22 +72,25 @@ impl PrescribedParticles {
 
                 RandomParticleSource::new(
                     scale.build_ephemeral_lattice(lattice.into_iter()),
-                    ParticleModulation::Constant { count: limit, step: Duration::from_millis(200) / n_blocks },
+                    ParticleModulation::Constant {
+                        count: limit,
+                        step: Duration::from_millis(200) / n_blocks,
+                    },
                 )
-                    .with_static_properties(
-                        ParticleSprite::Circle05,
-                        ParticleColor::from_sdl(color),
-                        1.0,
-                        0.0,
-                    )
-                    .with_velocity((Vec2D::new(0.0, -0.4), Vec2D::new(0.1, 0.1)))
-                    .with_acceleration(Vec2D::new(0.0, 1.5)) // gravity
-                    .with_anchor(fade_in)
-                    .with_fade_in(fade_in)
-                    .with_alpha((0.9, 0.1))
-                    .into_box()
+                .with_static_properties(
+                    ParticleSprite::Circle05,
+                    ParticleColor::from_sdl(color),
+                    1.0,
+                    0.0,
+                )
+                .with_velocity((Vec2D::new(0.0, -0.4), Vec2D::new(0.1, 0.1)))
+                .with_acceleration(Vec2D::new(0.0, 1.5)) // gravity
+                .with_anchor(fade_in)
+                .with_fade_in(fade_in)
+                .with_alpha((0.9, 0.1))
+                .into_box()
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -187,7 +195,11 @@ pub fn prescribed_fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSour
         .into_box()
 }
 
-pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllThemeMeta) -> Box<dyn ParticleSource> {
+pub fn prescribed_vitamin_race(
+    window: Rect,
+    scale: &Scale,
+    theme_meta: AllThemeMeta,
+) -> Box<dyn ParticleSource> {
     let modulation = ParticleModulation::Constant {
         count: 1,
         step: Duration::from_millis(1000),
@@ -218,15 +230,33 @@ pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllTheme
                 .with(
                     ParticleProperties::simple(
                         &[
-                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Red, theme_meta.particle.virus_particle_animation(VirusColor::Red)),
-                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Blue, theme_meta.particle.virus_particle_animation(VirusColor::Blue)),
-                            ParticleSprite::Virus(ThemeName::Particle, VirusColor::Yellow, theme_meta.particle.virus_particle_animation(VirusColor::Yellow))
+                            ParticleSprite::Virus(
+                                ThemeName::Particle,
+                                VirusColor::Red,
+                                theme_meta
+                                    .particle
+                                    .virus_particle_animation(VirusColor::Red),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Particle,
+                                VirusColor::Blue,
+                                theme_meta
+                                    .particle
+                                    .virus_particle_animation(VirusColor::Blue),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Particle,
+                                VirusColor::Yellow,
+                                theme_meta
+                                    .particle
+                                    .virus_particle_animation(VirusColor::Yellow),
+                            ),
                         ],
-                        modern_scale
-                    ).angular_velocity(rotation),
-                    p_virus
+                        modern_scale,
+                    )
+                    .angular_velocity(rotation),
+                    p_virus,
                 )
-
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::NES_PILLS, nes_scale)
                         .angular_velocity(rotation),
@@ -234,15 +264,27 @@ pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllTheme
                 .with(
                     ParticleProperties::simple(
                         &[
-                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Red, theme_meta.nes.virus_particle_animation(VirusColor::Red)),
-                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Blue, theme_meta.nes.virus_particle_animation(VirusColor::Blue)),
-                            ParticleSprite::Virus(ThemeName::Nes, VirusColor::Yellow, theme_meta.nes.virus_particle_animation(VirusColor::Yellow))
+                            ParticleSprite::Virus(
+                                ThemeName::Nes,
+                                VirusColor::Red,
+                                theme_meta.nes.virus_particle_animation(VirusColor::Red),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Nes,
+                                VirusColor::Blue,
+                                theme_meta.nes.virus_particle_animation(VirusColor::Blue),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Nes,
+                                VirusColor::Yellow,
+                                theme_meta.nes.virus_particle_animation(VirusColor::Yellow),
+                            ),
                         ],
-                        nes_scale
-                    ).angular_velocity(rotation),
-                    p_virus
+                        nes_scale,
+                    )
+                    .angular_velocity(rotation),
+                    p_virus,
                 )
-
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::SNES_PILLS, snes_scale)
                         .angular_velocity(rotation),
@@ -250,15 +292,27 @@ pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllTheme
                 .with(
                     ParticleProperties::simple(
                         &[
-                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Red, theme_meta.snes.virus_particle_animation(VirusColor::Red)),
-                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Blue, theme_meta.snes.virus_particle_animation(VirusColor::Blue)),
-                            ParticleSprite::Virus(ThemeName::Snes, VirusColor::Yellow, theme_meta.snes.virus_particle_animation(VirusColor::Yellow))
+                            ParticleSprite::Virus(
+                                ThemeName::Snes,
+                                VirusColor::Red,
+                                theme_meta.snes.virus_particle_animation(VirusColor::Red),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Snes,
+                                VirusColor::Blue,
+                                theme_meta.snes.virus_particle_animation(VirusColor::Blue),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::Snes,
+                                VirusColor::Yellow,
+                                theme_meta.snes.virus_particle_animation(VirusColor::Yellow),
+                            ),
                         ],
-                        snes_scale
-                    ).angular_velocity(rotation),
-                    p_virus
+                        snes_scale,
+                    )
+                    .angular_velocity(rotation),
+                    p_virus,
                 )
-
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::N64_PILLS, n64_scale)
                         .angular_velocity(rotation),
@@ -266,13 +320,26 @@ pub fn prescribed_vitamin_race(window: Rect, scale: &Scale, theme_meta: AllTheme
                 .with(
                     ParticleProperties::simple(
                         &[
-                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Red, theme_meta.n64.virus_particle_animation(VirusColor::Red)),
-                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Blue, theme_meta.n64.virus_particle_animation(VirusColor::Blue)),
-                            ParticleSprite::Virus(ThemeName::N64, VirusColor::Yellow, theme_meta.n64.virus_particle_animation(VirusColor::Yellow))
+                            ParticleSprite::Virus(
+                                ThemeName::N64,
+                                VirusColor::Red,
+                                theme_meta.n64.virus_particle_animation(VirusColor::Red),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::N64,
+                                VirusColor::Blue,
+                                theme_meta.n64.virus_particle_animation(VirusColor::Blue),
+                            ),
+                            ParticleSprite::Virus(
+                                ThemeName::N64,
+                                VirusColor::Yellow,
+                                theme_meta.n64.virus_particle_animation(VirusColor::Yellow),
+                            ),
                         ],
-                        n64_scale
-                    ).angular_velocity(rotation),
-                    p_virus
+                        n64_scale,
+                    )
+                    .angular_velocity(rotation),
+                    p_virus,
                 ),
         )
         .with_velocity((Vec2D::new(0.2, 0.0), Vec2D::new(0.05, 0.02)))
@@ -410,18 +477,22 @@ impl PlayerTargetedParticles {
             PlayerParticleTarget::Vitamins(vitamins) => {
                 themes.player_vitamin_snips(self.player, vitamins).to_vec()
             }
-            PlayerParticleTarget::Blocks(blocks) => {
-                themes.player_block_snips(self.player, blocks)
-            }
+            PlayerParticleTarget::Blocks(blocks) => themes.player_block_snips(self.player, blocks),
             PlayerParticleTarget::MaskedBlocks(blocks) => {
                 let is_horizontal = iter_all_eq(blocks.iter().map(|b| b.position.y()));
                 let n_blocks = blocks.len();
                 let points = themes.player_block_snips_masked(self.player, blocks, 5);
-                return self.particles.into_lattice_source(particle_scale, points, n_blocks as u32, is_horizontal)
+                return self.particles.into_lattice_source(
+                    particle_scale,
+                    points,
+                    n_blocks as u32,
+                    is_horizontal,
+                );
             }
-            PlayerParticleTarget::Garbage(garbage) => {
-                themes.player_block_snips(self.player, garbage.into_iter().map(|g| g.position).collect())
-            }
+            PlayerParticleTarget::Garbage(garbage) => themes.player_block_snips(
+                self.player,
+                garbage.into_iter().map(|g| g.position).collect(),
+            ),
         };
 
         self.particles
@@ -431,6 +502,7 @@ impl PlayerTargetedParticles {
 
 pub fn iter_all_eq<T: PartialEq>(iter: impl IntoIterator<Item = T>) -> bool {
     let mut iter = iter.into_iter();
-    iter.next().map(|first| iter.all(|elem| elem == first))
+    iter.next()
+        .map(|first| iter.all(|elem| elem == first))
         .unwrap_or(false)
 }

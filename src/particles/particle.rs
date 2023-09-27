@@ -32,44 +32,42 @@ impl ParticleWave {
 pub enum ParticleAnimationType {
     #[default]
     Static,
-    Linear { fps: u32, frames: usize },
-    YoYo { fps: u32, frames: usize }
+    Linear {
+        fps: u32,
+        frames: usize,
+    },
+    YoYo {
+        fps: u32,
+        frames: usize,
+    },
 }
 
 impl ParticleAnimationType {
-    fn fps(&self) -> u32 {
-        match self {
-            Self::Linear { fps, .. } => *fps,
-            Self::YoYo { fps, .. } => *fps,
-            _ => 1
-        }
-    }
-
     fn frame_duration(&self) -> f64 {
         match self {
             Self::Linear { fps, .. } => 1.0 / *fps as f64,
             Self::YoYo { fps, .. } => 1.0 / *fps as f64,
-            _ => 0.0
+            _ => 0.0,
         }
     }
-
-    fn is_yo_yo(&self) -> bool {
-        matches!(self, &ParticleAnimationType::YoYo { .. })
-    }
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ParticleAnimation {
     frame: usize,
     iteration: u32,
     frame_duration: f64,
-    animation_type: ParticleAnimationType
+    animation_type: ParticleAnimationType,
 }
 
 impl ParticleAnimation {
     pub fn new(animation_type: ParticleAnimationType) -> Self {
-        Self { frame: 0, iteration: 0, frame_duration: animation_type.frame_duration(), animation_type }
+        Self {
+            frame: 0,
+            iteration: 0,
+            frame_duration: animation_type.frame_duration(),
+            animation_type,
+        }
     }
 }
 
@@ -87,7 +85,7 @@ pub struct Particle {
     size: f64,
     rotation: f64,
     angular_velocity: f64,
-    animation: Option<ParticleAnimation>
+    animation: Option<ParticleAnimation>,
 }
 
 impl Particle {
@@ -102,7 +100,7 @@ impl Particle {
         time_to_live: Option<f64>,
         sprite: ParticleSprite,
         size: f64,
-        angular_velocity: f64
+        angular_velocity: f64,
     ) -> Self {
         let animation = sprite.animation().map(|pa| ParticleAnimation::new(pa));
         Self {
@@ -118,7 +116,7 @@ impl Particle {
             size,
             rotation: 0.0,
             angular_velocity,
-            animation
+            animation,
         }
     }
 
@@ -146,10 +144,13 @@ impl Particle {
         self.rotation += self.angular_velocity * delta_time;
         if let Some(animation) = self.animation.as_mut() {
             match animation.animation_type {
-                ParticleAnimationType::Static => {},
-                ParticleAnimationType::Linear { frames, .. } | ParticleAnimationType::YoYo { frames, .. } => {
-                    animation.frame = (lifetime / animation.frame_duration).floor() as usize % frames;
-                    animation.iteration = (lifetime / (animation.frame_duration * frames as f64)).floor() as u32;
+                ParticleAnimationType::Static => {}
+                ParticleAnimationType::Linear { frames, .. }
+                | ParticleAnimationType::YoYo { frames, .. } => {
+                    animation.frame =
+                        (lifetime / animation.frame_duration).floor() as usize % frames;
+                    animation.iteration =
+                        (lifetime / (animation.frame_duration * frames as f64)).floor() as u32;
                 }
             }
         }
@@ -176,8 +177,10 @@ impl Particle {
     pub fn animation_frame(&self) -> usize {
         let animation = self.animation.as_ref().expect("not an animating particle");
         match animation.animation_type {
-            ParticleAnimationType::YoYo { frames, .. } if animation.iteration % 2 == 1 => frames - animation.frame - 1,
-            _ => animation.frame
+            ParticleAnimationType::YoYo { frames, .. } if animation.iteration % 2 == 1 => {
+                frames - animation.frame - 1
+            }
+            _ => animation.frame,
         }
     }
 }

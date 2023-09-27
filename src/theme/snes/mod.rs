@@ -1,23 +1,21 @@
-use std::collections::HashMap;
-use std::time::Duration;
-use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
-use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
 use crate::config::Config;
-use crate::game::MAX_SCORE;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
-use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::sprite_sheet::{BlockAnimationsData, BlockPoints, pills, VitaminSpriteSheetData};
-use crate::theme::{Theme, ThemeName};
+use crate::game::MAX_SCORE;
 use crate::theme::animation::AnimationSpriteSheetData;
-use crate::theme::font::{alpha_sprites, FontRenderOptions, FontThemeOptions, MetricSnips};
+use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
 use crate::theme::geometry::BottleGeometry;
+use crate::theme::retro::{retro_theme, RetroThemeOptions};
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
+use crate::theme::sprite_sheet::{pills, BlockAnimationsData, BlockPoints, VitaminSpriteSheetData};
+use crate::theme::{Theme, ThemeName};
+
+use sdl2::rect::Point;
+use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
 
 mod sprites {
     pub const VITAMINS: &[u8] = include_bytes!("vitamins.png");
@@ -64,17 +62,20 @@ fn blocks(j: i32) -> BlockPoints {
         [block(11, j), block(10, j)],
         [block(5, j), block(4, j)],
         [block(10, j), block(11, j)],
-        block(3, j)
+        block(3, j),
     )
 }
 
 fn animations(j: i32) -> BlockAnimationsData {
     BlockAnimationsData::non_exclusive_linear(
         sprites::VITAMINS,
-        block(0, j), 2,
-        block(2, j), 1,
-        block(2, j), 1,
-        BLOCK_SIZE
+        block(0, j),
+        2,
+        block(2, j),
+        1,
+        block(2, j),
+        1,
+        BLOCK_SIZE,
     )
 }
 
@@ -85,9 +86,11 @@ fn match_end(i: i32, j: i32) -> Point {
 pub fn snes_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
-    config: Config
+    config: Config,
 ) -> Result<Theme<'a>, String> {
-    let scene = SceneType::Tile { texture: sprites::BACKGROUND_TILE };
+    let scene = SceneType::Tile {
+        texture: sprites::BACKGROUND_TILE,
+    };
 
     let options = RetroThemeOptions {
         name: ThemeName::Snes,
@@ -102,10 +105,17 @@ pub fn snes_theme<'a>(
         sprites: VitaminSpriteSheetData::new(
             sprites::VITAMINS,
             pills(
-                BLOCK_SIZE * 2, BLOCK_SIZE,
-                block(4, 0), block(6, 0), block(8, 0),
-                block(4, 1), block(6, 1), block(8, 1),
-                block(4, 2), block(6, 2), block(8, 2)
+                BLOCK_SIZE * 2,
+                BLOCK_SIZE,
+                block(4, 0),
+                block(6, 0),
+                block(8, 0),
+                block(4, 1),
+                block(6, 1),
+                block(8, 1),
+                block(4, 2),
+                block(6, 2),
+                block(8, 2),
             ),
             (BLOCK_SIZE * 2, BLOCK_SIZE),
             blocks(0),
@@ -120,23 +130,33 @@ pub fn snes_theme<'a>(
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 1),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 2),
             AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 1),
-            None
+            None,
         ),
         geometry: BottleGeometry::new(BLOCK_SIZE, 0, (7, 39)),
         audio: AudioTheme::new(
-            config.audio, sound::MOVE_PILL, sound::ROTATE, sound::DROP,
-            sound::DESTROY_VIRUS, sound::DESTROY_VIRUS_COMBO, sound::DESTROY_VITAMIN, sound::DESTROY_VITAMIN_COMBO,
-            sound::PAUSE, sound::SPEED_LEVEL_UP, sound::RECEIVE_GARBAGE, sound::NEXT_LEVEL_JINGLE, None
+            config.audio,
+            sound::MOVE_PILL,
+            sound::ROTATE,
+            sound::DROP,
+            sound::DESTROY_VIRUS,
+            sound::DESTROY_VIRUS_COMBO,
+            sound::DESTROY_VITAMIN,
+            sound::DESTROY_VITAMIN_COMBO,
+            sound::PAUSE,
+            sound::SPEED_LEVEL_UP,
+            sound::RECEIVE_GARBAGE,
+            sound::NEXT_LEVEL_JINGLE,
+            None,
         )?
-            .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
-            .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
-            .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
-            .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
+        .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
+        .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
+        .with_next_level_music(sound::FEVER_NEXT_LEVEL, None)?
+        .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::simple(
             FontRenderOptions::numeric_sprites(sprites::FONT, texture_creator, 1)?,
             MetricSnips::zero_fill((91, 110), MAX_SCORE),
             MetricSnips::zero_fill((123, 131), MAX_VIRUS_LEVEL),
-            MetricSnips::zero_fill((123, 152), MAX_VIRUSES)
+            MetricSnips::zero_fill((123, 152), MAX_VIRUSES),
         ),
         bottles_file: sprites::BOTTLES,
         bottle_low: Point::new(0, 0),
@@ -149,8 +169,14 @@ pub fn snes_theme<'a>(
         match_end_file: sprites::MATCH_END,
         game_over_points: vec![match_end(0, 0), match_end(1, 0)],
         next_level_points: vec![
-            match_end(2, 0), match_end(3, 0), match_end(4, 0),
-            match_end(0, 1), match_end(1, 1), match_end(2, 1), match_end(3, 1), match_end(4, 1)
+            match_end(2, 0),
+            match_end(3, 0),
+            match_end(4, 0),
+            match_end(0, 1),
+            match_end(1, 1),
+            match_end(2, 1),
+            match_end(3, 1),
+            match_end(4, 1),
         ],
         dr_throw_point: Point::new(99, 29),
         dr_game_over_point: Point::new(100, 31),
@@ -162,7 +188,6 @@ pub fn snes_theme<'a>(
         peek_offset: 10,
         peek_max: 2,
         peek_scale: Some(0.82),
-
     };
 
     retro_theme(canvas, texture_creator, options)

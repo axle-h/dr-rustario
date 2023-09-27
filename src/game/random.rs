@@ -1,15 +1,15 @@
-use std::collections::{HashSet, VecDeque};
-use std::fmt::{Debug, Formatter};
-use rand::prelude::*;
-use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
-use rand::distributions::Standard;
-use rand_chacha::{ChaCha8Rng, ChaChaRng};
-use strum::IntoEnumIterator;
 use crate::game::block::Block;
 use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH, TOTAL_BLOCKS};
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, VirusColor};
+use rand::distributions::Standard;
+use rand::prelude::*;
+use rand::seq::SliceRandom;
+use rand::{thread_rng, Rng};
+use rand_chacha::{ChaCha8Rng, ChaChaRng};
+use std::collections::{HashSet, VecDeque};
+use std::fmt::{Debug, Formatter};
+use strum::IntoEnumIterator;
 
 pub const PEEK_SIZE: usize = 5;
 pub const MAX_BOTTLE_SEED_ATTEMPTS: usize = 100_000;
@@ -29,7 +29,17 @@ impl Distribution<PillShape> for Standard {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, strum::IntoStaticStr, strum::EnumIter, strum::EnumString)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Default,
+    strum::IntoStaticStr,
+    strum::EnumIter,
+    strum::EnumString,
+)]
 pub enum RandomMode {
     /// All pills placed in a shuffled "bag" and drawn until the bag is empty, after which a new bag is shuffled
     #[strum(serialize = "bag")]
@@ -58,27 +68,26 @@ pub fn random(count: usize, mode: RandomMode) -> Vec<GameRandom> {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct BottleSeed {
     viruses: [Option<VirusColor>; TOTAL_BLOCKS as usize],
-    count: u32
+    count: u32,
 }
 
 impl BottleSeed {
     pub fn new() -> Self {
-        Self { viruses: [None; TOTAL_BLOCKS as usize], count: 0 }
+        Self {
+            viruses: [None; TOTAL_BLOCKS as usize],
+            count: 0,
+        }
     }
 
     pub fn into_blocks(self) -> [Block; TOTAL_BLOCKS as usize] {
         self.viruses.map(|c| match c {
             Some(color) => Block::Virus(color),
-            None => Block::Empty
+            None => Block::Empty,
         })
     }
 
-    pub fn count(&self) -> u32 {
-        self.count
-    }
-
     fn get(&self, x: i32, y: i32) -> Option<VirusColor> {
-        if x >= 0 && x < BOTTLE_WIDTH as i32 && y >=0 && y < BOTTLE_HEIGHT as i32 {
+        if x >= 0 && x < BOTTLE_WIDTH as i32 && y >= 0 && y < BOTTLE_HEIGHT as i32 {
             self.viruses[BottleSeed::index(x, y)]
         } else {
             None
@@ -86,9 +95,8 @@ impl BottleSeed {
     }
 
     fn get_available_colors(&self, x: i32, y: i32) -> HashSet<VirusColor> {
-        let mut colors = HashSet::from_iter([
-            VirusColor::Yellow, VirusColor::Blue, VirusColor::Red
-        ]);
+        let mut colors =
+            HashSet::from_iter([VirusColor::Yellow, VirusColor::Blue, VirusColor::Red]);
 
         // 3-Consecutive Rule: viruses of the same color cannot occupy three consecutive cells in the same row or column
         if let Some(color) = self.get(x - 1, y) {
@@ -144,7 +152,7 @@ pub struct GameRandom {
     mode: RandomMode,
     pill_rng: ChaChaRng,
     bottle_rng: ChaChaRng,
-    queue: VecDeque<PillShape>
+    queue: VecDeque<PillShape>,
 }
 
 impl GameRandom {
@@ -161,15 +169,18 @@ impl GameRandom {
         let bottle_rng = rng.clone();
         let mut pill_rng = rng;
         let queue = match mode {
-            RandomMode::True => (0..PEEK_SIZE)
-                .map(|_| pill_rng.gen())
-                .collect(),
+            RandomMode::True => (0..PEEK_SIZE).map(|_| pill_rng.gen()).collect(),
             RandomMode::Bag => PillShape::ALL
                 .choose_multiple(&mut pill_rng, PillShape::ALL.len())
                 .cloned()
-                .collect()
+                .collect(),
         };
-        Self { mode, pill_rng, bottle_rng, queue }
+        Self {
+            mode,
+            pill_rng,
+            bottle_rng,
+            queue,
+        }
     }
 
     fn assert_bags(&mut self) {
@@ -218,7 +229,10 @@ impl GameRandom {
                 return Ok(seed);
             }
         }
-        Err(format!("failed to generate valid bottle after {} attempts", MAX_BOTTLE_SEED_ATTEMPTS))
+        Err(format!(
+            "failed to generate valid bottle after {} attempts",
+            MAX_BOTTLE_SEED_ATTEMPTS
+        ))
     }
 
     fn try_bottle_seed(&mut self, virus_level: u32) -> Option<BottleSeed> {
@@ -228,12 +242,12 @@ impl GameRandom {
             0..=14 => 6,
             15 | 16 => 5,
             17 | 18 => 4,
-            _ => 3
+            _ => 3,
         };
         let mut available = (max_virus_row..BOTTLE_HEIGHT)
             .flat_map(|y| (0..BOTTLE_WIDTH).map(move |x| BottlePoint::new(x as i32, y as i32)))
             .collect::<Vec<BottlePoint>>();
-        available.shuffle(&mut self.pill_rng);
+        available.shuffle(&mut self.bottle_rng);
 
         for i in 0..target {
             let point = available.pop()?;
@@ -243,7 +257,7 @@ impl GameRandom {
             }
             let mut color: VirusColor = match (i as usize % 4).try_into() {
                 Ok(color) => color,
-                _ => self.pill_rng.gen()
+                _ => self.bottle_rng.gen(),
             };
             while !available_colors.contains(&color) {
                 color = color.next();
@@ -266,20 +280,24 @@ mod tests {
     #[test]
     fn seeds_bottle_at_level_0() {
         let mut source = GameRandom::from_u64_seed(123546, RandomMode::True);
-        let result = source.bottle_seed(0).expect("should generate valid bottle for this seed");
+        let result = source
+            .bottle_seed(0)
+            .expect("should generate valid bottle for this seed");
         assert_eq!(result.virus_count(), 4, "{:?}", result);
     }
 
     #[test]
     fn seeds_bottle_with_99_viruses() {
         let mut source = GameRandom::from_u64_seed(123546, RandomMode::True);
-        let result = source.bottle_seed(30).expect("should generate valid bottle for this seed");
+        let result = source
+            .bottle_seed(30)
+            .expect("should generate valid bottle for this seed");
         assert_eq!(result.virus_count(), 99, "{:?}", result);
         println!("{:?}", result);
 
         // revalidate all placements
-        for x in 0..BOTTLE_WIDTH as i32  {
-            for y in 0 ..BOTTLE_HEIGHT as i32 {
+        for x in 0..BOTTLE_WIDTH as i32 {
+            for y in 0..BOTTLE_HEIGHT as i32 {
                 if let Some(color) = result.get(x, y) {
                     assert!(result.get_available_colors(x, y).contains(&color));
                 }
@@ -290,7 +308,7 @@ mod tests {
         for color in [VirusColor::Yellow, VirusColor::Red, VirusColor::Blue] {
             // horizontal
             let mut count = 0;
-            for y in 0 ..BOTTLE_HEIGHT as i32 {
+            for y in 0..BOTTLE_HEIGHT as i32 {
                 count = 0;
                 for x in 0..BOTTLE_WIDTH as i32 {
                     if result.get(x, y) == Some(color) {
@@ -304,9 +322,9 @@ mod tests {
 
             // vertical
             let mut count = 0;
-            for x in 0..BOTTLE_WIDTH as i32  {
+            for x in 0..BOTTLE_WIDTH as i32 {
                 count = 0;
-                for y in 0 ..BOTTLE_HEIGHT as i32 {
+                for y in 0..BOTTLE_HEIGHT as i32 {
                     if result.get(x, y) == Some(color) {
                         count += 1;
                     } else {

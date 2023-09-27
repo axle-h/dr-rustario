@@ -81,4 +81,4 @@ All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
 There are no default player 2 controls.
 
 ## TODO
-* lint
+* change yellow to match virus better

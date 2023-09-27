@@ -1,18 +1,17 @@
-use std::time::Duration;
-use sdl2::image::LoadTexture;
-use sdl2::rect::{Point, Rect};
-use sdl2::render::{BlendMode, TextureCreator, WindowCanvas};
-use sdl2::video::WindowContext;
 use crate::animate::dr::DrAnimationType;
 use crate::animate::virus::VirusAnimationType;
-use crate::game::pill::{LEFT_VITAMIN_SPAWN_POINT, PillShape, VirusColor, Vitamin};
-use crate::theme::{AnimationMeta, Theme, ThemeName};
-use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
+use crate::game::pill::{VirusColor, LEFT_VITAMIN_SPAWN_POINT};
+use crate::theme::font::FontThemeOptions;
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::helper::{TextureFactory, TextureQuery};
 use crate::theme::scene::SceneType;
 use crate::theme::sound::AudioTheme;
 use crate::theme::sprite_sheet::{DrType, VitaminSpriteSheet, VitaminSpriteSheetData};
+use crate::theme::{AnimationMeta, Theme, ThemeName};
+
+use sdl2::rect::{Point, Rect};
+use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
 
 pub struct RetroThemeOptions {
     pub name: ThemeName,
@@ -56,12 +55,7 @@ pub fn retro_theme<'a>(
     texture_creator: &'a TextureCreator<WindowContext>,
     options: RetroThemeOptions,
 ) -> Result<Theme<'a>, String> {
-    let sprites = VitaminSpriteSheet::new(
-        canvas,
-        texture_creator,
-        options.sprites,
-        None,
-    )?;
+    let sprites = VitaminSpriteSheet::new(canvas, texture_creator, options.sprites, None)?;
     let bottles_texture = texture_creator.load_texture_bytes_blended(options.bottles_file)?;
 
     let background_texture = texture_creator.load_texture_bytes_blended(options.background_file)?;
@@ -70,12 +64,30 @@ pub fn retro_theme<'a>(
     let font = options.font.build(texture_creator)?;
 
     let match_end_texture = texture_creator.load_texture_bytes_blended(options.match_end_file)?;
-    let game_over_snips: Vec<Rect> = options.game_over_points.iter().map(|p|
-        Rect::new(p.x, p.y, options.geometry.width(), options.geometry.height())
-    ).collect();
-    let next_level_snips: Vec<Rect> = options.next_level_points.iter().map(|p|
-        Rect::new(p.x, p.y, options.geometry.width(), options.geometry.height())
-    ).collect();
+    let game_over_snips: Vec<Rect> = options
+        .game_over_points
+        .iter()
+        .map(|p| {
+            Rect::new(
+                p.x,
+                p.y,
+                options.geometry.width(),
+                options.geometry.height(),
+            )
+        })
+        .collect();
+    let next_level_snips: Vec<Rect> = options
+        .next_level_points
+        .iter()
+        .map(|p| {
+            Rect::new(
+                p.x,
+                p.y,
+                options.geometry.width(),
+                options.geometry.height(),
+            )
+        })
+        .collect();
 
     let animation_meta = AnimationMeta {
         virus_type: options.virus_animation_type,
@@ -99,51 +111,55 @@ pub fn retro_theme<'a>(
         next_level_interstitial_frames: next_level_snips.len(),
     };
 
-    Ok(
-        Theme {
-            name: options.name,
-            scene_low:  options.scene_low.build(canvas, texture_creator)?,
-            scene_medium:  options.scene_medium.build(canvas, texture_creator)?,
-            scene_high:  options.scene_high.build(canvas, texture_creator)?,
-            sprites,
-            geometry: options.geometry,
-            audio: options.audio,
-            font,
-            bottles_texture,
-            bottle_low_snip: Rect::new(
-                options.bottle_low.x, options.bottle_low.y,
-                options.bottle_width, options.bottle_height
-            ),
-            bottle_medium_snip: Rect::new(
-                options.bottle_medium.x, options.bottle_medium.y,
-                options.bottle_width, options.bottle_height
-            ),
-            bottle_high_snip: Rect::new(
-                options.bottle_high.x, options.bottle_high.y,
-                options.bottle_width, options.bottle_height
-            ),
-            bottle_bg_snip:  Rect::new(
-                options.bottle_point.x(),
-                options.bottle_point.y(),
-                options.bottle_width,
-                options.bottle_height
-            ),
-            background_texture,
-            background_size,
-            dr_order_first: options.dr_order_first,
-            dr_hand_point: options.dr_hand_point,
-            dr_throw_point: options.dr_throw_point,
-            dr_game_over_point: options.dr_game_over_point,
-            dr_victory_point: options.dr_victory_point,
-            animation_meta,
-            game_over_snips,
-            next_level_snips,
-            match_end_texture,
-            hold_point: options.hold_point,
-            peek_point: options.peek_point,
-            peek_offset: options.peek_offset,
-            peek_scale: options.peek_scale,
-            peek_max: options.peek_max,
-        }
-    )
+    Ok(Theme {
+        name: options.name,
+        scene_low: options.scene_low.build(canvas, texture_creator)?,
+        scene_medium: options.scene_medium.build(canvas, texture_creator)?,
+        scene_high: options.scene_high.build(canvas, texture_creator)?,
+        sprites,
+        geometry: options.geometry,
+        audio: options.audio,
+        font,
+        bottles_texture,
+        bottle_low_snip: Rect::new(
+            options.bottle_low.x,
+            options.bottle_low.y,
+            options.bottle_width,
+            options.bottle_height,
+        ),
+        bottle_medium_snip: Rect::new(
+            options.bottle_medium.x,
+            options.bottle_medium.y,
+            options.bottle_width,
+            options.bottle_height,
+        ),
+        bottle_high_snip: Rect::new(
+            options.bottle_high.x,
+            options.bottle_high.y,
+            options.bottle_width,
+            options.bottle_height,
+        ),
+        bottle_bg_snip: Rect::new(
+            options.bottle_point.x(),
+            options.bottle_point.y(),
+            options.bottle_width,
+            options.bottle_height,
+        ),
+        background_texture,
+        background_size,
+        dr_order_first: options.dr_order_first,
+        dr_hand_point: options.dr_hand_point,
+        dr_throw_point: options.dr_throw_point,
+        dr_game_over_point: options.dr_game_over_point,
+        dr_victory_point: options.dr_victory_point,
+        animation_meta,
+        game_over_snips,
+        next_level_snips,
+        match_end_texture,
+        hold_point: options.hold_point,
+        peek_point: options.peek_point,
+        peek_offset: options.peek_offset,
+        peek_scale: options.peek_scale,
+        peek_max: options.peek_max,
+    })
 }

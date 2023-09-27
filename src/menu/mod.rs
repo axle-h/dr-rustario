@@ -1,18 +1,15 @@
 pub mod sound;
 
-use crate::menu_input::MenuInputKey;
 use crate::build_info::BUILD_INFO;
 use crate::font::{FontTexture, FontType};
-use sdl2::image::LoadTexture;
+use crate::menu_input::MenuInputKey;
+use sdl2::gfx::primitives::DrawRenderer;
+
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::{Font, Sdl2TtfContext};
 use sdl2::video::WindowContext;
-use std::cmp::max;
-use std::collections::HashMap;
-use std::sync::atomic::AtomicUsize;
-use sdl2::gfx::primitives::DrawRenderer;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuAction {
@@ -24,10 +21,6 @@ impl MenuAction {
     fn is_select(&self) -> bool {
         self == &Self::Select
     }
-
-    pub fn select(items: &[&str], current: usize) -> Self {
-        Self::SelectList { items: items.into_iter().map(|s| s.to_string()).collect(), current }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,14 +31,19 @@ pub struct MenuItem {
 
 impl MenuItem {
     pub fn select(name: &str) -> Self {
-        Self { name: name.to_string(), action: MenuAction::Select }
+        Self {
+            name: name.to_string(),
+            action: MenuAction::Select,
+        }
     }
 
     pub fn select_list(name: &str, items: Vec<String>, current: usize) -> Self {
-        Self { name: name.to_string(), action: MenuAction::SelectList { items, current } }
+        Self {
+            name: name.to_string(),
+            action: MenuAction::SelectList { items, current },
+        }
     }
 }
-
 
 struct MenuRow<'a> {
     item: MenuItem,
@@ -53,7 +51,7 @@ struct MenuRow<'a> {
     name_height: u32,
     name_width: u32,
     selected_texture: Texture<'a>,
-    action_textures: Vec<FontTexture<'a>>
+    action_textures: Vec<FontTexture<'a>>,
 }
 
 impl<'a> MenuRow<'a> {
@@ -61,15 +59,34 @@ impl<'a> MenuRow<'a> {
         canvas: &mut WindowCanvas,
         texture_creator: &'a TextureCreator<WindowContext>,
         font: &Font,
-        item: MenuItem
+        item: MenuItem,
     ) -> Result<Self, String> {
-        let name_texture = Self::name_texture(canvas, texture_creator, font, &item.name, Color::WHITE, None)?;
-        let selected_texture = Self::name_texture(canvas, texture_creator, font, &item.name, Color::BLACK, Some(Color::WHITE))?;
+        let name_texture = Self::name_texture(
+            canvas,
+            texture_creator,
+            font,
+            &item.name,
+            Color::WHITE,
+            None,
+        )?;
+        let selected_texture = Self::name_texture(
+            canvas,
+            texture_creator,
+            font,
+            &item.name,
+            Color::BLACK,
+            Some(Color::WHITE),
+        )?;
 
         let mut action_textures = vec![];
-        if let MenuAction::SelectList { items, current } = &item.action {
+        if let MenuAction::SelectList { items, current: _ } = &item.action {
             for text in items {
-                action_textures.push(FontTexture::from_string(font, texture_creator, text, Color::WHITE)?);
+                action_textures.push(FontTexture::from_string(
+                    font,
+                    texture_creator,
+                    text,
+                    Color::WHITE,
+                )?);
             }
         }
 
@@ -80,18 +97,22 @@ impl<'a> MenuRow<'a> {
             name_width: name_query.width,
             name_height: name_query.height,
             selected_texture,
-            action_textures
+            action_textures,
         })
     }
 
     fn max_action_width(&self) -> u32 {
-        self.action_textures.iter().map(|a| a.width).max().unwrap_or(0)
+        self.action_textures
+            .iter()
+            .map(|a| a.width)
+            .max()
+            .unwrap_or(0)
     }
 
     fn current_action_id(&self) -> Option<usize> {
         match &self.item.action {
             MenuAction::Select => None,
-            MenuAction::SelectList { current, .. } => Some(*current)
+            MenuAction::SelectList { current, .. } => Some(*current),
         }
     }
 
@@ -101,36 +122,52 @@ impl<'a> MenuRow<'a> {
         font: &Font,
         name: &str,
         text_color: Color,
-        background_color: Option<Color>
+        background_color: Option<Color>,
     ) -> Result<Texture<'a>, String> {
         let name_text = FontTexture::from_string(font, texture_creator, name, text_color)?;
-        let rect = Rect::new(0, 0, name_text.width + font.height() as u32, font.height() as u32 + 10);
-        let mut texture = texture_creator.create_texture_target(None, rect.width(), rect.height())
+        let rect = Rect::new(
+            0,
+            0,
+            name_text.width + font.height() as u32,
+            font.height() as u32 + 10,
+        );
+        let mut texture = texture_creator
+            .create_texture_target(None, rect.width(), rect.height())
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
-        canvas.with_texture_canvas(&mut texture, |c| {
-            c.set_draw_color(Color::RGBA(0, 0, 0, 0));
-            c.clear();
-            if let Some(background_color) = background_color {
-                let rad = rect.height() as i32 / 2;
-                let top_right = rect.top_right();
-                let bottom_left = rect.bottom_left();
-                c.rounded_box(
-                    top_right.x() as i16, top_right.y() as i16,
-                    bottom_left.x() as i16, bottom_left.y() as i16,
-                    rad as i16,
-                    background_color
-                ).unwrap();
-            }
-            c.copy(&name_text.texture, None, Rect::from_center(rect.center(), name_text.width, name_text.height)).unwrap();
-        }).map_err(|e| e.to_string())?;
+        canvas
+            .with_texture_canvas(&mut texture, |c| {
+                c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                c.clear();
+                if let Some(background_color) = background_color {
+                    let rad = rect.height() as i32 / 2;
+                    let top_right = rect.top_right();
+                    let bottom_left = rect.bottom_left();
+                    c.rounded_box(
+                        top_right.x() as i16,
+                        top_right.y() as i16,
+                        bottom_left.x() as i16,
+                        bottom_left.y() as i16,
+                        rad as i16,
+                        background_color,
+                    )
+                    .unwrap();
+                }
+                c.copy(
+                    &name_text.texture,
+                    None,
+                    Rect::from_center(rect.center(), name_text.width, name_text.height),
+                )
+                .unwrap();
+            })
+            .map_err(|e| e.to_string())?;
         Ok(texture)
     }
 }
 
 struct SnippedTexture<'a> {
     texture: Texture<'a>,
-    snip: Rect
+    snip: Rect,
 }
 
 impl<'a> SnippedTexture<'a> {
@@ -138,7 +175,6 @@ impl<'a> SnippedTexture<'a> {
         Self { texture, snip }
     }
 }
-
 
 pub struct Menu<'a> {
     rows: Vec<MenuRow<'a>>,
@@ -148,17 +184,17 @@ pub struct Menu<'a> {
     subtitle: Option<SnippedTexture<'a>>,
     body: SnippedTexture<'a>,
     watermark: SnippedTexture<'a>,
-    select_list_background: Texture<'a>
+    select_list_background: Texture<'a>,
 }
 
 impl<'a> Menu<'a> {
-    pub fn new<ST : Into<Option<String>>>(
+    pub fn new<ST: Into<Option<String>>>(
         menu_items: Vec<MenuItem>,
         canvas: &mut WindowCanvas,
         ttf: &Sdl2TtfContext,
         texture_creator: &'a TextureCreator<WindowContext>,
         title_text: String,
-        subtitle_text: ST
+        subtitle_text: ST,
     ) -> Result<Self, String> {
         assert!(!menu_items.is_empty());
 
@@ -169,19 +205,25 @@ impl<'a> Menu<'a> {
         let vertical_gutter = font_size / 3;
         let horizontal_gutter = font_size * 2;
 
-        let rows: Vec<MenuRow> = menu_items.into_iter()
+        let rows: Vec<MenuRow> = menu_items
+            .into_iter()
             .map(|mi| MenuRow::new(canvas, texture_creator, &font, mi).unwrap())
             .collect();
 
         let row_height = rows.iter().map(|r| r.name_height).max().unwrap();
-        let body_height = row_height * rows.len() as u32 + vertical_gutter * (rows.len() - 1) as u32;
+        let body_height =
+            row_height * rows.len() as u32 + vertical_gutter * (rows.len() - 1) as u32;
 
         let name_width = rows.iter().map(|r| r.name_width).max().unwrap();
         let max_action_width = rows.iter().map(|r| r.max_action_width()).max().unwrap();
         // + body height as buffer for select list bg
         let body_width = name_width + horizontal_gutter + max_action_width + row_height / 2;
 
-        let body_rect = Rect::from_center( Rect::new(0, 0, window_width, window_height).center(), body_width, body_height);
+        let body_rect = Rect::from_center(
+            Rect::new(0, 0, window_width, window_height).center(),
+            body_width,
+            body_height,
+        );
 
         let mut row_rects = vec![];
         let mut y = 0;
@@ -197,7 +239,8 @@ impl<'a> Menu<'a> {
 
         let watermark_font_size = font_size / 2;
         let watermark_font = FontType::Handjet.load(ttf, watermark_font_size)?;
-        let watermark_texture = FontTexture::from_string(&watermark_font, texture_creator, BUILD_INFO, Color::WHITE)?;
+        let watermark_texture =
+            FontTexture::from_string(&watermark_font, texture_creator, BUILD_INFO, Color::WHITE)?;
         let watermark_rect = Rect::new(
             (window_width - watermark_texture.width - watermark_font_size) as i32,
             (window_height - watermark_texture.height - watermark_font_size) as i32,
@@ -207,41 +250,59 @@ impl<'a> Menu<'a> {
 
         let title_font_size = window_width / 24;
         let title_font = FontType::Handjet.load(ttf, title_font_size)?;
-        let title_texture = FontTexture::from_string(&title_font, texture_creator, &title_text, Color::WHITE)?;
+        let title_texture =
+            FontTexture::from_string(&title_font, texture_creator, &title_text, Color::WHITE)?;
         let title_rect = Rect::from_center(
-            Rect::new(0, vertical_gutter as i32, window_width, title_texture.height).center(),
+            Rect::new(
+                0,
+                vertical_gutter as i32,
+                window_width,
+                title_texture.height,
+            )
+            .center(),
             title_texture.width,
             title_texture.height,
         );
 
-        let subtitle = subtitle_text.into()
-            .map(|text| {
-                let texture = FontTexture::from_string(&font, texture_creator, &text, Color::WHITE).unwrap();
-                let rect = Rect::from_center(
-                    Rect::new(0, title_texture.height as i32 + vertical_gutter as i32, window_width, texture.height).center(),
-                    texture.width,
+        let subtitle = subtitle_text.into().map(|text| {
+            let texture =
+                FontTexture::from_string(&font, texture_creator, &text, Color::WHITE).unwrap();
+            let rect = Rect::from_center(
+                Rect::new(
+                    0,
+                    title_texture.height as i32 + vertical_gutter as i32,
+                    window_width,
                     texture.height,
-                );
-                SnippedTexture::new(texture.texture, rect)
-            });
+                )
+                .center(),
+                texture.width,
+                texture.height,
+            );
+            SnippedTexture::new(texture.texture, rect)
+        });
 
         let mut select_list_background = texture_creator
             .create_texture_target(None, body_width, row_height)
             .map_err(|e| e.to_string())?;
         select_list_background.set_blend_mode(BlendMode::Blend);
-        canvas.with_texture_canvas(&mut select_list_background, |c| {
-            let rect = Rect::new(0, 0, body_width, row_height);
-            // TODO this lot is repeated, can be extracted into a canvas trait
-            let rad = rect.height() as i32 / 2;
-            let top_right = rect.top_right();
-            let bottom_left = rect.bottom_left();
-            c.rounded_box(
-                top_right.x() as i16, top_right.y() as i16,
-                bottom_left.x() as i16, bottom_left.y() as i16,
-                rad as i16,
-                Color::RGBA(0xff, 0xff, 0xff, 0x80)
-            ).unwrap();
-        }).map_err(|e| e.to_string())?;
+        canvas
+            .with_texture_canvas(&mut select_list_background, |c| {
+                let rect = Rect::new(0, 0, body_width, row_height);
+                // TODO this lot is repeated, can be extracted into a canvas trait
+                let rad = rect.height() as i32 / 2;
+                let top_right = rect.top_right();
+                let bottom_left = rect.bottom_left();
+                c.rounded_box(
+                    top_right.x() as i16,
+                    top_right.y() as i16,
+                    bottom_left.x() as i16,
+                    bottom_left.y() as i16,
+                    rad as i16,
+                    Color::RGBA(0xff, 0xff, 0xff, 0x80),
+                )
+                .unwrap();
+            })
+            .map_err(|e| e.to_string())?;
 
         Ok(Self {
             rows,
@@ -251,7 +312,7 @@ impl<'a> Menu<'a> {
             subtitle,
             body: SnippedTexture::new(body_texture, body_rect),
             watermark: SnippedTexture::new(watermark_texture.texture, watermark_rect),
-            select_list_background
+            select_list_background,
         })
     }
 
@@ -289,7 +350,9 @@ impl<'a> Menu<'a> {
             MenuInputKey::Right => self.right(),
             MenuInputKey::Select => self.select(),
             // special case for pressing "start" on an action e.g. "quit" I would expect it to quit
-            MenuInputKey::Start if self.rows[self.current_row_id].item.action.is_select() => self.select(),
+            MenuInputKey::Start if self.rows[self.current_row_id].item.action.is_select() => {
+                self.select()
+            }
             _ => None,
         }
     }
@@ -336,29 +399,41 @@ impl<'a> Menu<'a> {
                 tc.set_draw_color(Color::RGBA(0, 0, 0, 0));
                 tc.clear();
 
-                for (row_id, (row, row_rect)) in self.rows.iter().zip(self.row_rects.iter()).enumerate() {
+                for (row_id, (row, row_rect)) in
+                    self.rows.iter().zip(self.row_rects.iter()).enumerate()
+                {
                     let is_selected = row_id == self.current_row_id;
 
                     // draw select list background
                     if is_selected && !row.item.action.is_select() {
-                        tc.copy(&self.select_list_background, None, *row_rect).unwrap();
+                        tc.copy(&self.select_list_background, None, *row_rect)
+                            .unwrap();
                     }
 
                     // draw name
-                    let name_rect = Rect::new(row_rect.x, row_rect.y, row.name_width, row.name_height);
-                    let name_texture = if is_selected { &row.selected_texture } else { &row.name_texture };
+                    let name_rect =
+                        Rect::new(row_rect.x, row_rect.y, row.name_width, row.name_height);
+                    let name_texture = if is_selected {
+                        &row.selected_texture
+                    } else {
+                        &row.name_texture
+                    };
                     tc.copy(name_texture, None, name_rect).unwrap();
 
                     // draw value
                     if let Some(current_action) = row.current_action_id() {
                         let texture = &row.action_textures[current_action];
                         let offset_by_action_width = -1 * texture.width as i32;
-                        let mut rect = Rect::from_enclose_points(&[
-                            row_rect.top_right(),
-                            row_rect.bottom_right(),
-                            row_rect.top_right().offset(offset_by_action_width, 0),
-                            row_rect.bottom_right().offset(offset_by_action_width, 0)
-                        ], None).unwrap();
+                        let mut rect = Rect::from_enclose_points(
+                            &[
+                                row_rect.top_right(),
+                                row_rect.bottom_right(),
+                                row_rect.top_right().offset(offset_by_action_width, 0),
+                                row_rect.bottom_right().offset(offset_by_action_width, 0),
+                            ],
+                            None,
+                        )
+                        .unwrap();
                         // move left a bit for the bg buffer
                         rect.offset(-1 * row_rect.height() as i32 / 2, 0);
                         tc.copy(&texture.texture, None, rect).unwrap();

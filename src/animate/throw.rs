@@ -1,9 +1,9 @@
+use crate::animate::dr::{DrAnimation, DrAnimationType};
+
+use crate::game::pill::PillShape;
+use sdl2::rect::Point;
 use std::f64::consts::PI;
 use std::time::Duration;
-use sdl2::rect::Point;
-use crate::animate::dr::{DrAnimation, DrAnimationType};
-use crate::animate::event::{AnimationEvent, AnimationType};
-use crate::game::pill::{PillShape, Vitamins};
 
 const ARC_DURATION: f64 = 0.5; // secs
 const ARC_HEIGHT_BLOCKS: f64 = 4.5;
@@ -14,12 +14,18 @@ pub struct State {
     shape: PillShape,
     duration: f64,
     is_hold: bool,
-    dr: DrAnimation
+    dr: DrAnimation,
 }
 
 impl State {
     fn new(arc: LinearThrowArc, shape: PillShape, is_hold: bool, dr: DrAnimation) -> Self {
-        Self { shape, duration: 0.0, arc, dr, is_hold }
+        Self {
+            shape,
+            duration: 0.0,
+            arc,
+            dr,
+            is_hold,
+        }
     }
 
     pub fn throw_position(&self) -> Point {
@@ -54,16 +60,22 @@ pub struct ThrowAnimation {
     state: Option<State>,
     arc: LinearThrowArc,
     dr_frames: usize,
-    dr_type: DrAnimationType
+    dr_type: DrAnimationType,
 }
 
 impl ThrowAnimation {
-    pub fn new(start: Point, end: Point, block_size: u32, dr_frames: usize, dr_type: DrAnimationType) -> Self {
+    pub fn new(
+        start: Point,
+        end: Point,
+        block_size: u32,
+        dr_frames: usize,
+        dr_type: DrAnimationType,
+    ) -> Self {
         Self {
             state: None,
             arc: LinearThrowArc::new(start, end, block_size),
             dr_frames,
-            dr_type
+            dr_type,
         }
     }
 
@@ -97,7 +109,6 @@ impl ThrowAnimation {
     pub fn state(&self) -> Option<&State> {
         self.state.as_ref()
     }
-
 }
 
 /// this is a linear function plus half a sin wave (i.e. 0 -> pi)
@@ -107,7 +118,7 @@ struct LinearThrowArc {
     x_end: f64,
     magnitude: f64,
     m: f64,
-    c: f64
+    c: f64,
 }
 
 impl LinearThrowArc {
@@ -119,7 +130,7 @@ impl LinearThrowArc {
             x_end: end.x() as f64,
             magnitude: block_size as f64 * ARC_HEIGHT_BLOCKS,
             m,
-            c
+            c,
         }
     }
 

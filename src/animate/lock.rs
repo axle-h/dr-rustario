@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use std::time::Duration;
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::Vitamins;
+use std::collections::HashSet;
+use std::time::Duration;
 
 const VITAMIN_LOCK_DURATION: Duration = Duration::from_millis(100);
 const FRAMES: u32 = 1;
@@ -11,7 +11,7 @@ const MAX_OFFSET: f64 = 0.1;
 pub struct State {
     vitamins: HashSet<BottlePoint>,
     duration: Duration,
-    frame: u32
+    frame: u32,
 }
 
 impl State {
@@ -19,7 +19,7 @@ impl State {
         Self {
             vitamins: HashSet::from_iter(vitamins.map(|v| v.position())),
             duration: Duration::ZERO,
-            frame: 0
+            frame: 0,
         }
     }
 
@@ -35,7 +35,11 @@ impl State {
 
 impl Default for State {
     fn default() -> Self {
-        Self { vitamins: HashSet::new(), duration: Duration::ZERO, frame: 0 }
+        Self {
+            vitamins: HashSet::new(),
+            duration: Duration::ZERO,
+            frame: 0,
+        }
     }
 }
 
@@ -43,12 +47,14 @@ impl Default for State {
 pub struct LockAnimation {
     state: Option<State>,
     frame_duration: Duration,
-
 }
 
 impl LockAnimation {
     pub fn new() -> Self {
-        Self { state: None, frame_duration: VITAMIN_LOCK_DURATION / FRAMES }
+        Self {
+            state: None,
+            frame_duration: VITAMIN_LOCK_DURATION / FRAMES,
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {

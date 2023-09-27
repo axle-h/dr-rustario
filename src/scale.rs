@@ -36,7 +36,7 @@ impl Scale {
             window_height,
             block_size: block_size * scale,
             player_buffer_width,
-            player_buffer_height
+            player_buffer_height,
         }
     }
 
@@ -44,7 +44,12 @@ impl Scale {
     pub fn player_window(&self, player: u32) -> Rect {
         let player_chunk_width = self.window_width / self.players;
         let x = player_chunk_width * player + self.player_buffer_width;
-        Rect::new(x as i32, self.player_buffer_height as i32, player_chunk_width, self.window_height)
+        Rect::new(
+            x as i32,
+            self.player_buffer_height as i32,
+            player_chunk_width,
+            self.window_height,
+        )
     }
 
     pub fn scale_rect(&self, rect: Rect) -> Rect {
@@ -54,10 +59,6 @@ impl Scale {
             rect.width() * self.scale,
             rect.height() * self.scale,
         )
-    }
-
-    pub fn scale_length(&self, value: u32) -> u32 {
-        value * self.scale
     }
 
     pub fn scale_and_offset_rect(&self, rect: Rect, offset_x: i32, offset_y: i32) -> Rect {
@@ -72,7 +73,7 @@ impl Scale {
     pub fn scale_and_offset_point(&self, point: Point, offset_x: i32, offset_y: i32) -> Point {
         Point::new(
             point.x * self.scale as i32 + offset_x,
-            point.y * self.scale as i32 + offset_y
+            point.y * self.scale as i32 + offset_y,
         )
     }
 

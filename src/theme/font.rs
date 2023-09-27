@@ -1,4 +1,5 @@
 use crate::font::{FontTexture, FontType};
+use crate::game::metrics::GameMetrics;
 use num_format::{Locale, ToFormattedString};
 use sdl2::image::LoadTexture;
 use sdl2::pixels::Color;
@@ -7,7 +8,6 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
-use crate::game::metrics::GameMetrics;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum FontAlign {
@@ -34,15 +34,6 @@ fn char_length(value: u32) -> u32 {
 }
 
 impl MetricSnips {
-    pub fn right<P: Into<Point>>(point: P, max_value: u32) -> Self {
-        Self {
-            point: point.into(),
-            max_value,
-            max_chars: char_length(max_value),
-            align: FontAlign::Right,
-        }
-    }
-
     pub fn zero_fill<P: Into<Point>>(point: P, max_value: u32) -> Self {
         Self {
             point: point.into(),
@@ -75,14 +66,6 @@ impl MetricSnips {
             FontAlign::Left { zero_fill } if zero_fill => Some(self.max_chars),
             _ => None,
         }
-    }
-
-    pub fn point(&self) -> Point {
-        self.point
-    }
-
-    pub fn max_value(&self) -> u32 {
-        self.max_value
     }
 }
 
@@ -129,7 +112,7 @@ impl FontRenderOptions {
     pub fn numeric_sprites(
         file_bytes: &'static [u8],
         texture_creator: &TextureCreator<WindowContext>,
-        spacing: u32
+        spacing: u32,
     ) -> Result<Self, String> {
         let texture = texture_creator.load_texture_bytes(file_bytes)?;
         let query = texture.query();
@@ -137,14 +120,15 @@ impl FontRenderOptions {
         Ok(Self::Sprites {
             file_bytes,
             sprites: alpha_sprites(
-                (0..10).map(|i| Point::new((i * width) as i32, 0))
+                (0..10)
+                    .map(|i| Point::new((i * width) as i32, 0))
                     .collect::<Vec<Point>>()
                     .try_into()
                     .unwrap(),
                 width,
-                query.height
+                query.height,
             ),
-            spacing
+            spacing,
         })
     }
 }
@@ -352,7 +336,7 @@ impl<'a> FontRender<'a> {
 #[derive(Debug, Copy, Clone)]
 pub struct ThemedNumeric {
     font_index: usize,
-    snips: MetricSnips
+    snips: MetricSnips,
 }
 
 impl ThemedNumeric {
@@ -373,26 +357,34 @@ impl FontThemeOptions {
         fonts: Vec<FontRenderOptions>,
         score: ThemedNumeric,
         virus_level: ThemedNumeric,
-        virus_count: ThemedNumeric
+        virus_count: ThemedNumeric,
     ) -> Self {
-        Self { fonts, score, virus_level, virus_count }
+        Self {
+            fonts,
+            score,
+            virus_level,
+            virus_count,
+        }
     }
 
     pub fn simple(
         font: FontRenderOptions,
         score: MetricSnips,
         virus_level: MetricSnips,
-        virus_count: MetricSnips
+        virus_count: MetricSnips,
     ) -> Self {
         Self::new(
             vec![font],
             ThemedNumeric::new(0, score),
             ThemedNumeric::new(0, virus_level),
-            ThemedNumeric::new(0, virus_count)
+            ThemedNumeric::new(0, virus_count),
         )
     }
 
-    pub fn build<'a>(&self, texture_creator: &'a TextureCreator<WindowContext>) -> Result<FontTheme<'a>, String> {
+    pub fn build<'a>(
+        &self,
+        texture_creator: &'a TextureCreator<WindowContext>,
+    ) -> Result<FontTheme<'a>, String> {
         let mut fonts = vec![];
         for options in self.fonts.iter() {
             fonts.push(options.build(texture_creator)?);
@@ -401,7 +393,7 @@ impl FontThemeOptions {
             fonts,
             score: self.score,
             virus_level: self.virus_level,
-            virus_count: self.virus_count
+            virus_count: self.virus_count,
         })
     }
 }
@@ -414,15 +406,39 @@ pub struct FontTheme<'a> {
 }
 
 impl<'a> FontTheme<'a> {
-    pub fn new(fonts: Vec<FontRender<'a>>, score: ThemedNumeric, virus_level: ThemedNumeric, virus_count: ThemedNumeric) -> Self {
-        Self { fonts, score, virus_level, virus_count }
+    pub fn new(
+        fonts: Vec<FontRender<'a>>,
+        score: ThemedNumeric,
+        virus_level: ThemedNumeric,
+        virus_count: ThemedNumeric,
+    ) -> Self {
+        Self {
+            fonts,
+            score,
+            virus_level,
+            virus_count,
+        }
     }
 
-    pub fn render_all(&self, canvas: &mut WindowCanvas, metrics: GameMetrics) -> Result<(), String> {
-        self.fonts[self.score.font_index].render_number(canvas, self.score.snips, metrics.score())?;
-        self.fonts[self.virus_level.font_index].render_number(canvas, self.virus_level.snips, metrics.virus_level())?;
-        self.fonts[self.virus_count.font_index].render_number(canvas, self.virus_count.snips, metrics.virus_count())
+    pub fn render_all(
+        &self,
+        canvas: &mut WindowCanvas,
+        metrics: GameMetrics,
+    ) -> Result<(), String> {
+        self.fonts[self.score.font_index].render_number(
+            canvas,
+            self.score.snips,
+            metrics.score(),
+        )?;
+        self.fonts[self.virus_level.font_index].render_number(
+            canvas,
+            self.virus_level.snips,
+            metrics.virus_level(),
+        )?;
+        self.fonts[self.virus_count.font_index].render_number(
+            canvas,
+            self.virus_count.snips,
+            metrics.virus_count(),
+        )
     }
 }
-
-

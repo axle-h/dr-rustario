@@ -88,8 +88,4 @@ impl<'a> FontTexture<'a> {
             height: query.height,
         })
     }
-
-    pub fn size(&self) -> (u32, u32) {
-        (self.width, self.height)
-    }
 }

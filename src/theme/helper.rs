@@ -20,7 +20,8 @@ pub trait TextureFactory {
 
 impl TextureFactory for TextureCreator<WindowContext> {
     fn create_texture_target_blended(&self, width: u32, height: u32) -> Result<Texture, String> {
-        let mut texture = self.create_texture_target(None, width, height)
+        let mut texture = self
+            .create_texture_target(None, width, height)
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
         Ok(texture)

@@ -89,8 +89,13 @@ impl Scale {
         ParticlePositionSource::Lattice(iter.map(|p| self.point_to_particle_space(p)).collect())
     }
 
-    pub fn build_ephemeral_lattice<I: Iterator<Item = Point>>(&self, iter: I) -> ParticlePositionSource {
-        ParticlePositionSource::EphemeralLattice(iter.map(|p| self.point_to_particle_space(p)).collect())
+    pub fn build_ephemeral_lattice<I: Iterator<Item = Point>>(
+        &self,
+        iter: I,
+    ) -> ParticlePositionSource {
+        ParticlePositionSource::EphemeralLattice(
+            iter.map(|p| self.point_to_particle_space(p)).collect(),
+        )
     }
 
     fn lattice_points(&self, rect: Rect) -> Vec<Vec2D> {
