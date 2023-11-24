@@ -122,7 +122,6 @@ impl DrRustario {
         let mut window = window_builder
             .position_centered()
             .opengl()
-            .allow_highdpi()
             .build()
             .map_err(|e| e.to_string())?;
 
