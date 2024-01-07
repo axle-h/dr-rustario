@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::build_info::{nice_app_name, APP_NAME};
 use crate::config::{Config, VideoMode};
