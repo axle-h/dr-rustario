@@ -73,6 +73,21 @@ impl AnimationMeta {
             VirusAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps },
         }
     }
+
+    pub fn dr_particle_animation(&self, dr_type: DrType) -> ParticleAnimationType {
+        let (animation_type, frames) = match dr_type {
+            DrType::Throw => (self.dr_throw_type, self.dr_throw_frames),
+            DrType::GameOver => (self.dr_game_over_type, self.dr_game_over_frames),
+            DrType::Victory => (self.dr_victory_type, self.dr_victory_frames),
+            DrType::Idle => (self.dr_idle_type, self.dr_idle_frames),
+        };
+        match animation_type {
+            DrAnimationType::Static => ParticleAnimationType::Static,
+            DrAnimationType::Linear { fps } => ParticleAnimationType::Linear { frames, fps },
+            DrAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps },
+            DrAnimationType::LinearWithPause { .. } => todo!("pause, probably need to consolidate all animations"),
+        }
+    }
 }
 
 pub struct Theme<'a> {
@@ -273,7 +288,8 @@ impl<'a> Theme<'a> {
             GameSpeed::Medium => self.bottle_medium_snip,
             GameSpeed::High => self.bottle_high_snip,
         };
-        canvas.copy(&self.bottles_texture, bottle_snip, self.bottle_bg_snip)?;
+        let bottle_dest = Rect::new(0, 0, bottle_snip.width(), bottle_snip.height());
+        canvas.copy(&self.bottles_texture, bottle_snip, bottle_dest)?;
 
         self.sprites
             .draw_bottle(canvas, game, &self.geometry, animations)?;

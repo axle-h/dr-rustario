@@ -178,6 +178,7 @@ pub fn snes_theme<'a>(
             match_end(3, 1),
             match_end(4, 1),
         ],
+        dr_throw_end_offset: Point::new(0, 0),
         dr_throw_point: Point::new(99, 29),
         dr_game_over_point: Point::new(100, 31),
         dr_victory_point: Point::new(105, 31),

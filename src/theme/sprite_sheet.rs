@@ -273,10 +273,43 @@ pub fn pills(
     ])
 }
 
+pub struct DrAnimations<'a> {
+    throw: AnimationSpriteSheet<'a>,
+    game_over: AnimationSpriteSheet<'a>,
+    victory: AnimationSpriteSheet<'a>,
+    idle: AnimationSpriteSheet<'a>,
+}
+
+impl<'a> DrAnimations<'a> {
+    pub fn dr(&self, dr_type: DrType) -> &AnimationSpriteSheet {
+        match dr_type {
+            DrType::Idle => &self.idle,
+            DrType::Throw => &self.throw,
+            DrType::GameOver => &self.game_over,
+            DrType::Victory => &self.victory,
+        }
+    }
+
+    fn clone<'b>(&self,
+                 canvas: &mut WindowCanvas,
+                 texture_creator: &'b TextureCreator<WindowContext>
+    ) -> Result<DrAnimations<'b>, String> {
+        Ok(DrAnimations {
+            throw: self.throw.clone(canvas, texture_creator)?,
+            game_over: self.game_over.clone(canvas, texture_creator)?,
+            victory: self.victory.clone(canvas, texture_creator)?,
+            idle: self.idle.clone(canvas, texture_creator)?,
+        })
+    }
+}
+
 pub struct FlatVitaminSpriteSheet<'a> {
     texture: Texture<'a>,
     snips: HashMap<PillShape, Rect>,
-    viruses: HashMap<VirusColor, AnimationSpriteSheet<'a>>,
+    red_viruses: AnimationSpriteSheet<'a>,
+    blue_viruses: AnimationSpriteSheet<'a>,
+    yellow_viruses: AnimationSpriteSheet<'a>,
+    dr_animations: DrAnimations<'a>
 }
 
 impl<'a> FlatVitaminSpriteSheet<'a> {
@@ -287,7 +320,14 @@ impl<'a> FlatVitaminSpriteSheet<'a> {
         self.snips[&shape]
     }
     pub fn virus(&self, color: VirusColor) -> &AnimationSpriteSheet<'a> {
-        &self.viruses[&color]
+        match color {
+            VirusColor::Yellow => &self.yellow_viruses,
+            VirusColor::Blue => &self.blue_viruses,
+            VirusColor::Red => &self.red_viruses
+        }
+    }
+    pub fn dr(&self, dr_type: DrType) -> &AnimationSpriteSheet {
+        self.dr_animations.dr(dr_type)
     }
 }
 
@@ -451,12 +491,13 @@ impl VitaminSpriteSheetData {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, Default)]
 pub enum DrType {
+    #[default]
+    Idle,
     Throw,
     GameOver,
     Victory,
-    Idle,
 }
 
 fn scale_blocks<'a>(
@@ -511,10 +552,7 @@ pub struct VitaminSpriteSheet<'a> {
     pills: PillSnips,
     pill_texture: Texture<'a>,
     block_size: u32,
-    dr_throw: AnimationSpriteSheet<'a>,
-    dr_game_over: AnimationSpriteSheet<'a>,
-    dr_victory: AnimationSpriteSheet<'a>,
-    dr_idle: AnimationSpriteSheet<'a>,
+    dr_animations: DrAnimations<'a>,
     garbage_mask: BlockMask,
     yellow_virus_mask: BlockMask,
     red_virus_mask: BlockMask,
@@ -598,10 +636,12 @@ impl<'a> VitaminSpriteSheet<'a> {
             pills,
             pill_texture,
             block_size,
-            dr_throw,
-            dr_game_over,
-            dr_victory,
-            dr_idle,
+            dr_animations: DrAnimations {
+                throw: dr_throw,
+                game_over: dr_game_over,
+                victory: dr_victory,
+                idle: dr_idle,
+            },
             garbage_mask,
             yellow_virus_mask,
             red_virus_mask,
@@ -638,16 +678,7 @@ impl<'a> VitaminSpriteSheet<'a> {
     }
 
     pub fn dr_sprites(&self, dr_type: DrType) -> &AnimationSpriteSheet {
-        self.dr(dr_type)
-    }
-
-    fn dr(&self, dr_type: DrType) -> &AnimationSpriteSheet<'a> {
-        match dr_type {
-            DrType::Throw => &self.dr_throw,
-            DrType::GameOver => &self.dr_game_over,
-            DrType::Victory => &self.dr_victory,
-            DrType::Idle => &self.dr_idle,
-        }
+        self.dr_animations.dr(dr_type)
     }
 
     pub fn draw_dr(
@@ -657,7 +688,7 @@ impl<'a> VitaminSpriteSheet<'a> {
         point: Point,
         frame: usize,
     ) -> Result<(), String> {
-        self.dr(dr_type).draw_frame(canvas, point, frame)
+        self.dr_sprites(dr_type).draw_frame(canvas, point, frame)
     }
 
     /// TODO maybe move this into the theme, it deals with animations and what not which is a theme concern
@@ -859,30 +890,19 @@ impl<'a> VitaminSpriteSheet<'a> {
             })
             .map_err(|e| e.to_string())?;
 
-        let mut viruses = HashMap::new();
-        viruses.insert(
-            VirusColor::Blue,
-            self.blue_animations
-                .virus_idle
-                .clone(canvas, texture_creator)?,
-        );
-        viruses.insert(
-            VirusColor::Red,
-            self.red_animations
-                .virus_idle
-                .clone(canvas, texture_creator)?,
-        );
-        viruses.insert(
-            VirusColor::Yellow,
-            self.yellow_animations
-                .virus_idle
-                .clone(canvas, texture_creator)?,
-        );
-
         Ok(FlatVitaminSpriteSheet {
             texture,
             snips: self.pills.shapes.clone(),
-            viruses,
+            red_viruses: self.red_animations
+                .virus_idle
+                .clone(canvas, texture_creator)?,
+            blue_viruses: self.blue_animations
+                .virus_idle
+                .clone(canvas, texture_creator)?,
+            yellow_viruses: self.yellow_animations
+                .virus_idle
+                .clone(canvas, texture_creator)?,
+            dr_animations: self.dr_animations.clone(canvas, texture_creator)?,
         })
     }
 }

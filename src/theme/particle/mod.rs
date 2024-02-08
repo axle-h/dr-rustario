@@ -44,6 +44,7 @@ pub mod sprites {
     pub const DR_GAME_OVER: &[u8] = include_bytes!("dr/game-over.png");
     pub const DR_VICTORY: &[u8] = include_bytes!("dr/victory.png");
     pub const SRC_DR_WIDTH: u32 = 478;
+    pub const DR_FPS: u32 = 60;
 }
 
 mod sound {
@@ -69,12 +70,13 @@ mod sound {
 }
 
 const BOTTLE_TOP_BUFFER_PCT: f64 = 0.15;
-const MIN_VERTICAL_BUFFER_PCT: f64 = 0.02; // TODO this is actually useless and should be derived
+const MIN_VERTICAL_BUFFER_PCT: f64 = 0.03; // TODO this should be derived
 const BOTTLE_BORDER_PCT_OF_BLOCK: f64 = 0.5;
 const BOTTLE_BOARDER_SHADOW: u8 = 0x99;
 const VERTICAL_GUTTER_PCT_OF_BLOCK: f64 = 0.2;
 
 const DR_SCALE_OF_BLOCK: f64 = 6.5;
+const PEEK_SCALE: f64 = 0.8;
 
 fn block(i: i32, j: i32) -> Point {
     Point::new(
@@ -129,6 +131,7 @@ pub fn particle_theme<'a>(
         / BOTTLE_HEIGHT as f64;
     let border_weight = (block_size * BOTTLE_BORDER_PCT_OF_BLOCK).round() as u32;
     let vertical_gutter = (VERTICAL_GUTTER_PCT_OF_BLOCK * block_size).round() as u32;
+    let peek_width = (2.0 * PEEK_SCALE * block_size).round() as u32;
     let block_size = block_size.round() as u32;
 
     let geometry = BottleGeometry::new(
@@ -169,6 +172,12 @@ pub fn particle_theme<'a>(
         geometry.width() + 2 * border_weight,
         bottle_top_buffer + geometry.height() + border_weight,
     );
+    let bottle_bg_snip = Rect::new(
+        (peek_width + vertical_gutter) as i32,
+        0,
+        bottle_snip.width(),
+        bottle_snip.height(),
+    );
     let mut metrics_right = GameMetricsTable::new(
         geometry.height() + bottle_top_buffer,
         &font,
@@ -179,7 +188,7 @@ pub fn particle_theme<'a>(
             (GameMetricType::VirusCount, MAX_VIRUSES),
         ],
     );
-    metrics_right.offset_x(bottle_snip.right() + vertical_gutter as i32);
+    metrics_right.offset_x(bottle_bg_snip.right() + vertical_gutter as i32);
 
     let sprite_data = VitaminSpriteSheetData::new(
         sprites::VITAMINS,
@@ -215,7 +224,7 @@ pub fn particle_theme<'a>(
     let sprites = VitaminSpriteSheet::new(canvas, texture_creator, sprite_data, block_size)?;
 
     let dr_y = bottle_top_buffer as i32;
-    let dr_x = bottle_snip.right() + vertical_gutter as i32;
+    let dr_x = bottle_bg_snip.right() + vertical_gutter as i32;
 
     let (dr_throw_width, dr_throw_height) = sprites.dr_sprites(DrType::Throw).frame_size();
     let (dr_game_over_width, dr_game_over_height) =
@@ -274,8 +283,8 @@ pub fn particle_theme<'a>(
         .map_err(|e| e.to_string())?;
 
     let mut bg_texture = texture_creator.create_texture_target_blended(
-        bottle_snip.width() + vertical_gutter + dr_width.max(metrics_right.width()),
-        bottle_snip.height(),
+        bottle_bg_snip.right() as u32 + vertical_gutter + dr_width.max(metrics_right.width()),
+        bottle_bg_snip.height(),
     )?;
     let background_size = bg_texture.size();
     canvas
@@ -288,7 +297,6 @@ pub fn particle_theme<'a>(
         })
         .map_err(|e| e.to_string())?;
 
-    let dr_frame_time = Duration::from_secs(1) / 60;
     let animation_meta = AnimationMeta {
         virus_type: VirusAnimationType::Linear { fps: 30 },
         red_virus_frames: sprites.virus_frames(VirusColor::Red),
@@ -297,23 +305,19 @@ pub fn particle_theme<'a>(
         vitamin_pop_frames: sprites.vitamin_pop_frames(),
         virus_pop_frames: sprites.virus_pop_frames(),
         throw_start: dr_hand_point,
-        throw_end: geometry.point(LEFT_VITAMIN_SPAWN_POINT),
-        dr_throw_type: DrAnimationType::Linear {
-            duration: dr_frame_time,
-        },
+        throw_end: geometry.point(LEFT_VITAMIN_SPAWN_POINT).offset(bottle_bg_snip.left(), 0),
+        dr_throw_type: DrAnimationType::Linear { fps: sprites::DR_FPS },
         dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
         dr_victory_type: DrAnimationType::LinearWithPause {
-            duration: dr_frame_time,
+            fps: sprites::DR_FPS,
             pause_for: Duration::from_secs(3),
             resume_from_frame: 98,
         },
         dr_victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
-        dr_idle_type: DrAnimationType::Linear {
-            duration: dr_frame_time,
-        },
+        dr_idle_type: DrAnimationType::Linear { fps: sprites::DR_FPS },
         dr_idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
         dr_game_over_type: DrAnimationType::LinearWithPause {
-            duration: dr_frame_time,
+            fps: sprites::DR_FPS,
             pause_for: Duration::from_secs(3),
             resume_from_frame: 195,
         },
@@ -406,7 +410,7 @@ pub fn particle_theme<'a>(
         bottle_medium_snip: bottle_snip,
         bottle_high_snip: bottle_snip,
         background_texture: bg_texture,
-        bottle_bg_snip: bottle_snip,
+        bottle_bg_snip,
         background_size,
         dr_order_first: true,
         dr_hand_point,
@@ -418,12 +422,12 @@ pub fn particle_theme<'a>(
         next_level_snips: vec![next_level_snip],
         match_end_texture,
         hold_point: Point::new(
-            dr_x + dr_throw_width as i32 - 2 * block_size as i32,
+            0,
             bottle_top_buffer as i32,
         ),
         peek_point: dr_hand_point + Point::new(0, (1.5 * block_size as f64).round() as i32),
         peek_offset: block_size as i32,
         peek_max: 2,
-        peek_scale: Some(0.7),
+        peek_scale: Some(PEEK_SCALE),
     })
 }

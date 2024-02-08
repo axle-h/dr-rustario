@@ -4,6 +4,7 @@ use crate::particles::particle::ParticleAnimationType;
 use crate::theme::ThemeName;
 use sdl2::rect::Rect;
 use strum_macros::EnumIter;
+use crate::theme::sprite_sheet::DrType;
 
 const PARTICLE_SPRITE_SIZE: u32 = 512;
 
@@ -70,6 +71,7 @@ pub enum ParticleSprite {
     Twirl03,
     Pill(ThemeName, PillShape),
     Virus(ThemeName, VirusColor, ParticleAnimationType),
+    Dr(ThemeName, DrType, ParticleAnimationType)
 }
 
 type ThemePills = [ParticleSprite; 9];
@@ -102,6 +104,7 @@ impl ParticleSprite {
     pub fn animation(&self) -> Option<ParticleAnimationType> {
         match self {
             Virus(_, _, animation) => Some(*animation),
+            Dr(_, _, animation) => Some(*animation),
             _ => None,
         }
     }
@@ -158,8 +161,7 @@ impl ParticleSprite {
             Symbol02 => Some(snip(4, 6)),
             Twirl01 => Some(snip(5, 6)),
             Twirl02 => Some(snip(6, 6)),
-            Pill(_, _) => None,
-            Virus(_, _, _) => None,
+            _ => None,
         }
     }
 }

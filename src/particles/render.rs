@@ -7,12 +7,14 @@ use crate::theme::sprite_sheet::FlatVitaminSpriteSheet;
 use crate::theme::{Theme, ThemeName};
 
 use sdl2::image::LoadTexture;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
 use std::time::Duration;
 use strum::IntoEnumIterator;
+use crate::particles::particle::Particle;
+use crate::theme::animation::AnimationSpriteSheet;
 
 const SPRITES: &[u8] = include_bytes!("sprites.png");
 const BASE_SCALE: f64 = 0.05;
@@ -111,21 +113,20 @@ impl<'a> ParticleRender<'a> {
                     }
                 }
                 ParticleSprite::Virus(theme, color, _) => {
-                    let sprite_sheet = &self.theme_sprites[&theme].virus(color);
-                    let (width, height) = sprite_sheet.frame_size();
-                    let scale = particle.size();
-                    let rect = Rect::from_center(
-                        point,
-                        (scale * width as f64).round() as u32,
-                        (scale * height as f64).round() as u32,
-                    );
-
-                    let frame = particle.animation_frame();
-                    if particle.rotation() > 0.0 || particle.rotation() < 0.0 {
-                        sprite_sheet.draw_frame_ex(canvas, rect, particle.rotation(), frame)?;
-                    } else {
-                        sprite_sheet.draw_frame_scaled(canvas, rect, frame)?;
-                    }
+                    Self::draw_animated_particle(
+                        canvas,
+                        self.theme_sprites[&theme].virus(color),
+                        particle,
+                        point
+                    )?;
+                }
+                ParticleSprite::Dr(theme, dr_type, _) => {
+                    Self::draw_animated_particle(
+                        canvas,
+                        self.theme_sprites[&theme].dr(dr_type),
+                        particle,
+                        point
+                    )?;
                 }
                 _ => {
                     if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {
@@ -143,5 +144,22 @@ impl<'a> ParticleRender<'a> {
             }
         }
         Ok(())
+    }
+
+    fn draw_animated_particle(canvas: &mut WindowCanvas, sprite_sheet: &AnimationSpriteSheet, particle: &Particle, dest: Point) -> Result<(), String> {
+        let (width, height) = sprite_sheet.frame_size();
+        let scale = particle.size();
+        let rect = Rect::from_center(
+            dest,
+            (scale * width as f64).round() as u32,
+            (scale * height as f64).round() as u32,
+        );
+
+        let frame = particle.animation_frame();
+        if particle.rotation() > 0.0 || particle.rotation() < 0.0 {
+            sprite_sheet.draw_frame_ex(canvas, rect, particle.rotation(), frame)
+        } else {
+            sprite_sheet.draw_frame_scaled(canvas, rect, frame)
+        }
     }
 }

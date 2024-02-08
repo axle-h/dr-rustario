@@ -17,8 +17,6 @@ use sdl2::rect::Point;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 
-use std::time::Duration;
-
 mod sprites {
     pub const VITAMINS: &[u8] = include_bytes!("vitamins.png");
     pub const DR_THROW: &[u8] = include_bytes!("dr/throw.png");
@@ -96,9 +94,7 @@ pub fn n64_theme<'a>(
         scene_medium: scene.clone(),
         scene_high: scene,
         virus_animation_type: VirusAnimationType::YoYo { fps: 5 },
-        dr_idle_animation_type: DrAnimationType::YoYo {
-            duration: Duration::from_millis(100),
-        },
+        dr_idle_animation_type: DrAnimationType::YoYo { fps: 10 },
         dr_throw_animation_type: DrAnimationType::RETRO_THROW,
         dr_victory_animation_type: DrAnimationType::N64_VICTORY,
         dr_game_over_animation_type: DrAnimationType::N64_GAME_OVER,
@@ -172,6 +168,7 @@ pub fn n64_theme<'a>(
         match_end_file: sprites::MATCH_END,
         game_over_points: vec![Point::new(1, 1)],
         next_level_points: vec![Point::new(82, 1)],
+        dr_throw_end_offset: Point::new(0, 0),
         dr_throw_point: Point::new(113, 6),
         dr_game_over_point: Point::new(110, 8),
         dr_victory_point: Point::new(113, 6),

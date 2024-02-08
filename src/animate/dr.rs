@@ -4,13 +4,13 @@ use std::time::Duration;
 pub enum DrAnimationType {
     Static,
     Linear {
-        duration: Duration,
+        fps: u32,
     },
     YoYo {
-        duration: Duration,
+        fps: u32,
     },
     LinearWithPause {
-        duration: Duration,
+        fps: u32,
         pause_for: Duration,
         resume_from_frame: usize,
     },
@@ -18,31 +18,41 @@ pub enum DrAnimationType {
 
 impl DrAnimationType {
     pub const RETRO_THROW: Self = Self::LinearWithPause {
-        duration: Duration::from_millis(100),
+        fps: 10,
         pause_for: Duration::from_millis(200),
         resume_from_frame: 0,
     };
 
     pub const NES_SNES_VICTORY: Self = Self::Linear {
-        duration: Duration::from_millis(250),
+        fps: 4,
     };
     pub const N64_VICTORY: Self = Self::LinearWithPause {
-        duration: Duration::from_millis(150),
+        fps: 7,
         pause_for: Duration::from_millis(2000),
         resume_from_frame: 0,
     };
 
     pub const N64_GAME_OVER: Self = Self::LinearWithPause {
-        duration: Duration::from_millis(150),
+        fps: 7,
         pause_for: Duration::from_millis(2000),
         resume_from_frame: 18,
     };
+
+    pub fn fps(&self) -> Option<u32> {
+        match self {
+            DrAnimationType::Static => None,
+            DrAnimationType::Linear { fps } => Some(*fps),
+            DrAnimationType::YoYo { fps } => Some(*fps),
+            DrAnimationType::LinearWithPause { fps, .. } => Some(*fps)
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct DrAnimation {
     animation_type: DrAnimationType,
     duration: Duration,
+    frame_duration: Duration,
     paused_for: Option<Duration>,
     frame: usize,
     invert: bool,
@@ -52,9 +62,13 @@ pub struct DrAnimation {
 
 impl DrAnimation {
     pub fn new(animation_type: DrAnimationType, max_frame: usize) -> Self {
+        let frame_duration = animation_type.fps()
+            .map(|fps| Duration::from_secs(1) / fps)
+            .unwrap_or(Duration::ZERO);
         Self {
             animation_type,
             duration: Duration::ZERO,
+            frame_duration,
             paused_for: None,
             frame: 0,
             invert: false,
@@ -70,20 +84,16 @@ impl DrAnimation {
                 self.frame = 0;
                 self.iteration = 0;
             }
-            DrAnimationType::Linear {
-                duration: frame_duration,
-            } => {
-                self.next_linear(frame_duration, false);
+            DrAnimationType::Linear { .. } => {
+                self.next_linear(false);
             }
-            DrAnimationType::YoYo {
-                duration: frame_duration,
-            } => {
-                self.next_linear(frame_duration, true);
+            DrAnimationType::YoYo { .. } => {
+                self.next_linear(true);
             }
             DrAnimationType::LinearWithPause {
-                duration: frame_duration,
                 pause_for,
                 resume_from_frame,
+                ..
             } => {
                 if let Some(paused_for) = self.paused_for {
                     // maybe unpause
@@ -98,7 +108,7 @@ impl DrAnimation {
                         self.frame = resume_from_frame;
                     }
                 } else {
-                    self.register_frames(frame_duration);
+                    self.register_frames();
                     if self.frame >= self.max_frame {
                         // pause
                         self.frame = self.max_frame - 1;
@@ -109,9 +119,9 @@ impl DrAnimation {
         }
     }
 
-    fn register_frames(&mut self, frame_duration: Duration) {
+    fn register_frames(&mut self) {
         loop {
-            if let Some(remainder) = self.duration.checked_sub(frame_duration) {
+            if let Some(remainder) = self.duration.checked_sub(self.frame_duration) {
                 self.duration = remainder;
                 self.frame += 1;
             } else {
@@ -120,8 +130,8 @@ impl DrAnimation {
         }
     }
 
-    fn next_linear(&mut self, frame_duration: Duration, invert: bool) {
-        self.register_frames(frame_duration);
+    fn next_linear(&mut self, invert: bool) {
+        self.register_frames();
         if self.frame >= self.max_frame {
             self.iteration += 1;
             self.frame %= self.max_frame;

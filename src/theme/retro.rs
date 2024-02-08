@@ -35,6 +35,7 @@ pub struct RetroThemeOptions {
     pub bottle_height: u32,
     pub background_file: &'static [u8],
     pub bottle_point: Point,
+    pub dr_throw_end_offset: Point,
     pub dr_order_first: bool,
     pub dr_hand_point: Point,
     pub dr_throw_point: Point,
@@ -97,8 +98,7 @@ pub fn retro_theme<'a>(
         vitamin_pop_frames: sprites.vitamin_pop_frames(),
         virus_pop_frames: sprites.virus_pop_frames(),
         throw_start: options.dr_hand_point,
-        // we take 1 away from the throw end as thrown pills have a border TODO only do thi for NES
-        throw_end: options.geometry.point(LEFT_VITAMIN_SPAWN_POINT) - Point::new(1, 1),
+        throw_end: options.geometry.point(LEFT_VITAMIN_SPAWN_POINT) + options.bottle_point + options.dr_throw_end_offset,
         dr_throw_type: options.dr_throw_animation_type,
         dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
         dr_victory_type: options.dr_victory_animation_type,

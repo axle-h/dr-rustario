@@ -187,6 +187,8 @@ pub fn nes_theme<'a>(
         game_over_points: vec![Point::new(65, 0), Point::new(65, 129)],
         next_level_points: vec![Point::new(0, 0), Point::new(0, 129)],
         dr_throw_point: Point::new(97, 37),
+        // we take 1 away from the throw end as thrown pills have a border but bottle pills do not
+        dr_throw_end_offset: Point::new(-1, -1),
         dr_game_over_point: Point::new(97, 37),
         dr_victory_point: Point::new(102, 37),
         dr_order_first: false,

@@ -21,6 +21,7 @@ use crate::themes::ThemeContext;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
+use crate::theme::sprite_sheet::DrType;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlayerParticleTarget {
@@ -212,14 +213,18 @@ pub fn prescribed_vitamin_race(
         window.height() - 2 * buffer_y,
     );
     let nes_block_scale = MODERN_BLOCK_SIZE as f64 / NES_BLOCK_SIZE as f64 / 2.0;
+    let nes_dr_scale = nes_block_scale / 2.0;
     let nes_scale = (nes_block_scale, nes_block_scale / 5.0);
     let snes_block_scale = MODERN_BLOCK_SIZE as f64 / SNES_BLOCK_SIZE as f64 / 2.0;
+    let snes_dr_scale = snes_block_scale / 2.0;
     let snes_scale = (snes_block_scale, snes_block_scale / 5.0);
     let n64_block_scale = MODERN_BLOCK_SIZE as f64 / N64_BLOCK_SIZE as f64 / 2.0;
+    let n64_dr_scale = n64_block_scale / 2.0;
     let n64_scale = (n64_block_scale, n64_block_scale / 5.0);
     let modern_scale = (1.0, 0.2);
     let rotation = (0.0, 30.0);
     let p_virus = 1.0 / 3.0;
+    let p_dr = 1.0 / 3.0;
     RandomParticleSource::new(scale.rect_source(rect), modulation)
         .with_properties(
             ProbabilityTable::new()
@@ -257,6 +262,22 @@ pub fn prescribed_vitamin_race(
                     .angular_velocity(rotation),
                     p_virus,
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Dr(
+                                ThemeName::Particle,
+                                DrType::Idle,
+                                theme_meta
+                                    .particle
+                                    .dr_particle_animation(DrType::Idle),
+                            )
+                        ],
+                        (0.5, 0.1),
+                    ).angular_velocity(rotation),
+                    p_dr,
+                )
+
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::NES_PILLS, nes_scale)
                         .angular_velocity(rotation),
@@ -285,6 +306,22 @@ pub fn prescribed_vitamin_race(
                     .angular_velocity(rotation),
                     p_virus,
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Dr(
+                                ThemeName::Nes,
+                                DrType::Victory,
+                                theme_meta
+                                    .nes
+                                    .dr_particle_animation(DrType::Victory),
+                            )
+                        ],
+                        (nes_dr_scale, nes_dr_scale / 5.0),
+                    ).angular_velocity(rotation),
+                    p_dr,
+                )
+
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::SNES_PILLS, snes_scale)
                         .angular_velocity(rotation),
@@ -313,6 +350,23 @@ pub fn prescribed_vitamin_race(
                     .angular_velocity(rotation),
                     p_virus,
                 )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Dr(
+                                ThemeName::Snes,
+                                DrType::Victory,
+                                theme_meta
+                                    .snes
+                                    .dr_particle_animation(DrType::Victory),
+                            )
+                        ],
+                        (snes_dr_scale, snes_dr_scale / 5.0),
+                    ).angular_velocity(rotation),
+                    p_dr,
+                )
+
+
                 .with_1(
                     ParticleProperties::simple(&ParticleSprite::N64_PILLS, n64_scale)
                         .angular_velocity(rotation),
@@ -340,6 +394,21 @@ pub fn prescribed_vitamin_race(
                     )
                     .angular_velocity(rotation),
                     p_virus,
+                )
+                .with(
+                    ParticleProperties::simple(
+                        &[
+                            ParticleSprite::Dr(
+                                ThemeName::N64,
+                                DrType::Idle,
+                                theme_meta
+                                    .n64
+                                    .dr_particle_animation(DrType::Idle),
+                            )
+                        ],
+                        (n64_dr_scale, n64_dr_scale / 5.0),
+                    ).angular_velocity(rotation),
+                    p_dr,
                 ),
         )
         .with_velocity((Vec2D::new(0.2, 0.0), Vec2D::new(0.05, 0.02)))
