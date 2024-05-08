@@ -23,6 +23,16 @@ The linker will fail to link SDL2 haptics. You will need to add the following to
 rustflags = ["-C", "link-args=-weak_framework CoreHaptics"]
 ```
 
+### Retro handhelds
+
+I have built this successfully for [ArkOS](https://github.com/christianhaitian/arkos) on the [Anberic rg353m](https://anbernic.com/products/rg353m).
+For this we need an ancient linux distro having glibc <2.30 but a fairly new SDL2 build.
+It can be cross compiled in Docker with script:
+
+```shell
+./build-aarch64-cross.sh
+```
+
 ## Config
 
 Config is stored in yaml:
@@ -38,24 +48,21 @@ Most of it you can ignore except:
 * `Window` (default) - note if your screen is not at least 720p then rustris may not even load on first attempt.
     ```yaml
     video:
-      mode:
-        Window:
-          width: 1280
-          height: 720
+      mode: !Window
+        width: 1280
+        height: 720
     ```
 * `FullScreen` - native fullscreen (recommended), note rustris should scale to any weird resolution but was designed for 1080p & 4k.
     ```yaml
     video:
-      mode:
-        FullScreen:
-          width: 1920
-          height: 1080
+      mode: !FullScreen
+        width: 1920
+        height: 1080
     ```  
 * `FullScreenDesktop` - fullscreen in windowed mode
     ```yaml
     video:
-      mode:
-        FullScreenDesktop
+      mode: !FullScreenDesktop
     ```  
 
 ### Controls
@@ -69,7 +76,7 @@ input:
     down: Down
     left: Left
     right: Right
-    select: Z
+    select: X
     start: Return
   player1:
     move_left: Left
@@ -81,10 +88,10 @@ input:
     hold: LShift
   player2: ~
   pause: F1
-  quit: Escape
   next_theme: F2
+  quit: Escape
 ```
 
-All key names are defined in [src/config.rs](src/config.rs::KeycodeDef).
+All key names are defined in [src/config.rs](src/config.rs).
 
 There are no default player 2 controls.

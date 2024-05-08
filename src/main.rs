@@ -1,7 +1,6 @@
 #![windows_subsystem = "windows"]
 
 use crate::animate::event::{AnimationEvent, AnimationType};
-use crate::build_info::{nice_app_name, APP_NAME};
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
 use crate::game::event::GameEvent;
@@ -38,7 +37,13 @@ use sdl2::{AudioSubsystem, EventPump, Sdl};
 use std::str::FromStr;
 
 mod animate;
-mod build_info;
+mod build_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+
+    pub fn nice_app_name() -> String {
+        titlecase::titlecase(&PKG_NAME.replace("-", ". "))
+    }
+}
 mod config;
 mod font;
 mod frame_rate;
@@ -54,7 +59,12 @@ mod scale;
 mod theme;
 mod themes;
 
+#[cfg(not(feature = "retro_handheld"))]
 const MAX_PLAYERS: u32 = 2;
+
+#[cfg(feature = "retro_handheld")]
+const MAX_PLAYERS: u32 = 1;
+
 const MAX_PARTICLES_PER_PLAYER: usize = 100000;
 const MAX_BACKGROUND_PARTICLES: usize = 100000;
 
@@ -110,7 +120,7 @@ impl DrRustario {
             _ => (1, 1),
         };
 
-        let mut window_builder = video.window(APP_NAME, width, height);
+        let mut window_builder = video.window(build_info::PKG_NAME, width, height);
         match config.video.mode {
             VideoMode::FullScreen { .. } => {
                 window_builder.fullscreen();
@@ -199,21 +209,33 @@ impl DrRustario {
 
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
-        let mut menu = Menu::new(
-            vec![
+
+        let mut menu_items = vec![
+            MenuItem::select(HIGH_SCORES),
+            MenuItem::select(START),
+            MenuItem::select(QUIT),
+        ];
+
+        if MAX_PLAYERS > 1 {
+            menu_items.insert(
+                0,
                 MenuItem::select_list(
                     PLAYERS,
-                    vec!["1".to_string(), "2".to_string()],
+                    (1..=MAX_PLAYERS)
+                        .into_iter()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<String>>(),
                     self.game_config.players() as usize - 1,
-                ),
-                MenuItem::select(HIGH_SCORES),
-                MenuItem::select(START),
-                MenuItem::select(QUIT),
-            ],
+                )
+            )
+        }
+
+        let mut menu = Menu::new(
+            menu_items,
             &mut self.canvas,
             &self.ttf,
             &texture_creator,
-            nice_app_name(),
+            build_info::nice_app_name(),
             None,
         )?;
 
@@ -344,7 +366,7 @@ impl DrRustario {
             &mut self.canvas,
             &self.ttf,
             &texture_creator,
-            nice_app_name(),
+            build_info::nice_app_name(),
             Some(subtitle),
         )?;
 

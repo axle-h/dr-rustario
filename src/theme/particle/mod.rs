@@ -161,7 +161,7 @@ pub fn particle_theme<'a>(
         canvas,
         texture_creator,
         ttf,
-        FontType::Handjet,
+        FontType::Retro,
         font_size * 3,
         Color::WHITE,
     )?;

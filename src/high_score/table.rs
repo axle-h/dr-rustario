@@ -1,5 +1,5 @@
-use crate::config::APP_CONFIG_ROOT;
 use serde::{Deserialize, Serialize};
+use crate::config::config_path;
 
 const MAX_HIGH_SCORES: usize = 5;
 const CONFIG_NAME: &str = "high_scores";
@@ -44,15 +44,16 @@ impl Default for HighScoreTable {
 
 impl HighScoreTable {
     pub fn load() -> Result<Self, String> {
-        let mut result: Self =
-            confy::load(APP_CONFIG_ROOT, CONFIG_NAME).map_err(|e| e.to_string())?;
+        let config_path = config_path(CONFIG_NAME)?;
+        let mut result: Self = confy::load_path(config_path).map_err(|e| e.to_string())?;
         result.sorted();
         result.scores = result.scores.into_iter().take(MAX_HIGH_SCORES).collect();
         Ok(result)
     }
 
     pub fn save(&self) -> Result<(), String> {
-        confy::store(APP_CONFIG_ROOT, CONFIG_NAME, self).map_err(|e| e.to_string())
+        let config_path = config_path(CONFIG_NAME)?;
+        confy::store_path(config_path, self).map_err(|e| e.to_string())
     }
 
     pub fn entries(&self) -> &[HighScore] {
