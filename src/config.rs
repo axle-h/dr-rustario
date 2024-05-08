@@ -148,6 +148,18 @@ pub struct VideoConfig {
     pub mode: VideoMode,
     pub vsync: bool,
     pub disable_screensaver: bool,
+    pub integer_scale: bool
+}
+
+impl VideoConfig {
+    pub fn screen_padding_pct(&self) -> f64 {
+        if self.integer_scale {
+            // need a bigger buffer on the modern theme to line it up when integer scaling the retro themes
+            0.05
+        } else {
+            0.02
+        }
+    }
 }
 
 impl Default for Config {
@@ -166,6 +178,10 @@ impl Default for Config {
                 },
                 vsync: true,
                 disable_screensaver: true,
+
+                // disable integer scaling to better fill small retro handheld screen
+                // otherwise keep it enabled as it does look better
+                integer_scale: !cfg!(feature = "retro_handheld")
             },
             audio: AudioConfig {
                 music_volume: 0.5,

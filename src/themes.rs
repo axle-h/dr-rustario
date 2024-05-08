@@ -15,6 +15,7 @@ use crate::player::MatchState;
 
 use sdl2::video::WindowContext;
 use std::time::Duration;
+use crate::config::VideoConfig;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
 
@@ -91,12 +92,14 @@ pub struct ScaledTheme<'a> {
 }
 
 impl<'a> ScaledTheme<'a> {
-    fn new(theme: &'a Theme, players: u32, window_size: (u32, u32)) -> Self {
+    fn new(theme: &'a Theme, players: u32, window_size: (u32, u32), video_config: VideoConfig) -> Self {
         let scale = Scale::new(
             players,
             theme.background_size(),
             window_size,
             theme.geometry().block_size(),
+            video_config,
+            theme.name()
         );
         let (theme_width, theme_height) = theme.background_size();
         let bg_source_snip = Rect::new(0, 0, theme_width, theme_height);
@@ -163,6 +166,7 @@ impl<'a> ThemeContext<'a> {
         texture_creator: &'a TextureCreator<WindowContext>,
         game_config: GameConfig,
         window_size: (u32, u32),
+        video_config: VideoConfig
     ) -> Result<Self, String> {
         let (window_width, window_height) = window_size;
 
@@ -183,7 +187,7 @@ impl<'a> ThemeContext<'a> {
             themes: all_themes
                 .all()
                 .iter()
-                .map(|theme| ScaledTheme::new(theme, game_config.players(), window_size))
+                .map(|theme| ScaledTheme::new(theme, game_config.players(), window_size, video_config))
                 .collect(),
             fade_buffer,
             fade_duration: None,

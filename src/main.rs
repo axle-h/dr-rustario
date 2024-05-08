@@ -556,7 +556,7 @@ impl DrRustario {
         let mut fixture = Match::new(self.game_config);
         let window_size = self.canvas.window().size();
         let mut themes =
-            ThemeContext::new(all_themes, &texture_creator, self.game_config, window_size)?;
+            ThemeContext::new(all_themes, &texture_creator, self.game_config, window_size, self.config.video)?;
         let mut player_textures = (0..self.game_config.players())
             .map(|_| {
                 PlayerTextures::new(
