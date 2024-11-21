@@ -26,7 +26,6 @@ use crate::player::{Match, MatchState};
 use crate::theme::all::{AllThemeMeta, AllThemes};
 use crate::theme::pause::PausedScreen;
 use crate::themes::{PlayerTextures, TextureMode, ThemeContext};
-use sdl2::image::{InitFlag as ImageInitFlag, Sdl2ImageContext};
 use sdl2::mixer::{InitFlag as MixerInitFlag, DEFAULT_CHANNELS, DEFAULT_FORMAT};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -87,7 +86,6 @@ struct DrRustario {
     config: Config,
     _sdl: Sdl,
     ttf: Sdl2TtfContext,
-    _image: Sdl2ImageContext,
     canvas: WindowCanvas,
     event_pump: EventPump,
     _audio: AudioSubsystem,
@@ -100,7 +98,6 @@ impl DrRustario {
     pub fn new() -> Result<Self, String> {
         let config = Config::load()?;
         let sdl = sdl2::init()?;
-        let image = sdl2::image::init(ImageInitFlag::PNG)?;
         let video = sdl.video()?;
         let ttf = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
@@ -162,7 +159,6 @@ impl DrRustario {
             config,
             _sdl: sdl,
             ttf,
-            _image: image,
             canvas,
             event_pump,
             _audio: audio,

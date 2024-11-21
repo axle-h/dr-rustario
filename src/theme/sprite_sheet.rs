@@ -8,7 +8,7 @@ use crate::theme::animation::{AnimationSpriteSheet, AnimationSpriteSheetData};
 use crate::theme::block_mask::BlockMask;
 use crate::theme::geometry::BottleGeometry;
 use crate::theme::helper::TextureFactory;
-use sdl2::image::LoadTexture;
+use crate::theme::image::LoadTexture;
 
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};

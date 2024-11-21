@@ -1,4 +1,4 @@
-use sdl2::image::LoadTexture;
+use crate::theme::image::LoadTexture;
 use sdl2::render::{BlendMode, Texture, TextureCreator};
 use sdl2::video::WindowContext;
 

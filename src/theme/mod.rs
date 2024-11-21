@@ -29,6 +29,7 @@ pub mod scene;
 pub mod snes;
 pub mod sound;
 pub mod sprite_sheet;
+pub mod image;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum ThemeName {

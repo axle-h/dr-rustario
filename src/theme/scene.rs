@@ -4,7 +4,7 @@ use crate::particles::prescribed::{
     PlayerParticleTarget, PlayerTargetedParticles, PrescribedParticles,
 };
 use crate::scale::Scale;
-use sdl2::image::LoadTexture;
+use crate::theme::image::LoadTexture;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};

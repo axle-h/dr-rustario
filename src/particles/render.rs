@@ -6,7 +6,7 @@ use crate::particles::Particles;
 use crate::theme::sprite_sheet::FlatVitaminSpriteSheet;
 use crate::theme::{Theme, ThemeName};
 
-use sdl2::image::LoadTexture;
+use crate::theme::image::LoadTexture;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
