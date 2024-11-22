@@ -8,6 +8,7 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum FontAlign {
@@ -195,7 +196,7 @@ impl<'a> FontRender<'a> {
         let height = chars.iter().map(|(_, t)| t.height).max().unwrap();
 
         let mut texture = texture_creator
-            .create_texture_target(None, width, height)
+            .create_texture_target(RGBA8888, width, height)
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
 

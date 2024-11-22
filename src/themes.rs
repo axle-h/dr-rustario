@@ -15,6 +15,7 @@ use crate::player::MatchState;
 
 use sdl2::video::WindowContext;
 use std::time::Duration;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use crate::config::VideoConfig;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
@@ -32,13 +33,13 @@ impl<'a> PlayerTextures<'a> {
     ) -> Result<Self, String> {
         let (bg_width, bg_height) = background_size;
         let mut background = texture_creator
-            .create_texture_target(None, bg_width, bg_height)
+            .create_texture_target(RGBA8888, bg_width, bg_height)
             .map_err(|e| e.to_string())?;
         background.set_blend_mode(BlendMode::Blend);
 
         let (bottle_width, bottle_height) = bottle_size;
         let mut bottle = texture_creator
-            .create_texture_target(None, bottle_width, bottle_height)
+            .create_texture_target(RGBA8888, bottle_width, bottle_height)
             .map_err(|e| e.to_string())?;
         bottle.set_blend_mode(BlendMode::Blend);
 
@@ -171,7 +172,7 @@ impl<'a> ThemeContext<'a> {
         let (window_width, window_height) = window_size;
 
         let mut fade_buffer = texture_creator
-            .create_texture_target(None, window_width, window_height)
+            .create_texture_target(RGBA8888, window_width, window_height)
             .map_err(|e| e.to_string())?;
         fade_buffer.set_blend_mode(BlendMode::Blend);
 

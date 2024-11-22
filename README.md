@@ -23,6 +23,22 @@ The linker will fail to link SDL2 haptics. You will need to add the following to
 rustflags = ["-C", "link-args=-weak_framework CoreHaptics"]
 ```
 
+### Linux
+
+```shell
+# Fedora
+sudo dnf install SDL2-devel SDL2_gfx-devel SDL2_ttf-devel SDL2_mixer-devel SDL2_image-devel
+
+# Ubuntu/Debian
+sudo apt install libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev libsdl2-mixer-dev libsdl2-image-dev
+```
+
+Build with pkgconfig:
+
+```shell
+cargo build --release --no-default-features --features pkgconfig
+```
+
 ### Retro handhelds
 
 I have built this successfully for [ArkOS](https://github.com/christianhaitian/arkos) on the [Anberic rg353m](https://anbernic.com/products/rg353m).

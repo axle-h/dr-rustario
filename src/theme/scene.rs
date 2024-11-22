@@ -10,6 +10,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::time::Duration;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneType {
@@ -55,7 +56,7 @@ impl<'a> SceneRender<'a> {
                 colors: [color1, color2],
             } => {
                 let mut texture = texture_creator
-                    .create_texture_target(None, width * 2, height * 2)
+                    .create_texture_target(RGBA8888, width * 2, height * 2)
                     .map_err(|e| e.to_string())?;
                 canvas
                     .with_texture_canvas(&mut texture, |c| {

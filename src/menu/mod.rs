@@ -5,6 +5,7 @@ use crate::menu_input::MenuInputKey;
 use sdl2::gfx::primitives::DrawRenderer;
 
 use sdl2::pixels::Color;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::{Font, Sdl2TtfContext};
@@ -132,7 +133,7 @@ impl<'a> MenuRow<'a> {
             font.height() as u32 + 10,
         );
         let mut texture = texture_creator
-            .create_texture_target(None, rect.width(), rect.height())
+            .create_texture_target(RGBA8888, rect.width(), rect.height())
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
         canvas
@@ -233,7 +234,7 @@ impl<'a> Menu<'a> {
         }
 
         let mut body_texture = texture_creator
-            .create_texture_target(None, body_width, body_height)
+            .create_texture_target(RGBA8888, body_width, body_height)
             .map_err(|e| e.to_string())?;
         body_texture.set_blend_mode(BlendMode::Blend);
 
@@ -283,7 +284,7 @@ impl<'a> Menu<'a> {
         });
 
         let mut select_list_background = texture_creator
-            .create_texture_target(None, body_width, row_height)
+            .create_texture_target(RGBA8888, body_width, row_height)
             .map_err(|e| e.to_string())?;
         select_list_background.set_blend_mode(BlendMode::Blend);
         canvas

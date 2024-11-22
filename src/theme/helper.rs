@@ -1,4 +1,5 @@
 use sdl2::image::LoadTexture;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::render::{BlendMode, Texture, TextureCreator};
 use sdl2::video::WindowContext;
 
@@ -21,7 +22,7 @@ pub trait TextureFactory {
 impl TextureFactory for TextureCreator<WindowContext> {
     fn create_texture_target_blended(&self, width: u32, height: u32) -> Result<Texture, String> {
         let mut texture = self
-            .create_texture_target(None, width, height)
+            .create_texture_target(RGBA8888, width, height)
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
         Ok(texture)

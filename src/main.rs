@@ -890,6 +890,8 @@ impl DrRustario {
 }
 
 fn main() -> Result<(), String> {
+    // return demo::main();
+
     let mut dr_rustario = DrRustario::new()?;
     let texture_creator = dr_rustario.canvas.texture_creator();
     let all_themes = AllThemes::new(

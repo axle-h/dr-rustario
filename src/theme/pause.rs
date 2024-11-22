@@ -1,5 +1,6 @@
 use crate::font::{FontTexture, FontType};
 use sdl2::pixels::Color;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
@@ -25,7 +26,7 @@ impl<'a> PausedScreen<'a> {
         );
 
         let mut texture = texture_creator
-            .create_texture_target(None, window_width, window_height)
+            .create_texture_target(RGBA8888, window_width, window_height)
             .map_err(|e| e.to_string())?;
         texture.set_blend_mode(BlendMode::Blend);
         canvas
