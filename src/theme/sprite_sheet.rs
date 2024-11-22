@@ -14,6 +14,7 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
+use sdl2::pixels::Color;
 
 const ALPHA_STRIDE: u8 = 4;
 
@@ -606,6 +607,8 @@ impl<'a> VitaminSpriteSheet<'a> {
             alpha_texture.set_alpha_mod(alpha_mod);
             canvas
                 .with_texture_canvas(&mut alpha_texture, |c| {
+                    c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                    c.clear();
                     c.copy(&texture, None, None).unwrap();
                 })
                 .map_err(|e| e.to_string())?;
@@ -886,6 +889,8 @@ impl<'a> VitaminSpriteSheet<'a> {
             texture_creator.create_texture_target_blended(self.pills.width, self.pills.height)?;
         canvas
             .with_texture_canvas(&mut texture, |c| {
+                c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                c.clear();
                 c.copy(&self.pill_texture, None, None).unwrap()
             })
             .map_err(|e| e.to_string())?;

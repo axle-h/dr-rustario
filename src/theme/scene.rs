@@ -60,6 +60,9 @@ impl<'a> SceneRender<'a> {
                     .map_err(|e| e.to_string())?;
                 canvas
                     .with_texture_canvas(&mut texture, |c| {
+                        c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                        c.clear();
+
                         c.set_draw_color(color1);
                         c.fill_rects(&[
                             Rect::new(0, 0, width, height),

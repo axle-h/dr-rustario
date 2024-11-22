@@ -1,3 +1,4 @@
+use sdl2::pixels::Color;
 use crate::theme::block_mask::BlockMask;
 use crate::theme::helper::{TextureFactory, TextureQuery};
 
@@ -264,6 +265,8 @@ impl<'a> AnimationSpriteSheet<'a> {
             .create_texture_target_blended(width * (cols + 1), height * (rows + 1))?;
         canvas
             .with_texture_canvas(&mut texture, |c| {
+                c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                c.clear();
                 for (src, dest) in self.frames.iter().zip(scaled_frames.iter()) {
                     c.copy(&self.texture, *src, *dest).unwrap();
                 }
@@ -295,6 +298,8 @@ impl<'a> AnimationSpriteSheet<'a> {
         let mut texture = texture_creator.create_texture_target_blended(width, height)?;
         canvas
             .with_texture_canvas(&mut texture, |c| {
+                c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+                c.clear();
                 c.copy(&self.texture, None, None).unwrap();
             })
             .map_err(|e| e.to_string())?;

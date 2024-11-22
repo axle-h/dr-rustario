@@ -289,6 +289,8 @@ pub fn particle_theme<'a>(
     let background_size = bg_texture.size();
     canvas
         .with_texture_canvas(&mut bg_texture, |c| {
+            c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+            c.clear();
             for row in all_metrics.iter() {
                 font_bold
                     .render_string(c, row.label(), row.metric().label())
