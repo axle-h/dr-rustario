@@ -214,6 +214,10 @@ pub struct Combo {
 }
 
 impl Combo {
+    pub fn new(patterns: Vec<VirusColor>, viruses: u32) -> Self {
+        Self { patterns, viruses }
+    }
+
     const fn empty() -> Self {
         Self {
             patterns: vec![],
@@ -651,12 +655,13 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::pill::{Garbage, Vitamins};
-    use super::random::BottleSeed;
+    use super::random::{BottleSeed, RandomMode};
     use super::*;
+    use crate::game::pill::Pill;
     use crate::game::pill::Vitamin;
+    use crate::game::geometry::BottlePoint;
     use mockall::mock;
     use mockall::predicate::*;
-    use rand::random;
 
     mock! {
         pub Bottle {
@@ -907,15 +912,15 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::BB))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::BB)));
+                .with(eq(PillShape::RY))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::RY)));
         });
         game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_FALL);
         game.should_have_events(&[GameEvent::Spawn {
             player: 0,
-            shape: PillShape::BB,
+            shape: PillShape::RY,
             is_hold: false,
         }]);
     }
@@ -925,8 +930,8 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::BB))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::BB)));
+                .with(eq(PillShape::RY))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::RY)));
         });
         game.hard_dropped = true;
         game.state = GameState::NEW_SPAWN;
@@ -935,7 +940,7 @@ mod tests {
         assert!(!game.hard_dropped);
         game.should_have_events(&[GameEvent::Spawn {
             player: 0,
-            shape: PillShape::BB,
+            shape: PillShape::RY,
             is_hold: false,
         }]);
     }
@@ -945,7 +950,7 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::BB))
+                .with(eq(PillShape::RY))
                 .return_once(|_| None);
         });
         game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));
@@ -1302,7 +1307,7 @@ mod tests {
             0,
             10,
             GameSpeed::Low,
-            GameRandom::from_u64_seed(12345),
+            GameRandom::from_u64_seed(12345, RandomMode::Bag),
             bottle,
         )
     }

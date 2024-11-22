@@ -183,6 +183,6 @@ mod tests {
 
     #[test]
     fn theme_count() {
-        assert_eq!(MatchThemes::count(), 3);
+        assert_eq!(MatchThemes::count(), 4);
     }
 }
