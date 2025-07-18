@@ -35,10 +35,12 @@ pub struct StackStats {
     open_holes: i32,
     closed_holes: i32,
     max_height: i32,
+    min_height: i32,
     sum_roughness: i32,
     max_roughness: i32,
     pillars: i32,
     hole_cover: i32,
+    column_heights: [i32; BOARD_WIDTH as usize],
 }
 
 
@@ -60,6 +62,10 @@ impl StackStats {
         self.max_height
     }
 
+    pub fn min_height(&self) -> i32 {
+        self.min_height
+    }
+
     pub fn sum_roughness(&self) -> i32 {
         self.sum_roughness
     }
@@ -75,6 +81,14 @@ impl StackStats {
     pub fn hole_cover(&self) -> i32 {
         self.hole_cover
     }
+
+    pub fn column_heights(&self) -> [i32; BOARD_WIDTH as usize] {
+        self.column_heights
+    }
+
+    pub fn rhs_column_height(&self) -> i32 {
+        self.column_heights[BOARD_WIDTH as usize - 1]
+    }
 }
 
 impl Sub<StackStats> for StackStats {
@@ -86,10 +100,17 @@ impl Sub<StackStats> for StackStats {
             open_holes: self.open_holes - rhs.open_holes,
             closed_holes: self.closed_holes - rhs.closed_holes,
             max_height: self.max_height - rhs.max_height,
+            min_height: self.min_height - rhs.min_height,
             sum_roughness: self.sum_roughness - rhs.sum_roughness,
             max_roughness: self.max_roughness - rhs.max_roughness,
             pillars: self.pillars - rhs.pillars,
             hole_cover: self.hole_cover - rhs.hole_cover,
+            column_heights: self.column_heights.iter()
+                .zip(rhs.column_heights.iter())
+                .map(|(a, b)| a - b)
+                .collect::<Vec<i32>>()
+                .try_into()
+                .unwrap_or_else(|_| [0; BOARD_WIDTH as usize]),
         }
     }
 }
@@ -155,6 +176,7 @@ impl BoardFeatures for Board {
         let mut max_roughness = 0;
         let mut sum_roughness = 0;
         let mut max_height = 0;
+        let mut min_height = BOARD_HEIGHT;
         let mut pillars = 0;
 
         for i in 0..max_heights.len() {
@@ -163,6 +185,7 @@ impl BoardFeatures for Board {
             let next = max_heights.get(i + 1).copied();
 
             max_height = max_height.max(height);
+            min_height = min_height.min(height);
 
             let prev_height_delta = if let Some(prev) = prev {
                 height as i32 - prev as i32
@@ -192,10 +215,12 @@ impl BoardFeatures for Board {
             open_holes: open_holes.len() as i32,
             closed_holes: (holes.len() - open_holes.len()) as i32,
             max_height: max_height as i32,
+            min_height: min_height as i32,
             sum_roughness: sum_roughness as i32,
             max_roughness: max_roughness as i32,
             pillars,
-            hole_cover
+            hole_cover,
+            column_heights: max_heights.map(|h| h as i32),
         }
     }
     
@@ -374,9 +399,11 @@ mod tests {
             (0, 0)
         ]).stack_stats();
         assert_eq!(stats.max_height, 1);
+        assert_eq!(stats.min_height, 0);
         assert_eq!(stats.sum_roughness, 1);
         assert_eq!(stats.max_roughness, 1);
         assert_eq!(stats.pillars, 0);
+        assert_eq!(stats.column_heights, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     }
 
     #[test]
@@ -385,9 +412,11 @@ mod tests {
             (1, 0)
         ]).stack_stats();
         assert_eq!(stats.max_height, 1);
+        assert_eq!(stats.min_height, 0);
         assert_eq!(stats.sum_roughness, 2);
         assert_eq!(stats.max_roughness, 1);
         assert_eq!(stats.pillars, 0);
+        assert_eq!(stats.column_heights, [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
     }
 
     #[test]
@@ -398,9 +427,11 @@ mod tests {
         ]).stack_stats();
 
         assert_eq!(stats.max_height, 2);
+        assert_eq!(stats.min_height, 0);
         assert_eq!(stats.sum_roughness, 4);
         assert_eq!(stats.max_roughness, 2);
         assert_eq!(stats.pillars, 0);
+        assert_eq!(stats.column_heights, [0, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
     }
 
 
@@ -417,10 +448,12 @@ mod tests {
                 open_holes: 0,
                 closed_holes: 0,
                 max_height: 1,
+                min_height: 0,
                 sum_roughness: 1,
                 max_roughness: 1,
                 pillars: 0,
-                hole_cover: 0
+                hole_cover: 0,
+                column_heights: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             }
         );
         assert_eq!(stats.cleared_lines, 1);
@@ -470,9 +503,11 @@ mod tests {
         ]).stack_stats();
 
         assert_eq!(stats.max_height, 4);
+        assert_eq!(stats.min_height, 0);
         assert_eq!(stats.sum_roughness, 18);
         assert_eq!(stats.max_roughness, 4);
         assert_eq!(stats.pillars, 2); // one at x=5 and another at x=9
+        assert_eq!(stats.column_heights, [3, 3, 4, 3, 4, 0, 4, 2, 4, 1]);
     }
 
     #[test]

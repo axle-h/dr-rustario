@@ -1,12 +1,10 @@
-use std::fmt::Display;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use rayon::prelude::*;
 use crate::config::Config;
 use crate::game::ai::action_evaluator::ActionEvaluator;
 use crate::game::ai::generation_stats::GenerationStatistics;
 use crate::game::ai::genome::Genome;
 use crate::game::ai::headless_game::{EndGame, HeadlessGameFixture, HeadlessGameOptions};
-use crate::game::ai::linear::LinearCoefficients;
 use crate::game::ai::mutation::{GenomeMutation, RateLimits};
 use crate::game::ai::organism::Organism;
 use crate::game::ai::record::GenerationRecord;
@@ -54,7 +52,7 @@ impl Default for HyperParameters {
             0.5,
             EndGame::NONE,
             usize::MAX,
-            100
+            20
         )
     }
 }
@@ -129,12 +127,26 @@ where F : Fn(&Genome<N>) -> ActionEvaluator + Send + Sync
     
     fn evolve(&mut self) -> GenerationStatistics<N> {
         // Calculate fitness in parallel
+        let generation_start = Instant::now();
         self.population
             .par_iter_mut()
             .for_each(|member| {
                 member.set_result(|genome| self.fixture.play((self.action_evaluator_factory)(genome)));
             });
         self.population.sort_by(|s1, s2| s2.result().cmp(&s1.result()));
+        let generation_duration = generation_start.elapsed();
+
+        // Calculate total gameplay time
+        let total_gameplay_time: Duration = self.population.iter()
+            .map(|organism| organism.result().time())
+            .sum();
+
+        // Calculate game seconds per real second
+        let game_seconds_per_second = if generation_duration.as_secs_f64() > 0.0 {
+            total_gameplay_time.as_secs_f64() / generation_duration.as_secs_f64()
+        } else {
+            0.0 // Avoid division by zero
+        };
 
         let p95_index = (self.hyper_parameters.population_size as f64 * 0.05).floor() as usize;
         let p50_index = self.hyper_parameters.population_size / 2;
@@ -145,7 +157,10 @@ where F : Fn(&Genome<N>) -> ActionEvaluator + Send + Sync
             self.population[p95_index],
             self.population[p50_index],
             self.mutation.current_mutation_rate(),
-            self.mutation.current_crossover_rate()
+            self.mutation.current_crossover_rate(),
+            total_gameplay_time,
+            generation_duration,
+            game_seconds_per_second
         );
         self.generations.push(stats);
         self.mutation.add_sample(stats);

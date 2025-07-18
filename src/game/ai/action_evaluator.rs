@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use crate::game::ai::board_features::{BoardFeatures, BoardStats, StackStats};
 use crate::game::ai::linear::LinearCoefficients;
 use crate::game::ai::neural::{Tensor, TetrisNeuralNetwork};
-use crate::game::board::Board;
+use crate::game::board::{Board, BOARD_WIDTH};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ActionEvaluator {
@@ -39,23 +39,33 @@ impl ActionEvaluator {
     fn neural_score(network: &TetrisNeuralNetwork, stats: BoardStats) -> f64 {
         let delta = stats.delta();
         let global = stats.global();
-        let input = Tensor::vector([
-            delta.holes() as f64,
-            delta.max_height() as f64,
-            delta.sum_roughness() as f64,
-            delta.max_roughness() as f64,
-            delta.pillars() as f64,
-            delta.hole_cover() as f64,
-            global.holes() as f64,
-            global.max_height() as f64,
-            global.sum_roughness() as f64,
-            global.max_roughness() as f64,
-            global.pillars() as f64,
-            global.hole_cover() as f64,
-            stats.max_tetromino_y() as f64,
-            stats.cleared_lines() as f64,
-        ]);
+
+        let mut input_values = [0.0; 20];
+
+        input_values[0] = delta.open_holes() as f64;
+        input_values[1] = delta.closed_holes() as f64;
+        input_values[2] = delta.max_height() as f64;
+        input_values[3] = delta.min_height() as f64;
+        input_values[4] = delta.sum_roughness() as f64;
+        input_values[5] = delta.max_roughness() as f64;
+        input_values[6] = delta.pillars() as f64;
+        input_values[7] = delta.hole_cover() as f64;
+        input_values[8] = delta.rhs_column_height() as f64;
+
+        input_values[9] = global.open_holes() as f64;
+        input_values[10] = global.closed_holes() as f64;
+        input_values[11] = global.max_height() as f64;
+        input_values[12] = global.min_height() as f64;
+        input_values[13] = global.sum_roughness() as f64;
+        input_values[14] = global.max_roughness() as f64;
+        input_values[15] = global.pillars() as f64;
+        input_values[16] = global.hole_cover() as f64;
+        input_values[17] = global.rhs_column_height() as f64;
+
+        input_values[18] = stats.max_tetromino_y() as f64;
+        input_values[19] = stats.cleared_lines() as f64;
+
+        let input = Tensor::vector(input_values);
         network.forward(&input).value()
     }
 }
-

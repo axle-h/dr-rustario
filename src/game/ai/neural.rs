@@ -612,7 +612,7 @@ impl<const IN: usize, const HIDDEN: usize, const OUT: usize, const WIDTH: usize>
     }
 }
 
-pub type TetrisNeuralNetwork = NeuralNetwork<14, 2, 1, 14>;
+pub type TetrisNeuralNetwork = NeuralNetwork<20, 2, 1, 20>;
 
 pub const NEURAL_GENOME_SIZE: usize = TetrisNeuralNetwork::TOTAL_SIZE;
 pub type NeuralGenome = Genome<NEURAL_GENOME_SIZE>;

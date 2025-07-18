@@ -19,16 +19,16 @@ pub struct LinearCoefficients {
 impl Default for LinearCoefficients {
     fn default() -> Self {
         LinearCoefficients::from_f64(
-            -89.32,
-            -104.13,
-            -10.12,
-            -7.96,
-            -7.19,
-            -25.65,
-            18.87,
-            -4.49,
-            -57.45,
-            0.0,
+            -0.842758,
+            -0.937491,
+            0.031847,
+            -0.086589,
+            0.040224,
+            -0.050854,
+            0.773208,
+            -0.039745,
+            -0.459028,
+            -0.977903
         )
     }
 }
