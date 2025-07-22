@@ -45,8 +45,8 @@ impl Coefficient {
 
 impl Display for Coefficient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let value: f64 = (*self).into();
-        write!(f, "{:.6}", value)
+        // let value: f64 = (*self).into();
+        write!(f, "{}", self.0)
     }
 }
 

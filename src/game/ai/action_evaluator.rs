@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use crate::game::ai::board_features::{BoardFeatures, BoardStats, StackStats};
 use crate::game::ai::linear::LinearCoefficients;
 use crate::game::ai::neural::{Tensor, TetrisNeuralNetwork};
-use crate::game::board::{Board, BOARD_WIDTH};
+use crate::game::board::Board;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ActionEvaluator {

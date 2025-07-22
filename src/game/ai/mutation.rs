@@ -135,8 +135,7 @@ impl<const N: usize> GenomeMutation<N> {
     }
     
     pub fn random(&mut self) -> Genome<N> {
-        let random_array: [f64; N] = array::from_fn(|_| self.rng.random());
-        random_array.into()
+        Genome::new(array::from_fn(|_| self.rng.random()))
     }
     
     pub fn mutate(&mut self, genome: Genome<N>) -> Genome<N> {

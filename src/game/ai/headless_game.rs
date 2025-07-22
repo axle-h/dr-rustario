@@ -45,8 +45,8 @@ impl HeadlessGame {
 
     fn update(&mut self) -> Option<GameResult> {
         self.duration += self.options.step;
-        
-        let result = GameResult::new(self.game.score, self.game.lines, self.game.level, self.game_over, self.duration);
+
+        let result = self.result();
         if self.game_over || self.end_game.is_end_game(result, self.duration) {
             return Some(result);
         }
@@ -62,7 +62,7 @@ impl HeadlessGame {
             match event {
                 GameEvent::GameOver { .. } => {
                     self.game_over = true;
-                    return Some(result);
+                    return Some(self.result());
                 },
                 GameEvent::Destroy(_) => {
                     // simulate line clear animation
@@ -73,6 +73,10 @@ impl HeadlessGame {
         }
 
         None
+    }
+
+    fn result(&self) -> GameResult {
+        GameResult::new(self.game.score, self.game.lines, self.game.level, self.game_over, self.duration)
     }
 }
 

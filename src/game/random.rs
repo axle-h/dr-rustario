@@ -153,7 +153,7 @@ pub enum RandomMode {
 impl RandomMode {
     pub fn build(self, count: usize, min_garbage_per_hole: u32) -> Vec<RandomTetromino> {
         let seed: Seed = rand::random();
-        // let seed: Seed = "28388999049103419828512814109252176149722169860947283559845490233521309909782"
+        // let seed: Seed = "39447712892375752940097570078805324248880289121439932390588186706160814925155"
         //     .to_string()
         //     .into();
         (0..count)
@@ -354,5 +354,17 @@ mod tests {
         let bigint = BigUint::parse_bytes(b"34028236692093846346337460743176821145500000000000000000000000000000000000000", 10).unwrap();
         let result = format!("{}", Seed::from(bigint.clone()));
         assert_eq!(result, "34028236692093846346337460743176821145500000000000000000000000000000000000000");
+    }
+
+    #[test]
+    fn parse_seed() {
+        let seed: Seed = rand::random();
+        let mut rng1 = ChaChaRng::from_seed(seed.0);
+        let mut rng2 = ChaChaRng::from_seed(seed.0);
+
+        let next1: u128 = rng1.random();
+        let next2: u128 = rng2.random();
+
+        assert_eq!(next1, next2, "RNGs should produce the same sequence with the same seed");
     }
 }

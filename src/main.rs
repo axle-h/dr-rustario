@@ -477,7 +477,7 @@ impl TetrisSdl {
         let mut frame_rate = FrameRate::new();
 
         let mut ai = AiAgent::default();
-        let mut run_ai = false;
+        let mut run_ai = true; // todo menu config
         
         loop {
             let delta = frame_rate.update()?;

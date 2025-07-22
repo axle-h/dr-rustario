@@ -15,6 +15,7 @@ pub mod geometry;
 pub mod random;
 pub mod tetromino;
 pub mod ai;
+pub mod game_record;
 
 const LINES_PER_LEVEL: u32 = 10;
 const SOFT_DROP_STEP_FACTOR: u32 = 20;
