@@ -1,10 +1,13 @@
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use std::fs::{File};
 use std::io::{self, BufReader, BufWriter};
 use std::path::Path;
 use std::time::Duration;
+use std::fmt;
+use std::str::FromStr;
+use strum::{EnumString, Display};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumString, Display)]
 pub enum RecordedKey {
     MoveLeft,
     MoveRight,
@@ -16,12 +19,80 @@ pub enum RecordedKey {
 }
 
 /// Represents a single recorded game input with timing information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RecordedInput {
     /// Accumulated game time when this input occurred (not real-time)
     pub timestamp: Duration,
     /// The game input that was triggered
     pub keys: Vec<RecordedKey>,
+}
+
+// Custom serialization for RecordedInput
+impl Serialize for RecordedInput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Format: "{timestamp in microseconds}:{comma separated list of keys}"
+        let micros = self.timestamp.as_micros();
+
+        // Use strum's Display trait to convert keys to strings
+        let keys_str: Vec<String> = self.keys.iter()
+            .map(|key| key.to_string())
+            .collect();
+
+        let serialized = format!("{}:{}", micros, keys_str.join(","));
+        serializer.serialize_str(&serialized)
+    }
+}
+
+// Custom deserialization for RecordedInput
+impl<'de> Deserialize<'de> for RecordedInput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct RecordedInputVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for RecordedInputVisitor {
+            type Value = RecordedInput;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string in the format '{timestamp}:{key1,key2,...}'")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<RecordedInput, E>
+            where
+                E: serde::de::Error,
+            {
+                let parts: Vec<&str> = value.split(':').collect();
+                if parts.len() != 2 {
+                    return Err(E::custom(format!("invalid format: {}", value)));
+                }
+
+                // Parse timestamp
+                let micros = u64::from_str(parts[0])
+                    .map_err(|_| E::custom(format!("invalid timestamp: {}", parts[0])))?;
+                let timestamp = Duration::from_micros(micros);
+
+                // Parse keys
+                let mut keys = Vec::new();
+                if !parts[1].is_empty() {
+                    for key_str in parts[1].split(',') {
+                        // Use strum's EnumString trait to parse the key
+                        match RecordedKey::from_str(key_str) {
+                            Ok(key) => keys.push(key),
+                            Err(_) => return Err(E::custom(format!("invalid key: {}", key_str))),
+                        }
+                    }
+                }
+
+                Ok(RecordedInput { timestamp, keys })
+            }
+        }
+
+        deserializer.deserialize_str(RecordedInputVisitor)
+    }
 }
 
 /// Manages the recording of a game session
