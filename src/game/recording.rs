@@ -96,7 +96,7 @@ impl<'de> Deserialize<'de> for RecordedInput {
 }
 
 /// Manages the recording of a game session
-pub struct GameRecorder {
+pub struct GameRecording {
     /// Total elapsed game time (accumulated delta)
     current_timestamp: Duration,
     /// The recorded inputs
@@ -104,7 +104,7 @@ pub struct GameRecorder {
     next_update_buffer: Vec<RecordedKey>,
 }
 
-impl GameRecorder {
+impl GameRecording {
     /// Create a new GameRecorder in inactive state
     pub fn new() -> Self {
         Self {
@@ -150,7 +150,7 @@ impl GameRecorder {
 }
 
 /// For playing back a recorded game
-pub struct GamePlayer {
+pub struct GamePlayback {
     /// The recorded inputs
     inputs: Vec<RecordedInput>,
     /// Current position in the playback
@@ -159,7 +159,7 @@ pub struct GamePlayer {
     current_timestamp: Duration,
 }
 
-impl GamePlayer {
+impl GamePlayback {
     /// Load a recording from a file
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let file = File::open(path)?;
@@ -205,6 +205,7 @@ impl GamePlayer {
             }
         }
 
+        dbg!(&result);
         result
     }
 
@@ -232,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_game_recorder_new() {
-        let recorder = GameRecorder::new();
+        let recorder = GameRecording::new();
         assert_eq!(recorder.current_timestamp, Duration::ZERO);
         assert!(recorder.inputs.is_empty());
         assert!(recorder.next_update_buffer.is_empty());
@@ -240,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_game_recorder_record_input() {
-        let mut recorder = GameRecorder::new();
+        let mut recorder = GameRecording::new();
 
         // Record some inputs
         recorder.record_input(RecordedKey::MoveLeft);
@@ -255,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_game_recorder_update() {
-        let mut recorder = GameRecorder::new();
+        let mut recorder = GameRecording::new();
 
         // Record some inputs
         recorder.record_input(RecordedKey::MoveLeft);
@@ -288,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_game_recorder_save_and_load() -> io::Result<()> {
-        let mut recorder = GameRecorder::new();
+        let mut recorder = GameRecording::new();
 
         // Record some inputs with timing
         recorder.record_input(RecordedKey::MoveLeft);
@@ -305,7 +306,7 @@ mod tests {
         recorder.save_to_file(&file_path)?;
 
         // Load the recording
-        let player = GamePlayer::load_from_file(&file_path)?;
+        let player = GamePlayback::load_from_file(&file_path)?;
 
         // Check that the loaded inputs match what we recorded
         assert_eq!(player.inputs.len(), 3);
@@ -324,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_game_player_update() {
-        let mut player = GamePlayer {
+        let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
                     keys: vec![RecordedKey::MoveLeft],
@@ -369,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_game_player_reset() {
-        let mut player = GamePlayer {
+        let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
                     keys: vec![RecordedKey::MoveLeft],
@@ -399,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_game_player_is_finished() {
-        let mut player = GamePlayer {
+        let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
                     keys: vec![RecordedKey::MoveLeft],
@@ -418,7 +419,7 @@ mod tests {
         assert!(player.is_finished());
 
         // Empty player is finished
-        let empty_player = GamePlayer {
+        let empty_player = GamePlayback {
             inputs: vec![],
             current_index: 0,
             current_timestamp: Duration::ZERO,
@@ -428,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_grouped_keys() {
-        let mut recorder = GameRecorder::new();
+        let mut recorder = GameRecording::new();
 
         // Record multiple inputs before updating
         recorder.record_input(RecordedKey::MoveLeft);
@@ -448,7 +449,7 @@ mod tests {
         assert_eq!(recorder.inputs[0].timestamp, delta);
 
         // Create a player with this input
-        let mut player = GamePlayer {
+        let mut player = GamePlayback {
             inputs: recorder.inputs().to_vec(),
             current_index: 0,
             current_timestamp: Duration::ZERO,

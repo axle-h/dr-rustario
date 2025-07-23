@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::animation::destroy::SWEEP_DURATION;
 use crate::config::Config;
 use crate::event::GameEvent;
@@ -25,9 +25,14 @@ impl HeadlessGame {
         options: HeadlessGameOptions,
         end_game: EndGame,
     ) -> Self {
+        let mut game = Game::new(1, 0, rng);
+        if options.record {
+            game.start_recording();
+        }
+
         Self {
             agent,
-            game: Game::new(1, 0, rng, false), // TODO: record games
+            game,
             duration: Duration::ZERO,
             game_over: false,
             options,
@@ -41,6 +46,10 @@ impl HeadlessGame {
                 return result;
             }
         }
+    }
+
+    pub fn save_recording<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        self.game.save_recording(path)
     }
 
     fn update(&mut self) -> Option<GameResult> {
@@ -82,9 +91,10 @@ impl HeadlessGame {
 
 #[derive(Debug, Clone, Copy)]
 pub struct HeadlessGameOptions {
-    line_clear_delay: Duration,
-    step: Duration,
-    look_ahead: usize
+    pub line_clear_delay: Duration,
+    pub step: Duration,
+    pub look_ahead: usize,
+    pub record: bool,
 }
 
 pub const DEFAULT_LOOKAHEAD: usize = 0;
@@ -94,7 +104,8 @@ impl Default for HeadlessGameOptions {
         Self {
             step: Duration::from_millis(16), // 60hz
             line_clear_delay: SWEEP_DURATION,
-            look_ahead: DEFAULT_LOOKAHEAD
+            look_ahead: DEFAULT_LOOKAHEAD,
+            record: false
         }   
     }
 }
@@ -126,7 +137,19 @@ impl HeadlessGameFixture {
             self.seed
         );
         let agent = AiAgent::new(action_evaluate, self.game_options.look_ahead);
-        HeadlessGame::new(rng, agent, self.game_options, self.end_game).play()
+        let mut game = HeadlessGame::new(rng, agent, self.game_options, self.end_game);
+        let result = game.play();
+
+        if self.game_options.record {
+            let system_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
+            // TODO return this somehow
+            let path = format!("game-{}.json", system_time.as_secs());
+            game.save_recording(path).expect("Failed to save recording");
+        }
+
+        result
     }
 }
 

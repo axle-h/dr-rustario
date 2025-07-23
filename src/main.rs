@@ -477,8 +477,13 @@ impl TetrisSdl {
         let mut frame_rate = FrameRate::new();
 
         let mut ai = AiAgent::default();
-        let mut run_ai = true; // todo menu config
-        
+        let mut run_ai = false; // todo menu config
+
+        fixture.mut_game(1, |g| {
+            g.playback_from_file("game-1753262825.json").unwrap();
+            true
+        });
+
         loop {
             let delta = frame_rate.update()?;
 
@@ -539,6 +544,13 @@ impl TetrisSdl {
             if run_ai {
                 fixture.mut_game(1, |g| {
                     ai.act(g);
+                    true
+                });
+            }
+
+            for player in 1 ..= self.game_config.players {
+                fixture.mut_game(player, |g| {
+                    g.pre_update(delta);
                     true
                 });
             }
@@ -799,11 +811,11 @@ impl TetrisSdl {
         }
     }
 }
-fn main() -> Result<(), String> {
+fn main2() -> Result<(), String> {
     ga_main()
 }
 
-fn main2() -> Result<(), String> {
+fn main() -> Result<(), String> {
     let mut rustris = TetrisSdl::new()?;
     let texture_creator = rustris.canvas.texture_creator();
     let (_, window_height) = rustris.canvas.window().size();

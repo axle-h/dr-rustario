@@ -13,6 +13,6 @@ mod coefficient;
 mod neural;
 mod genome;
 pub mod linear;
-mod record;
+mod generation_record;
 mod organism;
 

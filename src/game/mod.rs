@@ -5,10 +5,12 @@ use crate::game::random::{RandomTetromino, PEEK_SIZE};
 use board::Board;
 
 use std::cmp::{max, min};
-
+use std::io;
+use std::path::Path;
 use std::time::Duration;
-use recording::{GameRecorder, RecordedKey};
+use recording::{GameRecording, RecordedKey};
 use tetromino::TetrominoShape;
+use crate::game::recording::GamePlayback;
 
 pub mod block;
 pub mod board;
@@ -96,7 +98,8 @@ pub struct Game {
     hold: Option<HoldState>,
     garbage_buffer: u32,
     event_buffer: Vec<GameEvent>,
-    recorder: Option<GameRecorder>,
+    recording: Option<GameRecording>,
+    playback: Option<GamePlayback>
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,7 +114,7 @@ pub struct GameMetrics {
 }
 
 impl Game {
-    pub fn new(player: u32, level: u32, mut random: RandomTetromino, record: bool) -> Game {
+    pub fn new(player: u32, level: u32, mut random: RandomTetromino) -> Game {
         let first_shape = random.next();
         Game {
             player,
@@ -127,8 +130,18 @@ impl Game {
             hold: None,
             garbage_buffer: 0,
             event_buffer: Vec::new(),
-            recorder: if(record) { Some(GameRecorder::new()) } else { None },
+            recording: None,
+            playback: None,
         }
+    }
+
+    pub fn start_recording(&mut self) {
+        self.recording = Some(GameRecording::new());
+    }
+
+    pub fn playback_from_file<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+        self.playback = Some(GamePlayback::load_from_file(path)?);
+        Ok(())
     }
 
     pub fn empty_event_buffer(&mut self) -> Vec<GameEvent> {
@@ -212,7 +225,7 @@ impl Game {
     }
 
     fn record_input(&mut self, key: RecordedKey) {
-        if let Some(recorder) = &mut self.recorder {
+        if let Some(recorder) = &mut self.recording {
             recorder.record_input(key);
         }
     }
@@ -288,9 +301,28 @@ impl Game {
         }
     }
 
+    pub fn pre_update(&mut self, delta: Duration) {
+        if let Some(playback) = &mut self.playback {
+            for key in playback.update(delta) {
+                let success = match key {
+                    RecordedKey::MoveLeft => self.left(),
+                    RecordedKey::MoveRight => self.right(),
+                    RecordedKey::RotateClockwise => self.rotate(true),
+                    RecordedKey::RotateAnticlockwise => self.rotate(false),
+                    RecordedKey::SoftDrop => self.set_soft_drop(true),
+                    RecordedKey::HardDrop => self.hard_drop(),
+                    RecordedKey::Hold => self.hold(),
+                };
+                if !success {
+                    panic!("playback failed to execute key {:?}", key);
+                }
+            }
+        }
+    }
+
     pub fn update(&mut self, delta: Duration) -> Option<GameEvent> {
         // Update recorder if active
-        if let Some(recorder) = &mut self.recorder {
+        if let Some(recorder) = &mut self.recording {
             recorder.update(delta);
         }
 
@@ -605,7 +637,7 @@ impl Game {
     }
 
     pub fn save_recording<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        if let Some(recorder) = &self.recorder {
+        if let Some(recorder) = &self.recording {
             recorder.save_to_file(path)
         } else {
             Err(std::io::Error::new(
