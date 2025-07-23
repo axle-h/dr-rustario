@@ -482,6 +482,7 @@ impl TetrisSdl {
         loop {
             let delta = frame_rate.update()?;
 
+
             let mut to_emit_particles = vec![];
 
             fixture.unset_flags();

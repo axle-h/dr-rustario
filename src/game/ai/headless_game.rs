@@ -27,7 +27,7 @@ impl HeadlessGame {
     ) -> Self {
         Self {
             agent,
-            game: Game::new(1, 0, rng),
+            game: Game::new(1, 0, rng, false), // TODO: record games
             duration: Duration::ZERO,
             game_over: false,
             options,

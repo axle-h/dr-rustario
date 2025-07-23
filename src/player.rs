@@ -28,7 +28,7 @@ impl Player {
     pub fn new(player: u32, random: RandomTetromino, level: u32) -> Self {
         Self {
             player,
-            game: Game::new(player, level, random),
+            game: Game::new(player, level, random, false), // TODO record games
             destroy_animation: None,
             game_over_animation: None,
             impact_animation: ImpactAnimation::new(),
