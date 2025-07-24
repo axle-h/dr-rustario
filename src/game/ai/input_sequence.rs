@@ -1,10 +1,20 @@
 use std::cmp::Ordering;
-use std::ops::Add;
+use std::ops::{Add, Deref};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use strum_macros::{Display, EnumString};
 use crate::game::geometry::{Point, Pose, Rotation};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct InputSequence(Vec<Translation>);
+pub struct InputSequence(pub Vec<Translation>);
+
+impl Deref for InputSequence {
+    type Target = Vec<Translation>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl InputSequence {
     pub fn empty() -> Self {
@@ -171,7 +181,7 @@ impl Ord for InputSequence {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, EnumString, Display)]
 pub enum Translation {
     Left = 1,
     Right = 2,

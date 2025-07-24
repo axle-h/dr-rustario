@@ -2,29 +2,18 @@ use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use std::fs::{File};
 use std::io::{self, BufReader, BufWriter};
 use std::path::Path;
-use std::time::Duration;
 use std::fmt;
 use std::str::FromStr;
-use strum::{EnumString, Display};
+use crate::game::ai::input_sequence::{InputSequence, Translation};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumString, Display)]
-pub enum RecordedKey {
-    MoveLeft,
-    MoveRight,
-    SoftDrop,
-    HardDrop,
-    RotateClockwise,
-    RotateAnticlockwise,
-    Hold,
-}
 
-/// Represents a single recorded game input with timing information
+/// Represents a single recorded game input with decision index information
 #[derive(Debug, Clone)]
 pub struct RecordedInput {
-    /// Accumulated game time when this input occurred (not real-time)
-    pub timestamp: Duration,
-    /// The game input that was triggered
-    pub keys: Vec<RecordedKey>,
+    /// The game input that was triggered, None if no decision was made
+    pub keys: Option<InputSequence>,
+    /// Whether this decision uses the "alt" (held) piece
+    pub is_alt: bool,
 }
 
 // Custom serialization for RecordedInput
@@ -33,16 +22,28 @@ impl Serialize for RecordedInput {
     where
         S: Serializer,
     {
-        // Format: "{timestamp in microseconds}:{comma separated list of keys}"
-        let micros = self.timestamp.as_micros();
+        match &self.keys {
+            Some(keys) => {
+                // Format keys as comma-separated list
+                let keys_str: Vec<String> = keys.iter()
+                    .map(|key| key.to_string())
+                    .collect();
+                let keys_part = keys_str.join(",");
 
-        // Use strum's Display trait to convert keys to strings
-        let keys_str: Vec<String> = self.keys.iter()
-            .map(|key| key.to_string())
-            .collect();
-
-        let serialized = format!("{}:{}", micros, keys_str.join(","));
-        serializer.serialize_str(&serialized)
+                // For alt decisions: "alt:{key1},{key2}"
+                // For non alt decisions just "{key1},{key2}"
+                let serialized = if self.is_alt {
+                    format!("alt:{}", keys_part)
+                } else {
+                    keys_part
+                };
+                serializer.serialize_str(&serialized)
+            },
+            None => {
+                // For "null" decisions use "null"
+                serializer.serialize_str("null")
+            }
+        }
     }
 }
 
@@ -58,36 +59,40 @@ impl<'de> Deserialize<'de> for RecordedInput {
             type Value = RecordedInput;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string in the format '{timestamp}:{key1,key2,...}'")
+                formatter.write_str("a string in format 'key1,key2,...', 'alt:key1,key2,...', '' (empty), 'alt:', or 'null'")
             }
 
             fn visit_str<E>(self, value: &str) -> Result<RecordedInput, E>
             where
                 E: serde::de::Error,
             {
-                let parts: Vec<&str> = value.split(':').collect();
-                if parts.len() != 2 {
-                    return Err(E::custom(format!("invalid format: {}", value)));
+                if value == "null" {
+                    // Null decision
+                    return Ok(RecordedInput { keys: None, is_alt: false });
                 }
 
-                // Parse timestamp
-                let micros = u64::from_str(parts[0])
-                    .map_err(|_| E::custom(format!("invalid timestamp: {}", parts[0])))?;
-                let timestamp = Duration::from_micros(micros);
+                let (is_alt, key_part) = if value.starts_with("alt:") {
+                    (true, &value[4..]) // Skip past "alt:"
+                } else {
+                    (false, value)
+                };
+
+                // Empty key_part (either "" or "alt:") means empty keys vector
+                if key_part.is_empty() {
+                    return Ok(RecordedInput { keys: Some(InputSequence::empty()), is_alt });
+                }
 
                 // Parse keys
                 let mut keys = Vec::new();
-                if !parts[1].is_empty() {
-                    for key_str in parts[1].split(',') {
-                        // Use strum's EnumString trait to parse the key
-                        match RecordedKey::from_str(key_str) {
-                            Ok(key) => keys.push(key),
-                            Err(_) => return Err(E::custom(format!("invalid key: {}", key_str))),
-                        }
+                for key_str in key_part.split(',') {
+                    // Use strum's EnumString trait to parse the key
+                    match Translation::from_str(key_str) {
+                        Ok(key) => keys.push(key),
+                        Err(_) => return Err(E::custom(format!("invalid key: {}", key_str))),
                     }
                 }
 
-                Ok(RecordedInput { timestamp, keys })
+                Ok(RecordedInput { keys: Some(InputSequence::new(keys)), is_alt })
             }
         }
 
@@ -97,39 +102,34 @@ impl<'de> Deserialize<'de> for RecordedInput {
 
 /// Manages the recording of a game session
 pub struct GameRecording {
-    /// Total elapsed game time (accumulated delta)
-    current_timestamp: Duration,
-    /// The recorded inputs
+    /// The recorded inputs/decisions
     inputs: Vec<RecordedInput>,
-    next_update_buffer: Vec<RecordedKey>,
 }
 
 impl GameRecording {
     /// Create a new GameRecorder in inactive state
     pub fn new() -> Self {
         Self {
-            current_timestamp: Duration::ZERO,
             inputs: Vec::new(),
-            next_update_buffer: Vec::new(),
         }
     }
 
-    /// Update the recorder with the game's time delta
-    pub fn update(&mut self, delta: Duration) {
-        self.current_timestamp += delta;
-        // empty the next update buffer into inputs
-        if !self.next_update_buffer.is_empty() {
-            let input = RecordedInput {
-                timestamp: self.current_timestamp,
-                keys: std::mem::take(&mut self.next_update_buffer),
-            };
-            self.inputs.push(input);
-        }
+    /// Record a complete decision made by the agent
+    pub fn record_decision(&mut self, keys: InputSequence, is_alt: bool) {
+        let input = RecordedInput {
+            keys: Some(keys),
+            is_alt,
+        };
+        self.inputs.push(input);
     }
 
-    /// Record an input if recording is active
-    pub fn record_input(&mut self, key: RecordedKey) {
-        self.next_update_buffer.push(key);
+    /// Record a null decision (when no action was possible)
+    pub fn record_null_decision(&mut self) {
+        let input = RecordedInput {
+            keys: None,
+            is_alt: false,
+        };
+        self.inputs.push(input);
     }
 
     /// Save the recording to a file
@@ -155,8 +155,6 @@ pub struct GamePlayback {
     inputs: Vec<RecordedInput>,
     /// Current position in the playback
     current_index: usize,
-    /// Current game time in the playback
-    current_timestamp: Duration,
 }
 
 impl GamePlayback {
@@ -171,41 +169,22 @@ impl GamePlayback {
         Ok(Self {
             inputs,
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         })
     }
 
     pub fn reset(&mut self) {
         self.current_index = 0;
-        self.current_timestamp = Duration::ZERO;
     }
 
-    /// Update the playback with the game's time delta
-    /// Returns inputs that should be triggered at the current time
-    pub fn update(&mut self, delta: Duration) -> Vec<RecordedKey> {
+    /// Process the next decision
+    /// Returns inputs that should be triggered for the current decision
+    pub fn next_decision(&mut self) -> Option<InputSequence> {
         if self.is_finished() {
-            return vec![];
+            return None;
         }
 
-        // Update current game time
-        self.current_timestamp += delta;
-        let mut result = Vec::new();
-
-        // Check for inputs that should be triggered
-        while self.current_index < self.inputs.len() {
-            let input = &self.inputs[self.current_index];
-
-            if input.timestamp <= self.current_timestamp {
-                for key in input.keys.iter() {
-                    result.push(*key);
-                }
-                self.current_index += 1;
-            } else {
-                break;
-            }
-        }
-
-        dbg!(&result);
+        let result = self.inputs[self.current_index].keys.clone();
+        self.current_index += 1;
         result
     }
 
@@ -234,57 +213,35 @@ mod tests {
     #[test]
     fn test_game_recorder_new() {
         let recorder = GameRecording::new();
-        assert_eq!(recorder.current_timestamp, Duration::ZERO);
-        assert!(recorder.inputs.is_empty());
-        assert!(recorder.next_update_buffer.is_empty());
-    }
-
-    #[test]
-    fn test_game_recorder_record_input() {
-        let mut recorder = GameRecording::new();
-
-        // Record some inputs
-        recorder.record_input(RecordedKey::MoveLeft);
-        recorder.record_input(RecordedKey::RotateClockwise);
-
-        // Inputs should be in the next_update_buffer but not yet in inputs
-        assert_eq!(recorder.next_update_buffer.len(), 2);
-        assert_eq!(recorder.next_update_buffer[0], RecordedKey::MoveLeft);
-        assert_eq!(recorder.next_update_buffer[1], RecordedKey::RotateClockwise);
         assert!(recorder.inputs.is_empty());
     }
 
     #[test]
-    fn test_game_recorder_update() {
+    fn test_game_recorder_record_decision() {
         let mut recorder = GameRecording::new();
 
-        // Record some inputs
-        recorder.record_input(RecordedKey::MoveLeft);
-        recorder.record_input(RecordedKey::RotateClockwise);
+        // Record some decisions
+        recorder.record_decision(InputSequence::new(vec![Translation::Left]), false);
+        recorder.record_decision(InputSequence::new(vec![Translation::RotateClockwise]), false);
 
-        // Update the recorder
-        let delta = Duration::from_millis(100);
-        recorder.update(delta);
-
-        // Inputs should now be in the inputs vector with correct timestamp
-        // Both keys are grouped into a single RecordedInput now
-        assert!(recorder.next_update_buffer.is_empty());
-        assert_eq!(recorder.inputs.len(), 1);
-        assert_eq!(recorder.inputs[0].timestamp, delta);
-        assert_eq!(recorder.inputs[0].keys.len(), 2);
-        assert_eq!(recorder.inputs[0].keys[0], RecordedKey::MoveLeft);
-        assert_eq!(recorder.inputs[0].keys[1], RecordedKey::RotateClockwise);
-
-        // Record more inputs and update again
-        recorder.record_input(RecordedKey::HardDrop);
-        let delta2 = Duration::from_millis(50);
-        recorder.update(delta2);
-
-        // Now we have a second input record with the new timestamp
+        // Inputs should now be in the inputs vector
         assert_eq!(recorder.inputs.len(), 2);
-        assert_eq!(recorder.inputs[1].keys.len(), 1);
-        assert_eq!(recorder.inputs[1].keys[0], RecordedKey::HardDrop);
-        assert_eq!(recorder.inputs[1].timestamp, delta + delta2);
+        assert_eq!(recorder.inputs[0].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(recorder.inputs[0].keys.as_ref().unwrap()[0], Translation::Left);
+        assert_eq!(recorder.inputs[1].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(recorder.inputs[1].keys.as_ref().unwrap()[0], Translation::RotateClockwise);
+    }
+
+    #[test]
+    fn test_game_recorder_record_null_decision() {
+        let mut recorder = GameRecording::new();
+
+        // Record a null decision
+        recorder.record_null_decision();
+
+        // Inputs should now contain a single RecordedInput with keys set to None
+        assert_eq!(recorder.inputs.len(), 1);
+        assert!(recorder.inputs[0].keys.is_none());
     }
 
     #[test]
@@ -292,14 +249,9 @@ mod tests {
         let mut recorder = GameRecording::new();
 
         // Record some inputs with timing
-        recorder.record_input(RecordedKey::MoveLeft);
-        recorder.update(Duration::from_millis(100));
-
-        recorder.record_input(RecordedKey::RotateClockwise);
-        recorder.update(Duration::from_millis(150));
-
-        recorder.record_input(RecordedKey::HardDrop);
-        recorder.update(Duration::from_millis(50));
+        recorder.record_decision(InputSequence::new(vec![Translation::Left]), false);
+        recorder.record_decision(InputSequence::new(vec![Translation::RotateClockwise]), false);
+        recorder.record_decision(InputSequence::new(vec![Translation::HardDrop]), false);
 
         // Save to a temporary file
         let file_path = temp_file_path();
@@ -310,12 +262,12 @@ mod tests {
 
         // Check that the loaded inputs match what we recorded
         assert_eq!(player.inputs.len(), 3);
-        assert_eq!(player.inputs[0].keys.len(), 1);
-        assert_eq!(player.inputs[0].keys[0], RecordedKey::MoveLeft);
-        assert_eq!(player.inputs[1].keys.len(), 1);
-        assert_eq!(player.inputs[1].keys[0], RecordedKey::RotateClockwise);
-        assert_eq!(player.inputs[2].keys.len(), 1);
-        assert_eq!(player.inputs[2].keys[0], RecordedKey::HardDrop);
+        assert_eq!(player.inputs[0].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(player.inputs[0].keys.as_ref().unwrap()[0], Translation::Left);
+        assert_eq!(player.inputs[1].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(player.inputs[1].keys.as_ref().unwrap()[0], Translation::RotateClockwise);
+        assert_eq!(player.inputs[2].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(player.inputs[2].keys.as_ref().unwrap()[0], Translation::HardDrop);
 
         // Clean up
         fs::remove_file(&file_path)?;
@@ -328,44 +280,43 @@ mod tests {
         let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
-                    keys: vec![RecordedKey::MoveLeft],
-                    timestamp: Duration::from_millis(100),
+                    keys: Some(InputSequence::new(vec![Translation::Left])),
+                    is_alt: false,
                 },
                 RecordedInput {
-                    keys: vec![RecordedKey::RotateClockwise],
-                    timestamp: Duration::from_millis(250),
+                    keys: Some(InputSequence::new(vec![Translation::RotateClockwise])),
+                    is_alt: false,
                 },
                 RecordedInput {
-                    keys: vec![RecordedKey::HardDrop],
-                    timestamp: Duration::from_millis(400),
+                    keys: Some(InputSequence::new(vec![Translation::HardDrop])),
+                    is_alt: false,
                 },
             ],
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         };
 
-        // Update less than the first input's time
-        let keys = player.update(Duration::from_millis(50));
-        assert!(keys.is_empty());
-        assert_eq!(player.current_index, 0);
-
-        // Update past the first input's time
-        let keys = player.update(Duration::from_millis(60));
+        // Process the first decision
+        let keys = player.next_decision().unwrap();
         assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], RecordedKey::MoveLeft);
+        assert_eq!(keys[0], Translation::Left);
         assert_eq!(player.current_index, 1);
 
-        // Update past multiple inputs
-        let keys = player.update(Duration::from_millis(300));
-        assert_eq!(keys.len(), 2);
-        assert_eq!(keys[0], RecordedKey::RotateClockwise);
-        assert_eq!(keys[1], RecordedKey::HardDrop);
-        assert_eq!(player.current_index, 3);
-        assert!(player.is_finished());
+        // Process the second decision
+        let keys = player.next_decision().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], Translation::RotateClockwise);
+        assert_eq!(player.current_index, 2);
 
-        // Update after all inputs are consumed
-        let keys = player.update(Duration::from_millis(100));
-        assert!(keys.is_empty());
+        // Process the third decision
+        let keys = player.next_decision().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], Translation::HardDrop);
+        assert_eq!(player.current_index, 3);
+
+        // No more decisions should be available
+        let keys = player.next_decision();
+        assert!(keys.is_none());
+        assert!(player.is_finished());
     }
 
     #[test]
@@ -373,20 +324,20 @@ mod tests {
         let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
-                    keys: vec![RecordedKey::MoveLeft],
-                    timestamp: Duration::from_millis(100),
+                    keys: Some(InputSequence::new(vec![Translation::Left])),
+                    is_alt: false,
                 },
                 RecordedInput {
-                    keys: vec![RecordedKey::RotateClockwise],
-                    timestamp: Duration::from_millis(250),
+                    keys: Some(InputSequence::new(vec![Translation::RotateClockwise])),
+                    is_alt: false,
                 },
             ],
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         };
 
         // Consume all inputs
-        player.update(Duration::from_millis(300));
+        player.next_decision();
+        player.next_decision();
         assert!(player.is_finished());
 
         // Reset the player
@@ -394,7 +345,6 @@ mod tests {
 
         // Check that the state is reset
         assert_eq!(player.current_index, 0);
-        assert_eq!(player.current_timestamp, Duration::ZERO);
         assert!(!player.is_finished());
     }
 
@@ -403,26 +353,24 @@ mod tests {
         let mut player = GamePlayback {
             inputs: vec![
                 RecordedInput {
-                    keys: vec![RecordedKey::MoveLeft],
-                    timestamp: Duration::from_millis(100),
+                    keys: Some(InputSequence::new(vec![Translation::Left])),
+                    is_alt: false,
                 },
             ],
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         };
 
         // Initially not finished
         assert!(!player.is_finished());
 
         // After consuming all inputs
-        player.update(Duration::from_millis(200));
+        player.next_decision();
         assert!(player.is_finished());
 
         // Empty player is finished
         let empty_player = GamePlayback {
             inputs: vec![],
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         };
         assert!(empty_player.is_finished());
     }
@@ -432,34 +380,36 @@ mod tests {
         let mut recorder = GameRecording::new();
 
         // Record multiple inputs before updating
-        recorder.record_input(RecordedKey::MoveLeft);
-        recorder.record_input(RecordedKey::MoveRight);
-        recorder.record_input(RecordedKey::HardDrop);
+        recorder.record_decision(InputSequence::new(vec![Translation::Left]), false);
+        recorder.record_decision(InputSequence::new(vec![Translation::Right]), false);
+        recorder.record_decision(InputSequence::new(vec![Translation::HardDrop]), false);
 
-        // Update the recorder once
-        let delta = Duration::from_millis(100);
-        recorder.update(delta);
-
-        // All three inputs should be in one RecordedInput
-        assert_eq!(recorder.inputs.len(), 1);
-        assert_eq!(recorder.inputs[0].keys.len(), 3);
-        assert_eq!(recorder.inputs[0].keys[0], RecordedKey::MoveLeft);
-        assert_eq!(recorder.inputs[0].keys[1], RecordedKey::MoveRight);
-        assert_eq!(recorder.inputs[0].keys[2], RecordedKey::HardDrop);
-        assert_eq!(recorder.inputs[0].timestamp, delta);
+        // All three inputs should be in separate RecordedInput instances
+        assert_eq!(recorder.inputs.len(), 3);
+        assert_eq!(recorder.inputs[0].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(recorder.inputs[0].keys.as_ref().unwrap()[0], Translation::Left);
+        assert_eq!(recorder.inputs[1].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(recorder.inputs[1].keys.as_ref().unwrap()[0], Translation::Right);
+        assert_eq!(recorder.inputs[2].keys.as_ref().unwrap().len(), 1);
+        assert_eq!(recorder.inputs[2].keys.as_ref().unwrap()[0], Translation::HardDrop);
 
         // Create a player with this input
         let mut player = GamePlayback {
             inputs: recorder.inputs().to_vec(),
             current_index: 0,
-            current_timestamp: Duration::ZERO,
         };
 
-        // Update and check that all keys are returned
-        let keys = player.update(Duration::from_millis(100));
-        assert_eq!(keys.len(), 3);
-        assert_eq!(keys[0], RecordedKey::MoveLeft);
-        assert_eq!(keys[1], RecordedKey::MoveRight);
-        assert_eq!(keys[2], RecordedKey::HardDrop);
+        // Process the next decision and check that the correct key is returned
+        let keys = player.next_decision().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], Translation::Left);
+
+        let keys = player.next_decision().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], Translation::Right);
+
+        let keys = player.next_decision().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], Translation::HardDrop);
     }
 }

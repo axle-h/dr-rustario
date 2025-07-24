@@ -1,6 +1,6 @@
 mod apply_inputs;
 mod input_search;
-mod input_sequence;
+pub mod input_sequence;
 pub mod action_evaluator;
 mod board_features;
 pub mod agent;

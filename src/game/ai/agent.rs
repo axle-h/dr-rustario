@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::game::ai::apply_inputs::ApplyInputs;
 use crate::game::ai::action_evaluator::ActionEvaluator;
 use crate::game::ai::input_search::{InputSearch, InputSequenceResult};
-use crate::game::ai::input_sequence::InputSequence;
+use crate::game::ai::input_sequence::{InputSequence, Translation};
 use crate::game::{Game, GameState};
 use crate::game::ai::board_features::{BoardFeatures, StackStats};
 use crate::game::ai::headless_game::DEFAULT_LOOKAHEAD;
@@ -11,11 +11,16 @@ use crate::game::ai::linear::LinearCoefficients;
 use crate::game::ai::neural::{NeuralGenome, TetrisNeuralNetwork};
 use crate::game::board::Board;
 use crate::game::tetromino::TetrominoShape;
+use crate::game::recording::{GameRecording};
+use std::path::Path;
+use std::io;
 
 pub struct AiAgent {
     action_evaluate: ActionEvaluator,
     wait_sate: Option<AgentWaitState>,
-    look_ahead: usize
+    look_ahead: usize,
+    /// Optional recording of agent decisions
+    recording: Option<GameRecording>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -27,7 +32,12 @@ enum AgentWaitState {
 
 impl AiAgent {
     pub fn new(action_evaluate: ActionEvaluator, look_ahead: usize) -> Self {
-        Self { action_evaluate, wait_sate: None, look_ahead }
+        Self {
+            action_evaluate,
+            wait_sate: None,
+            look_ahead,
+            recording: None,
+        }
     }
     
     pub fn default_linear() -> Self {
@@ -104,18 +114,34 @@ impl AiAgent {
 
             let alt_best_move = self.best_move(game, alt_next_shape, &game.random.peek_buffer()[alt_next_peek]);
             let (best_inputs, is_alt) = match (best_result, alt_best_move) {
-                (None, None) => return,
+                (None, None) => {
+                    // Record a null decision if no moves are possible
+                    if let Some(recording) = &mut self.recording {
+                        recording.record_null_decision();
+                    }
+                    return;
+                },
                 (Some((m, _)), None) => (m, false),
                 (None, Some((m, _))) => (m, true),
                 (Some((m1, c1)), Some((m2, c2))) =>
                     if c1 < c2 { (m1, false) } else { (m2, true) }
             };
+
+            if let Some(recording) = &mut self.recording {
+                recording.record_decision(best_inputs.clone(), is_alt);  // is_alt = false
+            }
+
             if is_alt {
                 // hold the current and wait for the alt shape to fall
                 self.wait_sate = Some(AgentWaitState::Alt(alt_next_shape, best_inputs));
                 game.hold();
             } else {
                 self.apply_inputs(game, &best_inputs);
+            }
+        } else {
+            // Record a null decision if no tetromino is available
+            if let Some(recording) = &mut self.recording {
+                recording.record_null_decision();
             }
         }
     }
@@ -179,6 +205,16 @@ impl AiAgent {
         cost1.total_cmp(cost2).then_with(|| result1.inputs().cmp(&result2.inputs()))
     }
 
+    pub fn start_recording(&mut self) {
+        self.recording = Some(GameRecording::new());
+    }
+
+    pub fn save_recording<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        if let Some(recording) = &self.recording {
+            recording.save_to_file(path)?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for AiAgent {

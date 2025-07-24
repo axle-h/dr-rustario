@@ -25,14 +25,9 @@ impl HeadlessGame {
         options: HeadlessGameOptions,
         end_game: EndGame,
     ) -> Self {
-        let mut game = Game::new(1, 0, rng);
-        if options.record {
-            game.start_recording();
-        }
-
         Self {
             agent,
-            game,
+            game: Game::new(1, 0, rng),
             duration: Duration::ZERO,
             game_over: false,
             options,
@@ -46,10 +41,6 @@ impl HeadlessGame {
                 return result;
             }
         }
-    }
-
-    pub fn save_recording<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        self.game.save_recording(path)
     }
 
     fn update(&mut self) -> Option<GameResult> {
@@ -136,7 +127,11 @@ impl HeadlessGameFixture {
             self.config.game.min_garbage_per_hole,
             self.seed
         );
-        let agent = AiAgent::new(action_evaluate, self.game_options.look_ahead);
+        let mut agent = AiAgent::new(action_evaluate, self.game_options.look_ahead);
+        if self.game_options.record {
+            agent.start_recording();
+        }
+
         let mut game = HeadlessGame::new(rng, agent, self.game_options, self.end_game);
         let result = game.play();
 
@@ -146,7 +141,7 @@ impl HeadlessGameFixture {
                 .expect("Time went backwards");
             // TODO return this somehow
             let path = format!("game-{}.json", system_time.as_secs());
-            game.save_recording(path).expect("Failed to save recording");
+            game.agent.save_recording(path).expect("Failed to save recording");
         }
 
         result

@@ -479,11 +479,6 @@ impl TetrisSdl {
         let mut ai = AiAgent::default();
         let mut run_ai = false; // todo menu config
 
-        fixture.mut_game(1, |g| {
-            g.playback_from_file("game-1753262825.json").unwrap();
-            true
-        });
-
         loop {
             let delta = frame_rate.update()?;
 
@@ -544,13 +539,6 @@ impl TetrisSdl {
             if run_ai {
                 fixture.mut_game(1, |g| {
                     ai.act(g);
-                    true
-                });
-            }
-
-            for player in 1 ..= self.game_config.players {
-                fixture.mut_game(player, |g| {
-                    g.pre_update(delta);
                     true
                 });
             }

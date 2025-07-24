@@ -5,12 +5,8 @@ use crate::game::random::{RandomTetromino, PEEK_SIZE};
 use board::Board;
 
 use std::cmp::{max, min};
-use std::io;
-use std::path::Path;
 use std::time::Duration;
-use recording::{GameRecording, RecordedKey};
 use tetromino::TetrominoShape;
-use crate::game::recording::GamePlayback;
 
 pub mod block;
 pub mod board;
@@ -98,8 +94,6 @@ pub struct Game {
     hold: Option<HoldState>,
     garbage_buffer: u32,
     event_buffer: Vec<GameEvent>,
-    recording: Option<GameRecording>,
-    playback: Option<GamePlayback>
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,18 +124,7 @@ impl Game {
             hold: None,
             garbage_buffer: 0,
             event_buffer: Vec::new(),
-            recording: None,
-            playback: None,
         }
-    }
-
-    pub fn start_recording(&mut self) {
-        self.recording = Some(GameRecording::new());
-    }
-
-    pub fn playback_from_file<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
-        self.playback = Some(GamePlayback::load_from_file(path)?);
-        Ok(())
     }
 
     pub fn empty_event_buffer(&mut self) -> Vec<GameEvent> {
@@ -179,7 +162,6 @@ impl Game {
             shape: held_shape,
         });
         self.event_buffer.push(GameEvent::Hold);
-        self.record_input(RecordedKey::Hold);
         true
     }
 
@@ -187,7 +169,6 @@ impl Game {
         self.soft_drop = soft_drop;
         if soft_drop {
             self.event_buffer.push(GameEvent::SoftDrop);
-            self.record_input(RecordedKey::SoftDrop);
         }
         soft_drop
     }
@@ -205,7 +186,6 @@ impl Game {
                     dropped_rows: hard_dropped_rows,
                 }
             );
-            self.record_input(RecordedKey::HardDrop);
             true
         } else {
             false
@@ -224,16 +204,9 @@ impl Game {
         }
     }
 
-    fn record_input(&mut self, key: RecordedKey) {
-        if let Some(recorder) = &mut self.recording {
-            recorder.record_input(key);
-        }
-    }
-
     pub fn left(&mut self) -> bool {
         if self.with_checking_lock(|board| board.left()) {
             self.event_buffer.push(GameEvent::Move);
-            self.record_input(RecordedKey::MoveLeft);
             true
         } else {
             false
@@ -243,7 +216,6 @@ impl Game {
     pub fn right(&mut self) -> bool {
         if self.with_checking_lock(|board| board.right()) {
             self.event_buffer.push(GameEvent::Move);
-            self.record_input(RecordedKey::MoveRight);
             true
         } else {
             false
@@ -253,11 +225,6 @@ impl Game {
     pub fn rotate(&mut self, clockwise: bool) -> bool {
         if self.with_checking_lock(|board| board.rotate(clockwise)) {
             self.event_buffer.push(GameEvent::Rotate);
-            if clockwise {
-                self.record_input(RecordedKey::RotateClockwise);
-            } else {
-                self.record_input(RecordedKey::RotateAnticlockwise);
-            }
             true
         } else {
             false
@@ -301,31 +268,7 @@ impl Game {
         }
     }
 
-    pub fn pre_update(&mut self, delta: Duration) {
-        if let Some(playback) = &mut self.playback {
-            for key in playback.update(delta) {
-                let success = match key {
-                    RecordedKey::MoveLeft => self.left(),
-                    RecordedKey::MoveRight => self.right(),
-                    RecordedKey::RotateClockwise => self.rotate(true),
-                    RecordedKey::RotateAnticlockwise => self.rotate(false),
-                    RecordedKey::SoftDrop => self.set_soft_drop(true),
-                    RecordedKey::HardDrop => self.hard_drop(),
-                    RecordedKey::Hold => self.hold(),
-                };
-                if !success {
-                    panic!("playback failed to execute key {:?}", key);
-                }
-            }
-        }
-    }
-
     pub fn update(&mut self, delta: Duration) -> Option<GameEvent> {
-        // Update recorder if active
-        if let Some(recorder) = &mut self.recording {
-            recorder.update(delta);
-        }
-
         let (state, event) = match self.state {
             GameState::Spawn(duration, shape) => self.spawn(duration + delta, shape),
             GameState::Fall(duration) => self.fall(duration + delta),
@@ -633,17 +576,6 @@ impl Game {
             max(base / soft_drop_factor, STEP_14)
         } else {
             base
-        }
-    }
-
-    pub fn save_recording<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        if let Some(recorder) = &self.recording {
-            recorder.save_to_file(path)
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "No active recording to save",
-            ))
         }
     }
 }
