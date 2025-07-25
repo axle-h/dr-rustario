@@ -134,7 +134,7 @@ impl GameMetricsTable {
             .rows
             .into_iter()
             .map(|r| GameMetricsRow {
-                value: MetricSnips::right((width, r.value.point().y()), r.value.max_value()),
+                value: MetricSnips::right((width, r.value.point().y()), r.value.max_chars()),
                 label: Point::new(width - r.label_width as i32, r.label.y()),
                 metric: r.metric,
                 label_width: r.label_width,

@@ -178,7 +178,6 @@ impl AiAgent {
             .map(|(result, cost)| (result.inputs().clone(), cost))
     }
 
-
     fn best_single_move(&self, board_from: Board, stack_stats_before: StackStats, shape: TetrominoShape) -> Option<(InputSequenceResult, f64)> {
         board_from.search_all_inputs(shape)
             .into_iter()

@@ -24,49 +24,39 @@ impl FontAlign {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct MetricSnips {
     point: Point,
-    max_value: u32,
+    max_decimal_value: u32,
+    max_hex_value: u32,
     max_chars: u32,
     align: FontAlign,
 }
 
-fn char_length(value: u32) -> u32 {
-    format!("{}", value).len() as u32
-}
-
 impl MetricSnips {
-    pub fn right<P: Into<Point>>(point: P, max_value: u32) -> Self {
+    pub fn new<P: Into<Point>>(align: FontAlign, point: P, max_chars: u32) -> Self {
         Self {
             point: point.into(),
-            max_value,
-            max_chars: char_length(max_value),
-            align: FontAlign::Right,
+            max_decimal_value: 10u32.pow(max_chars) - 1,
+            max_hex_value: 16u32.pow(max_chars) - 1,
+            max_chars,
+            align,
         }
     }
 
-    pub fn zero_fill<P: Into<Point>>(point: P, max_value: u32) -> Self {
-        Self {
-            point: point.into(),
-            max_value,
-            max_chars: char_length(max_value),
-            align: FontAlign::Left { zero_fill: true },
-        }
+    pub fn right<P: Into<Point>>(point: P, max_chars: u32) -> Self {
+        Self::new(FontAlign::Right, point, max_chars)
     }
 
-    pub fn left<P: Into<Point>>(point: P, max_value: u32) -> Self {
-        Self {
-            point: point.into(),
-            max_value,
-            max_chars: char_length(max_value),
-            align: FontAlign::Left { zero_fill: false },
-        }
+    pub fn zero_fill<P: Into<Point>>(point: P, max_chars: u32) -> Self {
+        Self::new(FontAlign::Left { zero_fill: true }, point, max_chars)
+    }
+
+    pub fn left<P: Into<Point>>(point: P, max_chars: u32) -> Self {
+        Self::new(FontAlign::Left { zero_fill: false }, point, max_chars)
     }
 
     pub fn offset(&self, x: i32, y: i32) -> Self {
         Self {
             point: self.point.offset(x, y),
-            max_value: self.max_value,
-            max_chars: self.max_chars,
-            align: self.align,
+            ..self.clone()
         }
     }
 
@@ -81,8 +71,22 @@ impl MetricSnips {
         self.point
     }
 
-    pub fn max_value(&self) -> u32 {
-        self.max_value
+
+
+    pub fn max_decimal_value(&self) -> u32 {
+        self.max_decimal_value
+    }
+
+    pub fn max_hex_value(&self) -> u32 {
+        self.max_hex_value
+    }
+
+    pub fn max_chars(&self) -> u32 {
+        self.max_chars
+    }
+
+    pub fn align(&self) -> FontAlign {
+        self.align
     }
 }
 
@@ -125,19 +129,6 @@ impl FontRenderOptions {
             } => FontRender::from_sprites(texture_creator, file_bytes, sprites.clone(), *spacing),
         }
     }
-}
-
-pub fn alpha_sprites(snips: [Point; 10], width: u32, height: u32) -> Vec<FontSprite> {
-    snips
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            FontSprite::new(
-                char::from_u32('0' as u32 + i as u32).unwrap(),
-                Rect::new(p.x(), p.y(), width, height),
-            )
-        })
-        .collect()
 }
 
 pub struct FontRender<'a> {
@@ -245,7 +236,7 @@ impl<'a> FontRender<'a> {
         value: u32,
         meta: MetricSnips,
     ) -> Result<(), String> {
-        let chars = self.format_number(value, meta.max_value, meta.zero_fill_chars());
+        let chars = self.format_number(value, meta.max_decimal_value, meta.max_hex_value, meta.zero_fill_chars());
         self.render_string(canvas, meta.point, &chars)
     }
 
@@ -255,7 +246,7 @@ impl<'a> FontRender<'a> {
         value: u32,
         meta: MetricSnips,
     ) -> Result<(), String> {
-        let chars = self.format_number(value, meta.max_value, None);
+        let chars = self.format_number(value, meta.max_decimal_value, meta.max_hex_value, None);
         let mut dest = meta.point;
         for ch in chars.chars().rev() {
             let snip = self.sprite(ch);
@@ -268,7 +259,7 @@ impl<'a> FontRender<'a> {
     }
 
     pub fn number_size(&self, value: u32) -> (u32, u32) {
-        let chars = self.format_number(value, u32::MAX, None);
+        let chars = self.format_number(value, u32::MAX, u32::MAX, None);
         self.string_size(&chars)
     }
 
@@ -293,15 +284,21 @@ impl<'a> FontRender<'a> {
             .unwrap_or_else(|| panic!("{} is not supported by this font render", ch))
     }
 
-    fn format_number(&self, value: u32, max_value: u32, zero_fill: Option<u32>) -> String {
-        let value = value.min(max_value);
-        let chars = if self.sprites.contains_key(&',') {
-            value.to_formatted_string(&Locale::en)
+    fn format_number(&self, value: u32, max_decimal_value: u32, max_hex_value: u32, zero_fill: Option<u32>) -> String {
+        let chars = if value > max_decimal_value {
+            // Render in hex when value breaches max_value
+            format!("{:X}", value.min(max_hex_value))
         } else {
-            format!("{}", value)
+            let clamped_value = value.min(max_decimal_value);
+            if self.sprites.contains_key(&',') {
+                clamped_value.to_formatted_string(&Locale::en)
+            } else {
+                format!("{}", clamped_value)
+            }
         };
+
         if let Some(max_chars) = zero_fill {
-            let fill_len = max_chars - chars.len() as u32;
+            let fill_len = max_chars.saturating_sub(chars.len() as u32);
             let mut result: String = (0..fill_len).map(|_| '0').collect();
             result.push_str(&chars);
             result

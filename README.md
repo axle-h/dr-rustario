@@ -129,23 +129,12 @@ Algorithm:
 
 TODO
 
-* agent
-   * open holes: fill by dropping normally
-     1. drop using existing algorithm
-     2. for each ending position, create a queue:
-        1. press left, see if this is still lockable and is a new ending position -> add to the list of results AND add to the queue
-        2. repeat this for for right & rotations
-   * measure blocks on top of holes
-* MLP
-   * Maybe the issue is that the fitness function is strictly linear
-   * Instead I could build a MLP with inputs
-      * Current tetromino (just an ID)
-      * Next n tetrominos
-      * All the existing metrics e.g. holes, max height
-   * And output a single neuron which is the score/cost of the move
-   * We still classify the moves based on this score, i.e. the network is not sending inputs, no costly RL required 
-   * We evolve it with GA as usual, maybe using NEAT
+* compare recordings for the same seed with different scores to figure out what is hapenning
+* record seed in game recording
+* record tetromino sequence in game recording to validate seed in gameplay
+* genetic algorithm crossover should maybe also have a chance of averaging some weights of the parents as well as flat out crossover
 * genetic algorithm speciation
    * define minimum distance between a species OR use k-means
    * classify the population into species
    * ensure we retain at least 2, 3, 4 of the best species per generation
+* AI upscale the retro themes

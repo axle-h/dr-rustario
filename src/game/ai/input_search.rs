@@ -170,12 +170,6 @@ mod tests {
     fn searches() {
         let board = Board::new();
         let inputs = board.search_all_inputs(TetrominoShape::I);
-
-        inputs.iter().for_each(|result| {
-            println!("{:?}", result.inputs);
-            println!("{}", result.board);
-        });
-
         assert_eq!(inputs.len(), 17); // 7 flat positions + 10 upright positions
     }
 
@@ -184,12 +178,6 @@ mod tests {
         let mut board = Board::new();
         board.set_block((0, 1), BlockState::Stack(TetrominoShape::I, Rotation::North, 0));
         let inputs = board.search_all_inputs(TetrominoShape::I);
-
-        inputs.iter().for_each(|result| {
-            println!("{:?}", result.inputs);
-            println!("{}", result.board);
-        });
-
         assert_eq!(inputs.len(), 18); // 7 flat positions + 10 upright positions + 1 open hole position
     }
 
@@ -207,12 +195,6 @@ mod tests {
         board.right();
         
         let inputs = board.search_all_inputs(TetrominoShape::L);
-
-        inputs.iter().for_each(|result| {
-            println!("{:?}", result.inputs);
-            println!("{}", result.board);
-        });
-
         assert_eq!(inputs.len(), 35);
     }
 }
