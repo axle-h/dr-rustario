@@ -177,15 +177,19 @@ impl GamePlayback {
     }
 
     /// Process the next decision
-    /// Returns inputs that should be triggered for the current decision
-    pub fn next_decision(&mut self) -> Option<InputSequence> {
+    /// Returns the next RecordedInput, or None if playback is finished
+    pub fn next_decision(&mut self) -> Option<RecordedInput> {
         if self.is_finished() {
             return None;
         }
 
-        let result = self.inputs[self.current_index].keys.clone();
+        // Get the current decision and clone it
+        let result = self.inputs[self.current_index].clone();
+        
+        // Move to the next decision
         self.current_index += 1;
-        result
+        
+        Some(result)
     }
 
     /// Check if playback has finished
@@ -297,25 +301,28 @@ mod tests {
 
         // Process the first decision
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::Left);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::Left);
+        assert!(!keys.is_alt);
         assert_eq!(player.current_index, 1);
 
         // Process the second decision
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::RotateClockwise);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::RotateClockwise);
+        assert!(!keys.is_alt);
         assert_eq!(player.current_index, 2);
 
         // Process the third decision
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::HardDrop);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::HardDrop);
+        assert!(!keys.is_alt);
         assert_eq!(player.current_index, 3);
 
         // No more decisions should be available
-        let keys = player.next_decision();
-        assert!(keys.is_none());
+        let result = player.next_decision();
+        assert!(result.is_none());
         assert!(player.is_finished());
     }
 
@@ -401,15 +408,15 @@ mod tests {
 
         // Process the next decision and check that the correct key is returned
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::Left);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::Left);
 
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::Right);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::Right);
 
         let keys = player.next_decision().unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0], Translation::HardDrop);
+        assert_eq!(keys.keys.as_ref().unwrap().len(), 1);
+        assert_eq!(keys.keys.as_ref().unwrap()[0], Translation::HardDrop);
     }
 }

@@ -129,7 +129,7 @@ impl HeadlessGameFixture {
         );
         let mut agent = AiAgent::new(action_evaluate, self.game_options.look_ahead);
         if self.game_options.record {
-            agent.start_recording();
+            agent.start_recording().expect("Failed to start recording");
         }
 
         let mut game = HeadlessGame::new(rng, agent, self.game_options, self.end_game);

@@ -477,7 +477,8 @@ impl TetrisSdl {
         let mut frame_rate = FrameRate::new();
 
         let mut ai = AiAgent::default();
-        let mut run_ai = false; // todo menu config
+        ai.start_playback("game-1753369124.json").expect("Failed to start AI playback");
+        let mut run_ai = true; // todo menu config
 
         loop {
             let delta = frame_rate.update()?;
