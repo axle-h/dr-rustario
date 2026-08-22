@@ -8,7 +8,7 @@ use crate::game::bottle::SendGarbage;
 use crate::game::metrics::GameMetrics;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 use rand::prelude::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 
 pub struct Player {
     player: u32,
@@ -89,7 +89,7 @@ impl Match {
             high_scores: HighScoreTable::load().unwrap(),
             state: MatchState::Normal,
             game_config,
-            rng: thread_rng(),
+            rng: rng(),
         }
     }
 
@@ -216,7 +216,7 @@ impl Match {
         let pid = if other_players.len() == 1 {
             other_players[0]
         } else {
-            other_players[self.rng.gen_range(0..other_players.len())]
+            other_players[self.rng.random_range(0..other_players.len())]
         };
         self.players
             .get_mut(pid)

@@ -5,7 +5,7 @@ use crate::game::pill::{Garbage, Pill, PillShape, VirusColor, Vitamin, Vitamins}
 use crate::game::random::BottleSeed;
 use rand::rngs::ThreadRng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
@@ -110,7 +110,7 @@ impl Bottle {
         Self {
             blocks: [Block::Empty; TOTAL_BLOCKS as usize],
             pill: None,
-            rng: thread_rng(),
+            rng: rng(),
         }
     }
 
@@ -118,7 +118,7 @@ impl Bottle {
         Self {
             blocks: seed.into_blocks(),
             pill: None,
-            rng: thread_rng(),
+            rng: rng(),
         }
     }
 

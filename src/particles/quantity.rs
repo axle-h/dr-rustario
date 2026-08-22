@@ -2,7 +2,7 @@ use crate::particles::color::ParticleColor;
 use crate::particles::geometry::Vec2D;
 use crate::particles::particle::ParticleWave;
 use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 
 #[derive(Clone, Debug)]
 pub struct VariableQuantity<T: Clone> {
@@ -14,14 +14,14 @@ pub struct VariableQuantity<T: Clone> {
 impl<T: Clone> VariableQuantity<T> {
     pub fn new(quantity: T, variance: T) -> Self {
         Self {
-            rng: thread_rng(),
+            rng: rng(),
             quantity,
             variance,
         }
     }
 
     fn rand_signed_f64(&mut self) -> f64 {
-        2.0 * self.rng.gen::<f64>() - 1.0
+        2.0 * self.rng.random::<f64>() - 1.0
     }
 }
 
@@ -68,16 +68,16 @@ impl VariableQuantity<Vec2D> {
 impl VariableQuantity<ParticleColor> {
     pub fn next(&mut self) -> ParticleColor {
         self.quantity
-            + self.variance * ParticleColor::rgb(self.rng.gen(), self.rng.gen(), self.rng.gen())
+            + self.variance * ParticleColor::rgb(self.rng.random(), self.rng.random(), self.rng.random())
     }
 }
 
 impl VariableQuantity<ParticleWave> {
     pub fn next(&mut self) -> ParticleWave {
         let magnitude =
-            self.quantity.magnitude() + self.variance.magnitude() * self.rng.gen::<f64>();
+            self.quantity.magnitude() + self.variance.magnitude() * self.rng.random::<f64>();
         let frequency =
-            self.quantity.frequency() + self.variance.frequency() * self.rng.gen::<f64>();
+            self.quantity.frequency() + self.variance.frequency() * self.rng.random::<f64>();
         ParticleWave::new(magnitude, frequency)
     }
 }
@@ -106,7 +106,7 @@ impl<T: Clone> ProbabilityTable<T> {
     pub fn new() -> Self {
         Self {
             rows: vec![],
-            rng: thread_rng(),
+            rng: rng(),
             total: 0.0,
         }
     }
@@ -114,7 +114,7 @@ impl<T: Clone> ProbabilityTable<T> {
     pub fn identity(value: T) -> Self {
         Self {
             rows: vec![],
-            rng: thread_rng(),
+            rng: rng(),
             total: 0.0,
         }
         .with(value, 1.0)
@@ -143,7 +143,7 @@ impl<T: Clone> ProbabilityTable<T> {
             0 => panic!("no probability rows"),
             1 => self.rows.first_mut().unwrap(),
             _ => {
-                let random = self.total * self.rng.gen::<f64>();
+                let random = self.total * self.rng.random::<f64>();
                 self.rows.iter_mut().find(|r| r.matches(random)).unwrap()
             }
         }

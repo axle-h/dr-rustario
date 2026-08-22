@@ -2,7 +2,7 @@ use crate::game::event::ColoredBlock;
 
 use rand::prelude::ThreadRng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use std::time::Duration;
 
 const VIRUS_POP_IN_DURATION: Duration = Duration::from_millis(1500);
@@ -41,7 +41,7 @@ impl NextLevelAnimation {
     pub fn new() -> Self {
         Self {
             state: None,
-            rng: thread_rng(),
+            rng: rng(),
         }
     }
 

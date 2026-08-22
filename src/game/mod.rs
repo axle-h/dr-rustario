@@ -912,15 +912,15 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::RY))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::RY)));
+                .with(eq(PillShape::BR))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::BR)));
         });
         game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));
         game.update(Duration::from_nanos(1));
         assert_eq!(game.state, GameState::NEW_FALL);
         game.should_have_events(&[GameEvent::Spawn {
             player: 0,
-            shape: PillShape::RY,
+            shape: PillShape::BR,
             is_hold: false,
         }]);
     }
@@ -930,8 +930,8 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::RY))
-                .return_once(|_| Some(Vitamin::vitamins(PillShape::RY)));
+                .with(eq(PillShape::BR))
+                .return_once(|_| Some(Vitamin::vitamins(PillShape::BR)));
         });
         game.hard_dropped = true;
         game.state = GameState::NEW_SPAWN;
@@ -940,7 +940,7 @@ mod tests {
         assert!(!game.hard_dropped);
         game.should_have_events(&[GameEvent::Spawn {
             player: 0,
-            shape: PillShape::RY,
+            shape: PillShape::BR,
             is_hold: false,
         }]);
     }
@@ -950,7 +950,7 @@ mod tests {
         let mut game = having_bottle(|bottle| {
             bottle
                 .expect_try_spawn()
-                .with(eq(PillShape::RY))
+                .with(eq(PillShape::BR))
                 .return_once(|_| None);
         });
         game.state = GameState::Spawn(GameSpeed::Low.duration_of_level(0));

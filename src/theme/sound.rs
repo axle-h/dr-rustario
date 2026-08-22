@@ -1,7 +1,5 @@
-use sdl2::get_error;
-use sdl2::mixer::{Chunk, Music};
+use sdl2::mixer::{Chunk, LoaderRWops, Music};
 use sdl2::rwops::RWops;
-use sdl2::sys::mixer;
 
 use std::rc::Rc;
 
@@ -84,14 +82,9 @@ pub trait LoadSound {
 
 impl LoadSound for AudioConfig {
     fn load_chunk(&self, buffer: &[u8]) -> Result<Chunk, String> {
-        let raw = unsafe { mixer::Mix_LoadWAV_RW(RWops::from_bytes(buffer)?.raw(), 0) };
-        if raw.is_null() {
-            Err(get_error())
-        } else {
-            let mut chunk = Chunk { raw, owned: true };
-            chunk.set_volume(self.effects_volume());
-            Ok(chunk)
-        }
+        let mut chunk = RWops::from_bytes(buffer)?.load_wav()?;
+        chunk.set_volume(self.effects_volume());
+        Ok(chunk)
     }
 }
 

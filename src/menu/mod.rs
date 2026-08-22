@@ -13,6 +13,16 @@ use sdl2::video::WindowContext;
 use crate::build_info;
 use crate::theme::helper::TextureFactory;
 
+/// Pack a colour for SDL2_gfx. sdl2 0.38's `ToColor for Color` packs as
+/// big-endian 0xRRGGBBAA, but SDL2_gfx reads the u32's bytes in memory order,
+/// so on little-endian targets the channels come out reversed (RGBA -> ABGR).
+/// Passing a pre-packed native-endian u32 bypasses the crate's conversion.
+/// Can be dropped if/when the crate fixes this.
+fn gfx_color(color: Color) -> u32 {
+    let (r, g, b, a) = color.rgba();
+    u32::from_ne_bytes([r, g, b, a])
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuAction {
     Select,
@@ -148,7 +158,7 @@ impl<'a> MenuRow<'a> {
                         bottom_left.x() as i16,
                         bottom_left.y() as i16,
                         rad as i16,
-                        background_color,
+                        gfx_color(background_color),
                     )
                     .unwrap();
                 }
@@ -295,7 +305,7 @@ impl<'a> Menu<'a> {
                     bottom_left.x() as i16,
                     bottom_left.y() as i16,
                     rad as i16,
-                    Color::RGBA(0xff, 0xff, 0xff, 0x80),
+                    gfx_color(Color::RGBA(0xff, 0xff, 0xff, 0x80)),
                 )
                 .unwrap();
             })

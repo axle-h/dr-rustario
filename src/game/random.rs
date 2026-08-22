@@ -2,10 +2,10 @@ use crate::game::block::Block;
 use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH, TOTAL_BLOCKS};
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, VirusColor};
-use rand::distributions::Standard;
+use rand::distr::StandardUniform;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 use rand_chacha::{ChaCha8Rng, ChaChaRng};
 use std::collections::{HashSet, VecDeque};
 use std::fmt::{Debug, Formatter};
@@ -17,15 +17,15 @@ pub const MAX_VIRUSES: u32 = 99;
 
 type Seed = <ChaCha8Rng as SeedableRng>::Seed;
 
-impl Distribution<VirusColor> for Standard {
+impl Distribution<VirusColor> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> VirusColor {
-        rng.gen_range(0..VirusColor::N).try_into().unwrap()
+        rng.random_range(0..VirusColor::N).try_into().unwrap()
     }
 }
 
-impl Distribution<PillShape> for Standard {
+impl Distribution<PillShape> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> PillShape {
-        PillShape::new(rng.gen(), rng.gen())
+        PillShape::new(rng.random(), rng.random())
     }
 }
 
@@ -59,7 +59,7 @@ impl RandomMode {
 
 pub fn random(count: usize, mode: RandomMode) -> Vec<GameRandom> {
     let mut seed: Seed = Default::default();
-    thread_rng().fill(&mut seed);
+    rng().fill(&mut seed);
     (0..count)
         .map(|_| GameRandom::from_seed(seed, mode))
         .collect()
@@ -169,9 +169,9 @@ impl GameRandom {
         let bottle_rng = rng.clone();
         let mut pill_rng = rng;
         let queue = match mode {
-            RandomMode::True => (0..PEEK_SIZE).map(|_| pill_rng.gen()).collect(),
+            RandomMode::True => (0..PEEK_SIZE).map(|_| pill_rng.random()).collect(),
             RandomMode::Bag => PillShape::ALL
-                .choose_multiple(&mut pill_rng, PillShape::ALL.len())
+                .sample(&mut pill_rng, PillShape::ALL.len())
                 .cloned()
                 .collect(),
         };
@@ -186,7 +186,7 @@ impl GameRandom {
     fn assert_bags(&mut self) {
         while self.queue.len() <= PEEK_SIZE {
             let bag = PillShape::ALL
-                .choose_multiple(&mut self.pill_rng, PillShape::ALL.len())
+                .sample(&mut self.pill_rng, PillShape::ALL.len())
                 .cloned()
                 .collect::<Vec<PillShape>>();
             for shape in bag {
@@ -213,7 +213,7 @@ impl GameRandom {
     }
 
     fn next_true(&mut self) -> PillShape {
-        self.queue.push_back(self.pill_rng.gen());
+        self.queue.push_back(self.pill_rng.random());
         self.queue.pop_front().unwrap()
     }
 
@@ -257,7 +257,7 @@ impl GameRandom {
             }
             let mut color: VirusColor = match (i as usize % 4).try_into() {
                 Ok(color) => color,
-                _ => self.bottle_rng.gen(),
+                _ => self.bottle_rng.random(),
             };
             while !available_colors.contains(&color) {
                 color = color.next();
