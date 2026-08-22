@@ -345,10 +345,6 @@ impl Game {
         self.speed
     }
 
-    pub fn virus_level(&self) -> u32 {
-        self.virus_level
-    }
-
     pub fn completed_levels(&self) -> u32 {
         self.level_count
     }

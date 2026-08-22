@@ -11,7 +11,9 @@ use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, Vitamins};
 use crate::game::rules::{GameConfig, MatchThemes};
 use crate::game::GameSpeed;
-use crate::player::MatchState;
+use crate::particles::render::ParticleRender;
+use crate::player::{Match, MatchState};
+use crate::theme::sound::AudioTheme;
 
 use sdl2::video::WindowContext;
 use std::time::Duration;
@@ -139,26 +141,19 @@ impl<'a> ScaledTheme<'a> {
             .is_animating()
     }
 
-    pub fn is_animating_next_level_interstitial(&self) -> bool {
-        for player in self.player_themes.iter() {
-            if player
-                .animations
-                .next_level_interstitial()
-                .state()
-                .is_some()
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }
 
 pub struct ThemeContext<'a> {
-    current: usize,
+    /// the current theme index of each player
+    current: Vec<usize>,
     themes: Vec<ScaledTheme<'a>>,
     fade_buffer: Texture<'a>,
-    fade_duration: Option<Duration>,
+    /// per-player theme fade timer
+    fades: Vec<Option<Duration>>,
+    /// the player whose theme music is playing
+    music_player: u32,
+    /// the theme index whose music is playing
+    music_theme: Option<usize>,
 }
 
 impl<'a> ThemeContext<'a> {
@@ -176,22 +171,25 @@ impl<'a> ThemeContext<'a> {
             .map_err(|e| e.to_string())?;
         fade_buffer.set_blend_mode(BlendMode::Blend);
 
-        let current = match game_config.themes() {
+        let initial = match game_config.themes() {
             MatchThemes::All | MatchThemes::Nes => 0,
             MatchThemes::Snes => 1,
             MatchThemes::N64 => 2,
             MatchThemes::Particle => 3,
         };
+        let players = game_config.players() as usize;
 
         Ok(Self {
-            current,
+            current: vec![initial; players],
             themes: all_themes
                 .all()
                 .iter()
                 .map(|theme| ScaledTheme::new(theme, game_config.players(), window_size, video_config))
                 .collect(),
             fade_buffer,
-            fade_duration: None,
+            fades: vec![None; players],
+            music_player: 0,
+            music_theme: None,
         })
     }
 
@@ -212,29 +210,46 @@ impl<'a> ThemeContext<'a> {
         (width, height)
     }
 
-    pub fn theme(&self) -> &Theme<'a> {
-        self.themes[self.current].theme
+    fn players(&self) -> u32 {
+        self.current.len() as u32
+    }
+
+    /// the theme a player is currently on
+    pub fn theme(&self, player: u32) -> &Theme<'a> {
+        self.themes[self.current[player as usize]].theme
+    }
+
+    pub fn current(&self, player: u32) -> &ScaledTheme<'a> {
+        &self.themes[self.current[player as usize]]
+    }
+
+    /// the audio of the theme whose music is playing: the theme of the winning player
+    pub fn music_audio(&self) -> &AudioTheme {
+        let index = self
+            .music_theme
+            .unwrap_or(self.current[self.music_player as usize]);
+        self.themes[index].theme.audio()
     }
 
     pub fn player_bottle_snip(&self, player: u32) -> Rect {
-        let theme = &self.themes[self.current];
-        theme.player_themes.get(player as usize).unwrap().game_snip
+        self.current(player).player_themes[player as usize].game_snip
     }
 
     pub fn player_animations(&self, player: u32) -> &PlayerAnimations {
-        &self.current().player_themes[player as usize].animations
+        &self.current(player).player_themes[player as usize].animations
     }
 
-    pub fn current(&self) -> &ScaledTheme {
-        &self.themes[self.current]
+    pub fn is_pause_required_for_animation(&self, player: u32) -> bool {
+        self.current(player).is_pause_required_for_animation(player)
     }
 
     pub fn update_animations(&mut self, delta: Duration) -> Vec<AnimationEvent> {
         let mut events = vec![];
         for (id, theme) in self.themes.iter_mut().enumerate() {
-            let theme_events = theme.update_animations(delta);
-            if id == self.current {
-                for event in theme_events.into_iter() {
+            for event in theme.update_animations(delta).into_iter() {
+                // only emit from the theme the player is currently on
+                let AnimationEvent::Finished { player, .. } = event;
+                if self.current[player as usize] == id {
                     events.push(event);
                 }
             }
@@ -318,7 +333,7 @@ impl<'a> ThemeContext<'a> {
                 .animations_mut(player)
                 .next_level_interstitial_mut()
                 .dismiss();
-            if index == self.current {
+            if index == self.current[player as usize] {
                 result = theme_result;
             }
         }
@@ -326,7 +341,12 @@ impl<'a> ThemeContext<'a> {
     }
 
     pub fn is_animating_next_level_interstitial(&self) -> bool {
-        self.themes[self.current].is_animating_next_level_interstitial()
+        (0..self.players()).any(|player| {
+            self.player_animations(player)
+                .next_level_interstitial()
+                .state()
+                .is_some()
+        })
     }
 
     pub fn maybe_dismiss_game_over(&mut self) {
@@ -339,29 +359,25 @@ impl<'a> ThemeContext<'a> {
     }
 
     pub fn is_any_game_over_dismissed(&self) -> bool {
-        for player in self.themes[self.current].player_themes.iter() {
-            if player
-                .animations
+        (0..self.players()).any(|player| {
+            self.player_animations(player)
                 .game_over()
                 .state()
                 .map(|s| s.is_dismissed())
                 .unwrap_or(false)
-            {
-                return true;
-            }
-        }
-        false
+        })
     }
 
     pub fn is_all_post_game_animation_complete(&self) -> bool {
-        for player in self.themes[self.current].player_themes.iter() {
-            if let Some(game_over) = player.animations.game_over().state() {
+        for player in 0..self.players() {
+            let animations = self.player_animations(player);
+            if let Some(game_over) = animations.game_over().state() {
                 if !game_over.is_complete() {
                     return false;
                 }
             }
 
-            if let Some(victory) = player.animations.victory().state() {
+            if let Some(victory) = animations.victory().state() {
                 if !victory.is_complete() {
                     return false;
                 }
@@ -370,24 +386,49 @@ impl<'a> ThemeContext<'a> {
         true
     }
 
+    /// advance a single player to their next theme, cross-fading only their side of the screen
     pub fn fade_into_next_theme(
         &mut self,
+        player: u32,
         canvas: &mut WindowCanvas,
-        match_state: MatchState,
-        is_single_player: bool,
     ) -> Result<(), String> {
         for theme in self.themes.iter_mut() {
-            for player in theme.player_themes.iter_mut() {
-                player.animations.reset();
+            theme.animations_mut(player).reset();
+        }
+        let index = player as usize;
+        self.current[index] = (self.current[index] + 1) % self.themes.len();
+        self.start_fade(player, canvas)
+    }
+
+    pub fn fade_all_into_next_theme(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
+        for player in 0..self.players() {
+            self.fade_into_next_theme(player, canvas)?;
+        }
+        Ok(())
+    }
+
+    /// keep the music on the theme of the winning player. the leader is only re-evaluated when
+    /// `reevaluate_leader` is set (between stages), otherwise only the theme itself is checked
+    /// i.e. the music owner changed theme. returns true if the music was (re)started.
+    pub fn sync_music(
+        &mut self,
+        fixture: &Match,
+        reevaluate_leader: bool,
+        is_single_player: bool,
+    ) -> Result<bool, String> {
+        if reevaluate_leader {
+            if let Some(leader) = fixture.leading_player() {
+                self.music_player = leader;
             }
         }
-        self.current = (self.current + 1) % self.themes.len();
+        let wanted = self.current[self.music_player as usize];
+        if self.music_theme == Some(wanted) {
+            return Ok(false);
+        }
+        self.music_theme = Some(wanted);
 
-        self.start_fade(canvas)?;
-
-        // handle music
-        let audio = self.theme().audio();
-        match match_state {
+        let audio = self.themes[wanted].theme.audio();
+        match fixture.state() {
             // Only single player uses next-level *music*; in multiplayer the stage clear is a
             // jingle and game music must keep playing, otherwise another player's still-open
             // interstitial would swap in a play-once track and leave the match silent.
@@ -397,7 +438,7 @@ impl<'a> ThemeContext<'a> {
             MatchState::Normal => audio.fade_in_game_music()?,
             MatchState::Paused => {
                 audio.play_game_music()?;
-                audio.pause_music()?;
+                audio.pause_music()?
             }
             MatchState::GameOver { .. } => {
                 if is_single_player {
@@ -407,31 +448,58 @@ impl<'a> ThemeContext<'a> {
                 }
             }
         }
-
-        Ok(())
+        Ok(true)
     }
 
-    fn start_fade(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
-        self.fade_duration = Some(Duration::ZERO);
+    fn player_clip(&self, player: u32) -> Rect {
+        self.current(player).scale.player_clip(player)
+    }
 
+    fn start_fade(&mut self, player: u32, canvas: &mut WindowCanvas) -> Result<(), String> {
+        self.fades[player as usize] = Some(Duration::ZERO);
+
+        // only snapshot this player's side so another player's in-progress fade is untouched
+        let clip = self.player_clip(player);
         let query = self.fade_buffer.query();
-        let pixels = canvas.read_pixels(None, query.format)?;
+        let pixels = canvas.read_pixels(clip, query.format)?;
         self.fade_buffer
             .update(
-                None,
+                clip,
                 pixels.as_slice(),
-                query.format.byte_size_per_pixel() * query.width as usize,
+                query.format.byte_size_per_pixel() * clip.width() as usize,
             )
             .map_err(|e| e.to_string())
     }
 
-    pub fn is_fading(&self) -> bool {
-        self.fade_duration.is_some()
+    pub fn is_fading(&self, player: u32) -> bool {
+        self.fades[player as usize].is_some()
     }
 
+    /// draw each player's scene backdrop as if it filled the whole window, clipped to their side
     pub fn draw_scene(&self, canvas: &mut WindowCanvas, speed: GameSpeed) -> Result<(), String> {
-        let current = self.current();
-        current.theme.scene(speed).draw(canvas, &current.scale)
+        for player in 0..self.players() {
+            let current = self.current(player);
+            canvas.set_clip_rect(self.player_clip(player));
+            current.theme.scene(speed).draw(canvas, &current.scale)?;
+        }
+        canvas.set_clip_rect(None);
+        Ok(())
+    }
+
+    /// draw the background particles, clipped to the sides of the players on a particle scene
+    pub fn draw_scene_particles(
+        &self,
+        canvas: &mut WindowCanvas,
+        particles: &mut ParticleRender,
+    ) -> Result<(), String> {
+        for player in 0..self.players() {
+            if self.player_renders_scene_particles(player) {
+                canvas.set_clip_rect(self.player_clip(player));
+                particles.draw(canvas)?;
+            }
+        }
+        canvas.set_clip_rect(None);
+        Ok(())
     }
 
     pub fn draw_players(
@@ -440,14 +508,15 @@ impl<'a> ThemeContext<'a> {
         texture_refs: &mut [(&mut Texture, TextureMode)],
         delta: Duration,
     ) -> Result<(), String> {
-        let current = self.current();
         for (texture, texture_mode) in texture_refs.iter_mut() {
             match texture_mode {
                 TextureMode::Background(pid) => {
+                    let current = self.current(*pid);
                     let player = &current.player_themes[*pid as usize];
                     canvas.copy(texture, current.bg_source_snip, player.bg_snip)?;
                 }
                 TextureMode::Bottle(pid) => {
+                    let current = self.current(*pid);
                     let player = &current.player_themes[*pid as usize];
                     let (offset_x, offset_y) = player.animations.impact().current_offset();
                     let dst = current.scale.offset_proportional_to_block_size(
@@ -460,20 +529,21 @@ impl<'a> ThemeContext<'a> {
             }
         }
 
-        // check if we should be fading out the previous theme
-        match self.fade_duration {
-            None => {}
-            Some(duration) => {
-                let duration = duration + delta;
-                if duration > THEME_FADE_DURATION {
-                    self.fade_duration = None;
-                } else {
-                    let alpha = 255.0 * duration.as_millis() as f64
-                        / THEME_FADE_DURATION.as_millis() as f64;
-                    self.fade_buffer.set_alpha_mod(255 - alpha as u8);
-                    canvas.copy(&self.fade_buffer, None, None)?;
-                    self.fade_duration = Some(duration);
-                }
+        // fade out the previous theme on each side that is changing
+        for player in 0..self.players() {
+            let Some(duration) = self.fades[player as usize] else {
+                continue;
+            };
+            let duration = duration + delta;
+            if duration > THEME_FADE_DURATION {
+                self.fades[player as usize] = None;
+            } else {
+                let alpha = 255.0 * duration.as_millis() as f64
+                    / THEME_FADE_DURATION.as_millis() as f64;
+                self.fade_buffer.set_alpha_mod(255 - alpha as u8);
+                let clip = self.player_clip(player);
+                canvas.copy(&self.fade_buffer, clip, clip)?;
+                self.fades[player as usize] = Some(duration);
             }
         }
 
@@ -481,7 +551,7 @@ impl<'a> ThemeContext<'a> {
     }
 
     pub fn player_block_snips(&self, player: u32, points: Vec<BottlePoint>) -> Vec<Rect> {
-        let theme = &self.themes[self.current];
+        let theme = self.current(player);
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
         points
@@ -501,7 +571,7 @@ impl<'a> ThemeContext<'a> {
         blocks: Vec<ColoredBlock>,
         lattice_spacing: u32,
     ) -> Vec<Point> {
-        let theme = &self.themes[self.current];
+        let theme = self.current(player);
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
         let sprites = theme.theme.sprites();
@@ -527,7 +597,7 @@ impl<'a> ThemeContext<'a> {
     }
 
     pub fn player_vitamin_snips(&self, player: u32, vitamins: Vitamins) -> [Rect; 2] {
-        let theme = &self.themes[self.current];
+        let theme = self.current(player);
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
         vitamins.map(|v| geometry.raw_block(v.position())).map(|r| {
@@ -537,7 +607,12 @@ impl<'a> ThemeContext<'a> {
         })
     }
 
+    pub fn player_renders_scene_particles(&self, player: u32) -> bool {
+        self.theme(player).scene(GameSpeed::Low).is_particles()
+    }
+
+    /// true if any player is on a theme with a particle scene
     pub fn render_scene_particles(&self) -> bool {
-        self.current().theme.scene(GameSpeed::Low).is_particles()
+        (0..self.players()).any(|player| self.player_renders_scene_particles(player))
     }
 }

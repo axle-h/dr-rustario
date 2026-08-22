@@ -586,9 +586,7 @@ impl DrRustario {
         bg_particles.clear();
         bg_particles.add_source(self.orbit_particle_source());
 
-        themes.theme().audio().play_game_music()?;
-
-        let mut max_virus_level = self.game_config.virus_level();
+        themes.sync_music(&fixture, true, self.game_config.is_single_player())?;
 
         loop {
             let delta = frame_rate.update()?;
@@ -596,26 +594,27 @@ impl DrRustario {
 
             let mut to_emit_particles: Vec<PlayerTargetedParticles> = vec![];
 
-            let mut events = vec![];
+            // a stage boundary was crossed this frame: re-evaluate which player the music follows
+            let mut stage_changed = false;
+
+            // events tagged with the player that caused them (None for match-wide events) so
+            // sound effects are routed through that player's theme
+            let mut events: Vec<(Option<u32>, GameEvent)> = vec![];
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
                 if let Some(player) = key.player() {
-                    if themes.current().is_pause_required_for_animation(player) {
+                    if themes.is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_next_level_interstitial(player) {
                             let game = fixture.player_mut(player).game_mut();
                             game.next_level()?;
+                            stage_changed = true;
 
-                            let next_level = game.virus_level();
-                            let is_first_to_next_level = next_level > max_virus_level;
-                            max_virus_level = next_level;
-
-                            let theme_changing = self.game_config.themes() == MatchThemes::All
-                                && is_first_to_next_level;
-                            if theme_changing {
-                                events.push(GameEvent::NextTheme);
+                            if self.game_config.themes() == MatchThemes::All {
+                                // only this player advances to their next theme
+                                events.push((Some(player), GameEvent::NextTheme));
                             } else if self.game_config.is_single_player() {
                                 // single player was playing next-level music; resume game music.
                                 // multiplayer game music never stopped (stage clear is a jingle).
-                                themes.theme().audio().play_game_music()?;
+                                themes.music_audio().play_game_music()?;
                             }
                             themes.animate_next_level(player, game.viruses().as_slice());
                         } else {
@@ -644,7 +643,7 @@ impl DrRustario {
                     GameInputKey::Hold { player } => fixture.mut_game(player, |g| g.hold()),
                     GameInputKey::Pause => {
                         if matches!(fixture.state(), MatchState::Normal | MatchState::Paused) {
-                            fixture.toggle_paused().map(|e| events.push(e));
+                            fixture.toggle_paused().map(|e| events.push((None, e)));
                         } else {
                             return Ok(PostGameAction::ReturnToMenu);
                         }
@@ -653,7 +652,7 @@ impl DrRustario {
                     GameInputKey::Quit => return Ok(PostGameAction::Quit),
                     GameInputKey::NextTheme => {
                         if self.game_config.rules().allow_manual_theme_change() {
-                            events.push(GameEvent::NextTheme)
+                            events.push((None, GameEvent::NextTheme))
                         }
                     }
                 }
@@ -674,21 +673,21 @@ impl DrRustario {
                         Ok(PostGameAction::ReturnToMenu)
                     };
                 }
-                MatchState::Normal if !themes.is_fading() => {
+                MatchState::Normal => {
                     for player in fixture.players.iter_mut() {
-                        if themes
-                            .current()
-                            .is_pause_required_for_animation(player.player())
+                        let player_id = player.player();
+                        if themes.is_pause_required_for_animation(player_id)
+                            || themes.is_fading(player_id)
                         {
                             continue;
                         }
 
                         let mut skip_update = false;
-                        let player_id = player.player();
                         let game = player.game_mut();
-                        game.consume_events(&mut events);
+                        let mut player_events = vec![];
+                        game.consume_events(&mut player_events);
                         // pre-update actions
-                        for event in events.iter() {
+                        for event in player_events.iter() {
                             match event {
                                 GameEvent::HardDrop {
                                     player: event_player,
@@ -704,8 +703,9 @@ impl DrRustario {
 
                         if !skip_update {
                             game.update(delta);
-                            game.consume_events(&mut events);
+                            game.consume_events(&mut player_events);
                         }
+                        events.extend(player_events.into_iter().map(|e| (Some(player_id), e)));
                     }
                 }
                 _ => {}
@@ -719,7 +719,7 @@ impl DrRustario {
                         AnimationEvent::Finished { player, animation }
                             if animation == AnimationType::Throw =>
                         {
-                            events.push(GameEvent::Spawned { player });
+                            events.push((Some(player), GameEvent::Spawned { player }));
                         }
                         _ => {}
                     }
@@ -727,14 +727,22 @@ impl DrRustario {
             }
 
             // post-update events
-            for event in events {
-                themes.theme().audio().receive_event(event.clone())?;
-                if let Some(emit) = themes
-                    .theme()
-                    .scene(self.game_config.speed())
-                    .emit_particles(event.clone())
-                {
-                    to_emit_particles.push(emit);
+            for (event_player, event) in events {
+                // sound effects play through the theme of the player that caused them;
+                // match-wide events (pause etc.) go through the theme whose music is playing
+                let audio = match event_player {
+                    Some(player) => themes.theme(player).audio(),
+                    None => themes.music_audio(),
+                };
+                audio.receive_event(event.clone())?;
+                if let Some(player) = event_player {
+                    if let Some(emit) = themes
+                        .theme(player)
+                        .scene(self.game_config.speed())
+                        .emit_particles(event.clone())
+                    {
+                        to_emit_particles.push(emit);
+                    }
                 }
                 match event {
                     GameEvent::LevelComplete { player } => {
@@ -742,9 +750,9 @@ impl DrRustario {
                             fixture.set_winner(player);
                         } else {
                             if self.game_config.is_single_player() {
-                                themes.theme().audio().play_next_level_music()?;
+                                themes.music_audio().play_next_level_music()?;
                             } else {
-                                themes.theme().audio().play_next_level_jingle()?;
+                                themes.theme(player).audio().play_next_level_jingle()?;
                             }
                             themes.animate_next_level_interstitial(player);
                         }
@@ -754,7 +762,7 @@ impl DrRustario {
                             // single player is a simple game over
                             themes.animate_game_over(player);
                             fixture.maybe_set_game_over();
-                            themes.theme().audio().play_game_over_music()?;
+                            themes.music_audio().play_game_over_music()?;
                         } else {
                             for maybe_winner in 0..self.game_config.players() {
                                 if maybe_winner != player {
@@ -787,13 +795,10 @@ impl DrRustario {
                     } => {
                         themes.animate_spawn(player, shape, is_hold);
                     }
-                    GameEvent::NextTheme => {
-                        themes.fade_into_next_theme(
-                            &mut self.canvas,
-                            fixture.state(),
-                            self.game_config.is_single_player(),
-                        )?;
-                    }
+                    GameEvent::NextTheme => match event_player {
+                        Some(player) => themes.fade_into_next_theme(player, &mut self.canvas)?,
+                        None => themes.fade_all_into_next_theme(&mut self.canvas)?,
+                    },
                     _ => {}
                 }
             }
@@ -801,10 +806,11 @@ impl DrRustario {
             // check for a match winner
             if let Some(winner) = fixture.check_for_winning_player() {
                 if fixture.maybe_set_game_over() {
+                    stage_changed = true;
                     themes.animate_victory(winner);
                     let event = GameEvent::Victory { player: winner };
                     if let Some(emit) = themes
-                        .theme()
+                        .theme(winner)
                         .scene(self.game_config.speed())
                         .emit_particles(event)
                     {
@@ -815,9 +821,16 @@ impl DrRustario {
                             themes.animate_game_over(pid);
                         }
                     }
-                    themes.theme().audio().play_victory_music()?;
+                    // the winner's theme music is the victory music; sync starts it if the
+                    // music is moving to a new theme, otherwise start it explicitly
+                    if !themes.sync_music(&fixture, true, self.game_config.is_single_player())? {
+                        themes.music_audio().play_victory_music()?;
+                    }
                 }
             }
+
+            // music follows the winning player, re-evaluated between stages
+            themes.sync_music(&fixture, stage_changed, self.game_config.is_single_player())?;
 
             // update particles
             if !fixture.state().is_paused() {
@@ -838,10 +851,8 @@ impl DrRustario {
             // draw scene
             themes.draw_scene(&mut self.canvas, self.game_config.speed())?;
 
-            // draw bg particles
-            if themes.render_scene_particles() {
-                bg_particles.draw(&mut self.canvas)?;
-            }
+            // draw bg particles, clipped to the players on a particle scene
+            themes.draw_scene_particles(&mut self.canvas, bg_particles)?;
 
             // draw the game
             self.canvas
@@ -852,7 +863,7 @@ impl DrRustario {
                             let player = fixture.player(*player_id);
                             let animations = themes.player_animations(*player_id);
                             themes
-                                .theme()
+                                .theme(*player_id)
                                 .draw_background(texture_canvas, &player.game(), animations)
                                 .unwrap();
                         }
@@ -860,7 +871,7 @@ impl DrRustario {
                             let player = fixture.player(*player_id);
                             let animations = themes.player_animations(*player_id);
                             themes
-                                .theme()
+                                .theme(*player_id)
                                 .draw_bottle(texture_canvas, &player.game(), animations)
                                 .unwrap();
                         }

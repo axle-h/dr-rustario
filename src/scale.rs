@@ -72,6 +72,14 @@ impl Scale {
         )
     }
 
+    /// the exact vertical strip of the window belonging to a player, with no buffer offset.
+    /// used to clip full-window drawing (scene backdrop, fades) to one player's side.
+    pub fn player_clip(&self, player: u32) -> Rect {
+        let x = (self.window_width as u64 * player as u64 / self.players as u64) as i32;
+        let next_x = (self.window_width as u64 * (player as u64 + 1) / self.players as u64) as i32;
+        Rect::new(x, 0, (next_x - x) as u32, self.window_height)
+    }
+
     pub fn scale_and_offset_rect(&self, rect: Rect, offset_x: i32, offset_y: i32) -> Rect {
         Rect::new(
             self.scale_coordinate(rect.x) + offset_x,

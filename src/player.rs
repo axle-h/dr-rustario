@@ -169,6 +169,30 @@ impl Match {
         }
     }
 
+    /// the player whose theme music should be played: a declared winner, otherwise whoever is
+    /// on the highest virus level (score breaks ties). `None` when the players are exactly tied.
+    pub fn leading_player(&self) -> Option<u32> {
+        if let Some(winner) = self.players.iter().find(|p| p.winner) {
+            return Some(winner.player);
+        }
+        let mut metrics = self
+            .players
+            .iter()
+            .map(|p| p.game.metrics())
+            .collect::<Vec<GameMetrics>>();
+        metrics.sort_by_key(|m| std::cmp::Reverse((m.virus_level(), m.score())));
+        match metrics.as_slice() {
+            [] => None,
+            [best] => Some(best.player()),
+            [best, second, ..]
+                if (best.virus_level(), best.score()) == (second.virus_level(), second.score()) =>
+            {
+                None
+            }
+            [best, ..] => Some(best.player()),
+        }
+    }
+
     pub fn maybe_set_game_over(&mut self) -> bool {
         if self.state.is_game_over() {
             return false;

@@ -3,6 +3,10 @@ use std::time::Duration;
 
 const VISIBLE_FOR: Duration = Duration::from_secs(10);
 
+// the victory cannot be dismissed until it has been visible for at least this long, so keys
+// still held from the end of the match don't skip it before the winner can be seen
+const MIN_VISIBLE_FOR: Duration = Duration::from_secs(3);
+
 #[derive(Debug, Clone)]
 pub struct State {
     duration: Duration,
@@ -63,7 +67,9 @@ impl VictoryAnimation {
 
     pub fn dismiss(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.is_complete = true;
+            if state.duration >= MIN_VISIBLE_FOR {
+                state.is_complete = true;
+            }
         }
     }
 }

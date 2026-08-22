@@ -89,9 +89,13 @@ impl GameOverAnimation {
         self.state.as_ref()
     }
 
+    /// dismiss the game over screen, but only once it has been shown: keys still held from
+    /// the end of the match auto-repeat and would otherwise skip straight past it
     pub fn dismiss(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.is_dismissed = true;
+            if state.game_over_screen_frame().is_some() {
+                state.is_dismissed = true;
+            }
         }
     }
 }
