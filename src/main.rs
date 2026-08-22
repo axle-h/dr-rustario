@@ -45,6 +45,7 @@ mod build_info {
     }
 }
 mod config;
+mod draw;
 mod font;
 mod frame_rate;
 mod game;

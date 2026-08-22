@@ -2,7 +2,7 @@ pub mod sound;
 
 use crate::font::{FontTexture, FontType};
 use crate::menu_input::MenuInputKey;
-use sdl2::gfx::primitives::DrawRenderer;
+use crate::draw::CanvasExt;
 
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
@@ -12,16 +12,6 @@ use sdl2::ttf::{Font, Sdl2TtfContext};
 use sdl2::video::WindowContext;
 use crate::build_info;
 use crate::theme::helper::TextureFactory;
-
-/// Pack a colour for SDL2_gfx. sdl2 0.38's `ToColor for Color` packs as
-/// big-endian 0xRRGGBBAA, but SDL2_gfx reads the u32's bytes in memory order,
-/// so on little-endian targets the channels come out reversed (RGBA -> ABGR).
-/// Passing a pre-packed native-endian u32 bypasses the crate's conversion.
-/// Can be dropped if/when the crate fixes this.
-fn gfx_color(color: Color) -> u32 {
-    let (r, g, b, a) = color.rgba();
-    u32::from_ne_bytes([r, g, b, a])
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuAction {
@@ -149,18 +139,8 @@ impl<'a> MenuRow<'a> {
                 c.set_draw_color(Color::RGBA(0, 0, 0, 0));
                 c.clear();
                 if let Some(background_color) = background_color {
-                    let rad = rect.height() as i32 / 2;
-                    let top_right = rect.top_right();
-                    let bottom_left = rect.bottom_left();
-                    c.rounded_box(
-                        top_right.x() as i16,
-                        top_right.y() as i16,
-                        bottom_left.x() as i16,
-                        bottom_left.y() as i16,
-                        rad as i16,
-                        gfx_color(background_color),
-                    )
-                    .unwrap();
+                    c.fill_rounded_rect(rect, rect.height() / 2, background_color)
+                        .unwrap();
                 }
                 c.copy(
                     &name_text.texture,
@@ -295,19 +275,8 @@ impl<'a> Menu<'a> {
                 c.clear();
 
                 let rect = Rect::new(0, 0, body_width, row_height);
-                // TODO this lot is repeated, can be extracted into a canvas trait
-                let rad = rect.height() as i32 / 2;
-                let top_right = rect.top_right();
-                let bottom_left = rect.bottom_left();
-                c.rounded_box(
-                    top_right.x() as i16,
-                    top_right.y() as i16,
-                    bottom_left.x() as i16,
-                    bottom_left.y() as i16,
-                    rad as i16,
-                    gfx_color(Color::RGBA(0xff, 0xff, 0xff, 0x80)),
-                )
-                .unwrap();
+                c.fill_rounded_rect(rect, rect.height() / 2, Color::RGBA(0xff, 0xff, 0xff, 0x80))
+                    .unwrap();
             })
             .map_err(|e| e.to_string())?;
 
