@@ -1,7 +1,7 @@
 use crate::font::{FontTexture, FontType};
 use crate::game::metrics::GameMetrics;
 use num_format::{Locale, ToFormattedString};
-use sdl2::image::LoadTexture;
+use crate::theme::helper::TextureFactory;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};

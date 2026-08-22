@@ -1,22 +1,13 @@
+use crate::theme::helper::decode_png;
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
-use sdl2::sys::{image, SDL_RWFromMem};
-use sdl2::{get_error, libc};
 
-const ICON_FILE: &[u8] = include_bytes!("../icon.ico");
-
-fn surface_from_buffer(buf: &'static [u8]) -> Result<Surface<'static>, String> {
-    //! Loads an SDL Surface from a byte buffer
-    unsafe {
-        let buf = SDL_RWFromMem(buf.as_ptr() as *mut libc::c_void, buf.len() as i32);
-        let raw = image::IMG_Load_RW(buf, 1);
-        if (raw as *mut ()).is_null() {
-            Err(get_error())
-        } else {
-            Ok(Surface::from_ll(raw))
-        }
-    }
-}
+const ICON_FILE: &[u8] = include_bytes!("../icon.png");
 
 pub fn app_icon() -> Result<Surface<'static>, String> {
-    surface_from_buffer(ICON_FILE)
+    let image = decode_png(ICON_FILE)?;
+    let (width, height) = image.dimensions();
+    let mut surface = Surface::new(width, height, PixelFormatEnum::RGBA32)?;
+    surface.with_lock_mut(|pixels| pixels.copy_from_slice(image.as_raw()));
+    Ok(surface)
 }
