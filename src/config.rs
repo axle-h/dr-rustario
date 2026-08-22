@@ -1,7 +1,7 @@
 use crate::game_input::GameInputKey;
 use crate::menu_input::MenuInputKey;
 use sdl2::keyboard::Keycode;
-use sdl2::mixer::MAX_VOLUME;
+use crate::audio::MAX_VOLUME;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;

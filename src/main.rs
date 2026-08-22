@@ -26,15 +26,14 @@ use crate::player::{Match, MatchState};
 use crate::theme::all::{AllThemeMeta, AllThemes};
 use crate::theme::pause::PausedScreen;
 use crate::themes::{PlayerTextures, TextureMode, ThemeContext};
-use sdl2::mixer::{InitFlag as MixerInitFlag, DEFAULT_CHANNELS, DEFAULT_FORMAT};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
-use sdl2::sys::mixer::MIX_CHANNELS;
-use sdl2::{AudioSubsystem, EventPump, Sdl};
+use sdl2::{EventPump, Sdl};
 use std::str::FromStr;
 
 mod animate;
+mod audio;
 mod build_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 
@@ -64,6 +63,9 @@ const MAX_PLAYERS: u32 = 2;
 #[cfg(feature = "retro_handheld")]
 const MAX_PLAYERS: u32 = 1;
 
+/// Simultaneous sound effects per player (SDL_mixer's default channel count).
+const EFFECT_CHANNELS_PER_PLAYER: u32 = 8;
+
 const MAX_PARTICLES_PER_PLAYER: usize = 100000;
 const MAX_BACKGROUND_PARTICLES: usize = 100000;
 
@@ -87,7 +89,7 @@ struct DrRustario {
     _sdl: Sdl,
     canvas: WindowCanvas,
     event_pump: EventPump,
-    _audio: AudioSubsystem,
+    _audio: audio::Audio,
     menu_sound: MenuSound,
     game_config: GameConfig,
     particle_scale: particles::scale::Scale,
@@ -146,11 +148,11 @@ impl DrRustario {
 
         let event_pump = sdl.event_pump()?;
 
-        let audio = sdl.audio()?;
-        sdl2::mixer::open_audio(44_100, DEFAULT_FORMAT, DEFAULT_CHANNELS, 512)?;
-        let _mixer_context = sdl2::mixer::init(MixerInitFlag::OGG)?;
-        sdl2::mixer::allocate_channels((MAX_PLAYERS * MIX_CHANNELS) as i32);
-        sdl2::mixer::Music::set_volume(config.audio.music_volume());
+        let audio = audio::Audio::open(
+            &sdl.audio()?,
+            MAX_PLAYERS * EFFECT_CHANNELS_PER_PLAYER,
+            config.audio.music_volume(),
+        )?;
         let menu_sound = MenuSound::new(config.audio)?;
 
         Ok(Self {

@@ -30,11 +30,12 @@ mockall = "0.15.0"
 rand = "0.10.2"
 rand_chacha = "0.10.0"
 serde = { version = "1.0.229", default-features = false, features = ["derive"] }
-sdl2 = { version = "0.38.0", default-features = false, features = ["mixer"] }
+sdl2 = { version = "0.38.0", default-features = false, features = [] }
 ab_glyph = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 confy = { version = "2.0.0", default-features = false, features = ["yaml_conf"] }
 num-format = "0.4.4"
+symphonia = { version = "0.5", default-features = false, features = ["ogg", "vorbis"] }
 strum = { version = "0.28.0", features = ["derive"] }
 strum_macros = "0.28.0"
 titlecase = "3.6.0"

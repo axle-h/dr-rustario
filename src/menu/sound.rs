@@ -1,6 +1,6 @@
 use crate::config::AudioConfig;
-use crate::theme::sound::{LoadSound, Playable, StructuredMusic};
-use sdl2::mixer::Chunk;
+use crate::audio::Sound;
+use crate::theme::sound::{LoadSound, StructuredMusic};
 use std::rc::Rc;
 
 // const CHIME: &[u8] = include_bytes!("retro/chime.ogg");
@@ -19,8 +19,8 @@ const HIGH_SCORE_INTRO: &'static [u8] = include_bytes!("modern/high-score-intro.
 const HIGH_SCORE_REPEAT: &'static [u8] = include_bytes!("modern/high-score-repeat.ogg");
 
 pub struct MenuSound {
-    chime: Chunk,
-    select: Chunk,
+    chime: Sound,
+    select: Sound,
     menu_music: Rc<StructuredMusic>,
     title_music: Rc<StructuredMusic>,
     high_score_music: Rc<StructuredMusic>,
@@ -29,8 +29,8 @@ pub struct MenuSound {
 impl MenuSound {
     pub fn new(config: AudioConfig) -> Result<Self, String> {
         Ok(Self {
-            chime: config.load_chunk(CHIME)?,
-            select: config.load_chunk(SELECT)?,
+            chime: config.load_sound(CHIME)?,
+            select: config.load_sound(SELECT)?,
             menu_music: StructuredMusic::repeat(MENU)?.into_rc(),
             title_music: StructuredMusic::repeat(TITLE)?.into_rc(),
             high_score_music: StructuredMusic::new(HIGH_SCORE_INTRO, HIGH_SCORE_REPEAT)?.into_rc(),

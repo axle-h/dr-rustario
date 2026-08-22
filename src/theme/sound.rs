@@ -1,24 +1,21 @@
-use sdl2::mixer::{Chunk, LoaderRWops, Music};
-use sdl2::rwops::RWops;
-
 use std::rc::Rc;
 
+use crate::audio::{self, Music, Sound};
 use crate::config::AudioConfig;
 use crate::game::event::GameEvent;
 
-static mut NEXT_MUSIC: Option<Rc<StructuredMusic>> = None;
-
+/// A piece of music with an optional one-shot intro before the looping part.
 pub struct StructuredMusic {
-    intro: Option<Music<'static>>,
-    repeating: Music<'static>,
+    intro: Option<Music>,
+    repeating: Music,
     loops: i32,
 }
 
 impl StructuredMusic {
     pub fn new(intro: &'static [u8], repeating: &'static [u8]) -> Result<Self, String> {
         Ok(Self {
-            intro: Some(Music::from_static_bytes(intro)?),
-            repeating: Music::from_static_bytes(repeating)?,
+            intro: Some(Music::load(intro)?),
+            repeating: Music::load(repeating)?,
             loops: -1,
         })
     }
@@ -26,7 +23,7 @@ impl StructuredMusic {
     pub fn once(repeating: &'static [u8]) -> Result<Self, String> {
         Ok(Self {
             intro: None,
-            repeating: Music::from_static_bytes(repeating)?,
+            repeating: Music::load(repeating)?,
             loops: 1,
         })
     }
@@ -34,7 +31,7 @@ impl StructuredMusic {
     pub fn repeat(repeating: &'static [u8]) -> Result<Self, String> {
         Ok(Self {
             intro: None,
-            repeating: Music::from_static_bytes(repeating)?,
+            repeating: Music::load(repeating)?,
             loops: -1,
         })
     }
@@ -44,59 +41,25 @@ impl StructuredMusic {
     }
 
     pub fn play(music: &Rc<StructuredMusic>) -> Result<(), String> {
-        if let Some(intro) = music.intro.as_ref() {
-            Music::unhook_finished();
-            intro.play(0)?;
-            unsafe {
-                NEXT_MUSIC = Some(music.clone());
-            }
-            Music::hook_finished(Self::play_next);
-            Ok(())
-        } else {
-            music.repeating.play(music.loops)
-        }
+        audio::play_music(music.intro, music.repeating, music.loops)
     }
 
     pub fn maybe_play(music: Option<&Rc<StructuredMusic>>) -> Result<(), String> {
         if let Some(music) = music {
             StructuredMusic::play(music)
         } else {
-            Music::halt();
-            Ok(())
-        }
-    }
-
-    fn play_next() {
-        Music::unhook_finished();
-        unsafe {
-            if let Some(music) = NEXT_MUSIC.as_ref() {
-                music.repeating.play(-1).unwrap();
-            }
+            audio::halt_music()
         }
     }
 }
 
 pub trait LoadSound {
-    fn load_chunk(&self, buffer: &[u8]) -> Result<Chunk, String>;
+    fn load_sound(&self, buffer: &'static [u8]) -> Result<Sound, String>;
 }
 
 impl LoadSound for AudioConfig {
-    fn load_chunk(&self, buffer: &[u8]) -> Result<Chunk, String> {
-        let mut chunk = RWops::from_bytes(buffer)?.load_wav()?;
-        chunk.set_volume(self.effects_volume());
-        Ok(chunk)
-    }
-}
-
-pub trait Playable {
-    fn play(&self) -> Result<(), String>;
-}
-
-impl Playable for Chunk {
-    fn play(&self) -> Result<(), String> {
-        // TODO ignore cannot play sound
-        sdl2::mixer::Channel::all().play(self, 0)?;
-        Ok(())
+    fn load_sound(&self, buffer: &'static [u8]) -> Result<Sound, String> {
+        Sound::load(buffer, self.effects_volume())
     }
 }
 
@@ -105,56 +68,56 @@ pub struct AudioTheme {
     game_over_music: Option<Rc<StructuredMusic>>,
     next_level_music: Option<Rc<StructuredMusic>>,
     victory_music: Option<Rc<StructuredMusic>>,
-    move_pill: Chunk,
-    rotate: Chunk,
-    drop: Chunk,
-    destroy_virus: Chunk,
-    destroy_virus_combo: Chunk,
-    destroy_vitamin: Chunk,
-    destroy_vitamin_combo: Chunk,
-    paused: Chunk,
-    speed_level_up: Chunk,
-    receive_garbage: Chunk,
-    next_level_jingle: Chunk,
-    hard_drop: Option<Chunk>,
+    move_pill: Sound,
+    rotate: Sound,
+    drop: Sound,
+    destroy_virus: Sound,
+    destroy_virus_combo: Sound,
+    destroy_vitamin: Sound,
+    destroy_vitamin_combo: Sound,
+    paused: Sound,
+    speed_level_up: Sound,
+    receive_garbage: Sound,
+    next_level_jingle: Sound,
+    hard_drop: Option<Sound>,
 }
 
 impl AudioTheme {
     pub fn new<H: Into<Option<&'static [u8]>>>(
         config: AudioConfig,
-        pill_move: &[u8],
-        rotate: &[u8],
-        drop: &[u8],
-        destroy_virus: &[u8],
-        destroy_virus_combo: &[u8],
-        destroy_vitamin: &[u8],
-        destroy_vitamin_combo: &[u8],
-        paused: &[u8],
-        speed_level_up: &[u8],
-        receive_garbage: &[u8],
-        next_level_jingle: &[u8],
+        pill_move: &'static [u8],
+        rotate: &'static [u8],
+        drop: &'static [u8],
+        destroy_virus: &'static [u8],
+        destroy_virus_combo: &'static [u8],
+        destroy_vitamin: &'static [u8],
+        destroy_vitamin_combo: &'static [u8],
+        paused: &'static [u8],
+        speed_level_up: &'static [u8],
+        receive_garbage: &'static [u8],
+        next_level_jingle: &'static [u8],
         hard_drop: H,
     ) -> Result<Self, String> {
-        let mut next_level_jingle = config.load_chunk(next_level_jingle)?;
-        next_level_jingle.set_volume(next_level_jingle.get_volume() / 2);
+        let mut next_level_jingle = config.load_sound(next_level_jingle)?;
+        next_level_jingle.set_volume(next_level_jingle.volume() / 2);
 
         Ok(Self {
             game_music: None,
             game_over_music: None,
             next_level_music: None,
             victory_music: None,
-            move_pill: config.load_chunk(pill_move)?,
-            rotate: config.load_chunk(rotate)?,
-            drop: config.load_chunk(drop)?,
-            destroy_virus: config.load_chunk(destroy_virus)?,
-            destroy_virus_combo: config.load_chunk(destroy_virus_combo)?,
-            destroy_vitamin: config.load_chunk(destroy_vitamin)?,
-            destroy_vitamin_combo: config.load_chunk(destroy_vitamin_combo)?,
-            paused: config.load_chunk(paused)?,
-            speed_level_up: config.load_chunk(speed_level_up)?,
-            receive_garbage: config.load_chunk(receive_garbage)?,
+            move_pill: config.load_sound(pill_move)?,
+            rotate: config.load_sound(rotate)?,
+            drop: config.load_sound(drop)?,
+            destroy_virus: config.load_sound(destroy_virus)?,
+            destroy_virus_combo: config.load_sound(destroy_virus_combo)?,
+            destroy_vitamin: config.load_sound(destroy_vitamin)?,
+            destroy_vitamin_combo: config.load_sound(destroy_vitamin_combo)?,
+            paused: config.load_sound(paused)?,
+            speed_level_up: config.load_sound(speed_level_up)?,
+            receive_garbage: config.load_sound(receive_garbage)?,
             next_level_jingle,
-            hard_drop: hard_drop.into().map(|c| config.load_chunk(c).unwrap()),
+            hard_drop: hard_drop.into().map(|c| config.load_sound(c).unwrap()),
         })
     }
 
@@ -227,8 +190,8 @@ impl AudioTheme {
         StructuredMusic::maybe_play(self.victory_music.as_ref())
     }
 
-    pub fn pause_music(&self) {
-        Music::pause();
+    pub fn pause_music(&self) -> Result<(), String> {
+        audio::pause_music()
     }
 
     pub fn play_next_level_jingle(&self) -> Result<(), String> {
@@ -263,13 +226,10 @@ impl AudioTheme {
             GameEvent::ReceivedGarbage { .. } => self.receive_garbage.play(),
             GameEvent::SpeedLevelUp => self.speed_level_up.play(),
             GameEvent::Paused => {
-                Music::pause();
+                audio::pause_music()?;
                 self.paused.play()
             }
-            GameEvent::UnPaused => {
-                Music::resume();
-                Ok(())
-            }
+            GameEvent::UnPaused => audio::resume_music(),
             _ => Ok(()),
         }
     }

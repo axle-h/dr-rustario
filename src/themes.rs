@@ -397,7 +397,7 @@ impl<'a> ThemeContext<'a> {
             MatchState::Normal => audio.fade_in_game_music()?,
             MatchState::Paused => {
                 audio.play_game_music()?;
-                audio.pause_music();
+                audio.pause_music()?;
             }
             MatchState::GameOver { .. } => {
                 if is_single_player {
