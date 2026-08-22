@@ -388,7 +388,10 @@ impl<'a> ThemeContext<'a> {
         // handle music
         let audio = self.theme().audio();
         match match_state {
-            MatchState::Normal if self.is_animating_next_level_interstitial() => {
+            // Only single player uses next-level *music*; in multiplayer the stage clear is a
+            // jingle and game music must keep playing, otherwise another player's still-open
+            // interstitial would swap in a play-once track and leave the match silent.
+            MatchState::Normal if is_single_player && self.is_animating_next_level_interstitial() => {
                 audio.play_next_level_music()?
             }
             MatchState::Normal => audio.fade_in_game_music()?,

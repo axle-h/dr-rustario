@@ -617,12 +617,13 @@ impl DrRustario {
                             let is_first_to_next_level = next_level > max_virus_level;
                             max_virus_level = next_level;
 
-                            if self.game_config.themes() == MatchThemes::All {
-                                if is_first_to_next_level {
-                                    events.push(GameEvent::NextTheme);
-                                }
+                            let theme_changing = self.game_config.themes() == MatchThemes::All
+                                && is_first_to_next_level;
+                            if theme_changing {
+                                events.push(GameEvent::NextTheme);
                             } else if self.game_config.is_single_player() {
-                                // only start game music here if on single player and not switching themes
+                                // single player was playing next-level music; resume game music.
+                                // multiplayer game music never stopped (stage clear is a jingle).
                                 themes.theme().audio().play_game_music()?;
                             }
                             themes.animate_next_level(player, game.viruses().as_slice());
@@ -692,17 +693,18 @@ impl DrRustario {
                         }
 
                         let mut skip_update = false;
+                        let player_id = player.player();
                         let game = player.game_mut();
                         game.consume_events(&mut events);
                         // pre-update actions
                         for event in events.iter() {
                             match event {
                                 GameEvent::HardDrop {
-                                    player,
+                                    player: event_player,
                                     vitamins,
                                     dropped_rows,
-                                } => {
-                                    themes.animate_hard_drop(*player, *vitamins, *dropped_rows);
+                                } if *event_player == player_id => {
+                                    themes.animate_hard_drop(*event_player, *vitamins, *dropped_rows);
                                     skip_update = true;
                                 }
                                 _ => {}
