@@ -4,7 +4,7 @@ use crate::particles::meta::ParticleSprite;
 use crate::particles::particle::{Particle, ParticleGroup, ParticleWave};
 use crate::particles::quantity::{ProbabilityTable, VariableQuantity};
 use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 
 use std::time::Duration;
 
@@ -61,7 +61,7 @@ impl ParticleProperties {
     {
         assert!(!sprites.is_empty());
         Self {
-            rng: thread_rng(),
+            rng: rng(),
             sprites: sprites.to_vec(),
             color: color.into(),
             size: size.into(),
@@ -95,7 +95,7 @@ impl ParticleProperties {
         if self.sprites.len() == 1 {
             self.sprites.first()
         } else {
-            let index = self.rng.gen_range(0..self.sprites.len());
+            let index = self.rng.random_range(0..self.sprites.len());
             self.sprites.get(index)
         }
         .unwrap()

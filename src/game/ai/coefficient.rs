@@ -1,7 +1,7 @@
 use std::ops::{Add, Mul, RangeInclusive};
 use std::fmt::{Debug, Display, Formatter};
 use rand::distr::{Distribution, StandardUniform};
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 pub const COEFFICIENT_STEP: f64 = 0.000001;
 

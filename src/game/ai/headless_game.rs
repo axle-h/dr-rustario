@@ -51,7 +51,7 @@ impl HeadlessGame {
             return Some(result);
         }
 
-        self.agent.act(&mut self.game);
+        self.agent.act(&mut self.game, self.options.step);
         let mut events = self.game.empty_event_buffer();
 
         if let Some(event) = self.game.update(self.options.step) {

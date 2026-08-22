@@ -20,27 +20,27 @@ pkgconfig = ["sdl2/use-pkgconfig"]
 retro_handheld = []
 
 [build-dependencies]
-built = { version = "0.7.5", default-features = false, features = [] }
-embed-resource = "3.0.1"
+built = { version = "0.8.1", default-features = false, features = [] }
+embed-resource = "3.0.11"
 
 [dev-dependencies]
 approx = "0.5"
 
 
 [dependencies]
-rand = "0.9.1"
-rand_chacha = "0.9.0"
-serde = { version = "1.0.215", default-features = false, features = ["derive"] }
+rand = "0.10.2"
+rand_chacha = "0.10.0"
+serde = { version = "1.0.229", default-features = false, features = ["derive"] }
 serde_json = "1.0"
-bitflags = "2.6.0"
-sdl2 = { version = "0.37.0", default-features = false, features = ["image","gfx","mixer","ttf"] }
-confy = { version = "0.6.1", default-features = false, features = ["yaml_conf"] }
+bitflags = "2.13.1"
+sdl2 = { version = "0.38.0", default-features = false, features = ["image","gfx","mixer","ttf"] }
+confy = { version = "2.0.0", default-features = false, features = ["yaml_conf"] }
 num-format = "0.4.4"
-strum = { version = "0.27.1", features = ["derive"] }
-strum_macros = "0.27.1"
-rayon = "1.10.0"
-itertools = "0.14.0"
-num-bigint = "0.4.6"
+strum = { version = "0.28.0", features = ["derive"] }
+strum_macros = "0.28.0"
+rayon = "1.12.0"
+itertools = "0.15.0"
+num-bigint = "0.5.1"
 num-traits = "0.2.19"
 
 

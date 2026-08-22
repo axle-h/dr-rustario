@@ -104,6 +104,15 @@ There are no default player 2 controls.
 
 # AI
 
+The **players** option in the main menu selects who plays:
+
+* `1` / `2` — human players.
+* `vs challenging ai` / `vs difficult ai` / `vs impossible ai` — you against the AI, which plays as player 2 and is
+  speed limited by pressing one key every 250 ms / 80 ms / instantly (see `AiDifficulty` in `src/config.rs`).
+* `ai demo` — a single board played by the AI at full speed; player controls are disabled.
+
+Only human players can enter the high score table.
+
 For each piece, calculate all possible positions and calculate the cost of each, choose the position with the best cost.
 Cost parameters:
 * Closed holes (a gap that cannot be filled without clearing a line)

@@ -30,12 +30,19 @@ pub struct MetricSnips {
     align: FontAlign,
 }
 
+/// The largest value that fits in `max_chars` digits of the given base, saturating at `u32::MAX`
+fn max_value(base: u32, max_chars: u32) -> u32 {
+    base.checked_pow(max_chars)
+        .map(|v| v - 1)
+        .unwrap_or(u32::MAX)
+}
+
 impl MetricSnips {
     pub fn new<P: Into<Point>>(align: FontAlign, point: P, max_chars: u32) -> Self {
         Self {
             point: point.into(),
-            max_decimal_value: 10u32.pow(max_chars) - 1,
-            max_hex_value: 16u32.pow(max_chars) - 1,
+            max_decimal_value: max_value(10, max_chars),
+            max_hex_value: max_value(16, max_chars),
             max_chars,
             align,
         }
@@ -305,5 +312,22 @@ impl<'a> FontRender<'a> {
         } else {
             chars
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::max_value;
+
+    #[test]
+    fn max_value_for_small_widths() {
+        assert_eq!(max_value(10, 3), 999);
+        assert_eq!(max_value(16, 2), 0xFF);
+    }
+
+    #[test]
+    fn max_value_saturates_instead_of_overflowing() {
+        assert_eq!(max_value(10, 10), u32::MAX);
+        assert_eq!(max_value(16, 8), u32::MAX);
     }
 }

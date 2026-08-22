@@ -10,7 +10,7 @@ use crate::game::{Game, GameMetrics};
 use crate::high_score::table::HighScoreTable;
 use crate::high_score::NewHighScore;
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::particles::prescribed::{PlayerParticleTarget, PlayerTargetedParticles};
 use std::time::Duration;
@@ -131,16 +131,18 @@ pub struct Match {
     high_scores: HighScoreTable,
     state: MatchState,
     rules: MatchRules,
+    ai_players: Vec<u32>,
 }
 
 impl Match {
     pub fn new(game_config: GameConfig, config: Config) -> Self {
-        if game_config.players == 0 {
+        let players = game_config.effective_players();
+        if players == 0 {
             panic!("must have at least one player")
         }
 
         let randoms = config.game.random_mode.build(
-            game_config.players as usize,
+            players as usize,
             config.game.min_garbage_per_hole,
         );
 
@@ -153,7 +155,12 @@ impl Match {
             high_scores: HighScoreTable::load().unwrap(),
             state: MatchState::Normal,
             rules: game_config.rules,
+            ai_players: game_config.ai_players().into_iter().map(|(p, _)| p).collect(),
         }
+    }
+
+    pub fn is_ai_player(&self, player: u32) -> bool {
+        self.ai_players.contains(&player)
     }
 
     pub fn unset_flags(&mut self) {
@@ -219,13 +226,11 @@ impl Match {
     }
 
     pub fn set_game_over(&mut self, player: u32, animation_type: GameOverAnimationType) {
-        let best_game = self.highest_score();
-
-        let high_score = if self.high_scores.is_high_score(best_game.score) {
-            Some(NewHighScore::new(best_game.player, best_game.score))
-        } else {
-            None
-        };
+        // only human players can enter the high score table
+        let high_score = self
+            .highest_human_score()
+            .filter(|best_game| self.high_scores.is_high_score(best_game.score))
+            .map(|best_game| NewHighScore::new(best_game.player, best_game.score));
 
         self.state = MatchState::GameOver { high_score };
         self.players
@@ -281,7 +286,7 @@ impl Match {
         let pid = if other_players.len() == 1 {
             other_players[0]
         } else {
-            other_players[rand::thread_rng().gen_range(0..other_players.len())]
+            other_players[rand::rng().random_range(0..other_players.len())]
         } as usize;
         self.players
             .get_mut(pid - 1)
@@ -298,11 +303,71 @@ impl Match {
             .unwrap()
     }
 
+    fn highest_human_score(&self) -> Option<GameMetrics> {
+        self.players
+            .iter()
+            .filter(|p| !self.is_ai_player(p.player))
+            .map(|p| p.game.metrics())
+            .max_by(|x, y| x.score.cmp(&y.score))
+    }
+
     fn most_lines(&self) -> GameMetrics {
         self.players
             .iter()
             .map(|p| p.game.metrics())
             .max_by(|x, y| x.lines.cmp(&y.lines))
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{AiDifficulty, AiMode, MatchThemes};
+    use crate::game::random::RandomMode;
+
+    fn test_match(game_config: GameConfig) -> Match {
+        let players = game_config.effective_players();
+        Match {
+            players: RandomMode::Bag
+                .build(players as usize, 10)
+                .into_iter()
+                .enumerate()
+                .map(|(pid, rand)| Player::new(pid as u32 + 1, rand, 0))
+                .collect(),
+            high_scores: HighScoreTable::default(),
+            state: MatchState::Normal,
+            rules: game_config.rules,
+            ai_players: game_config.ai_players().into_iter().map(|(p, _)| p).collect(),
+        }
+    }
+
+    fn config(players: u32, ai: AiMode) -> GameConfig {
+        GameConfig { ai, ..GameConfig::new(players, 0, MatchRules::Battle, MatchThemes::All) }
+    }
+
+    #[test]
+    fn demo_has_one_ai_player_and_no_human_high_score() {
+        let fixture = test_match(config(2, AiMode::Demo));
+        assert_eq!(fixture.players.len(), 1);
+        assert!(fixture.is_ai_player(1));
+        assert_eq!(fixture.highest_human_score(), None);
+    }
+
+    #[test]
+    fn ai_opponent_is_player_two_and_only_human_can_high_score() {
+        let fixture = test_match(config(1, AiMode::Opponent(AiDifficulty::Challenging)));
+        assert_eq!(fixture.players.len(), 2);
+        assert!(!fixture.is_ai_player(1));
+        assert!(fixture.is_ai_player(2));
+        assert_eq!(fixture.highest_human_score().map(|m| m.player), Some(1));
+    }
+
+    #[test]
+    fn human_game_has_no_ai_players() {
+        let fixture = test_match(config(2, AiMode::Off));
+        assert_eq!(fixture.players.len(), 2);
+        assert!(!fixture.is_ai_player(1) && !fixture.is_ai_player(2));
+        assert!(fixture.highest_human_score().is_some());
     }
 }

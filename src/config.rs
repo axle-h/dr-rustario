@@ -7,6 +7,7 @@ use sdl2::mixer::MAX_VOLUME;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
 use confy::ConfyError;
 use sdl2::sys;
 use strum::IntoEnumIterator;
@@ -55,7 +56,6 @@ pub struct InputConfig {
     pub pause: GameKey,
     pub quit: GameKey,
     pub next_theme: GameKey,
-    pub toggle_ai: GameKey,
 }
 
 impl InputConfig {
@@ -76,7 +76,6 @@ impl InputConfig {
             (self.quit.into(), GameInputKey::ReturnToMenu),
             (self.pause.into(), GameInputKey::Pause),
             (self.next_theme.into(), GameInputKey::NextTheme),
-            (self.toggle_ai.into(), GameInputKey::ToggleAi),
             (self.player1.move_left.into(), GameInputKey::MoveLeft { player: 1 }),
             (
                 self.player1.move_right.into(),
@@ -221,8 +220,6 @@ impl Default for Config {
                 #[cfg(feature = "retro_handheld")] next_theme: GameKey::RShift,
                 #[cfg(not(feature = "retro_handheld"))] next_theme: GameKey::F2,
                 quit: GameKey::Escape,
-                #[cfg(feature = "retro_handheld")] toggle_ai: GameKey::Home,
-                #[cfg(not(feature = "retro_handheld"))] toggle_ai: GameKey::F3,
             },
             game: GameplayConfig {
                 random_mode: RandomMode::Bag,
@@ -326,11 +323,60 @@ impl MatchThemes {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AiDifficulty {
+    /// Heavily speed limited
+    Challenging,
+    /// Slightly speed limited
+    Difficult,
+    /// Full speed
+    Impossible,
+}
+
+impl AiDifficulty {
+    pub const ALL: [Self; 3] = [Self::Challenging, Self::Difficult, Self::Impossible];
+
+    pub const CHALLENGING_KEY_DELAY: Duration = Duration::from_millis(250);
+    pub const DIFFICULT_KEY_DELAY: Duration = Duration::from_millis(80);
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            AiDifficulty::Challenging => "challenging",
+            AiDifficulty::Difficult => "difficult",
+            AiDifficulty::Impossible => "impossible",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|d| d.name() == name)
+    }
+
+    /// Minimum time between simulated key presses
+    pub fn key_delay(&self) -> Duration {
+        match self {
+            AiDifficulty::Challenging => Self::CHALLENGING_KEY_DELAY,
+            AiDifficulty::Difficult => Self::DIFFICULT_KEY_DELAY,
+            AiDifficulty::Impossible => Duration::ZERO,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AiMode {
+    /// No ai players
+    Off,
+    /// Single player game played by the ai at full speed
+    Demo,
+    /// Two player game where player 2 is the ai
+    Opponent(AiDifficulty),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GameConfig {
     pub players: u32,
     pub level: u32,
     pub rules: MatchRules,
     pub themes: MatchThemes,
+    pub ai: AiMode,
 }
 
 impl GameConfig {
@@ -340,7 +386,30 @@ impl GameConfig {
             level,
             rules,
             themes,
+            ai: AiMode::Off,
         }
+    }
+
+    /// The number of players actually in the match, taking the ai mode into account
+    pub fn effective_players(&self) -> u32 {
+        match self.ai {
+            AiMode::Off => self.players,
+            AiMode::Demo => 1,
+            AiMode::Opponent(_) => 2,
+        }
+    }
+
+    /// The ai controlled players and the key delay they play at
+    pub fn ai_players(&self) -> Vec<(u32, Duration)> {
+        match self.ai {
+            AiMode::Off => vec![],
+            AiMode::Demo => vec![(1, Duration::ZERO)],
+            AiMode::Opponent(difficulty) => vec![(2, difficulty.key_delay())],
+        }
+    }
+
+    pub fn is_ai_player(&self, player: u32) -> bool {
+        self.ai_players().iter().any(|(p, _)| *p == player)
     }
 }
 

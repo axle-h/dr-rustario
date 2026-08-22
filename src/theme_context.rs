@@ -140,7 +140,7 @@ impl<'a> ThemeContext<'a> {
             themes: all_themes
                 .all()
                 .iter()
-                .map(|theme| ScaledTheme::new(theme, game_config.players, window_size, config.video))
+                .map(|theme| ScaledTheme::new(theme, game_config.effective_players(), window_size, config.video))
                 .collect(),
             fade_buffer,
             fade_duration: None,

@@ -1,6 +1,6 @@
 use std::array;
 use std::ops::RangeInclusive;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 use std::collections::VecDeque;
 use rand_chacha::ChaChaRng;
 use crate::game::ai::coefficient::{Coefficient, RANDOM_RAW_COEFFICIENT_DELTA_RANGE};

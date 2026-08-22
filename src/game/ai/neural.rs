@@ -2,7 +2,7 @@ use std::array::from_fn;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign};
 use rand::distr::{Distribution, StandardUniform};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use crate::game::ai::coefficient::Coefficient;
 use crate::game::ai::genome::Genome;
 

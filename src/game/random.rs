@@ -2,7 +2,7 @@ use num_traits::Num;
 use super::tetromino::TetrominoShape;
 use crate::game::board::BOARD_WIDTH;
 use rand::prelude::*;
-use rand::{Rng};
+use rand::{Rng, RngExt};
 use rand_chacha::{ChaChaRng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -152,10 +152,7 @@ pub enum RandomMode {
 
 impl RandomMode {
     pub fn build(self, count: usize, min_garbage_per_hole: u32) -> Vec<RandomTetromino> {
-        // let seed: Seed = rand::random();
-        let seed: Seed = "39447712892375752940097570078805324248880289121439932390588186706160814925155"
-            .to_string()
-            .into();
+        let seed: Seed = rand::random();
         (0..count)
             .map(|_| RandomTetromino::new(self, min_garbage_per_hole, seed))
             .collect()

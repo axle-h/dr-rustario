@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use itertools::Itertools;
-use crate::game::ai::apply_inputs::ApplyInputs;
 use crate::game::ai::action_evaluator::ActionEvaluator;
 use crate::game::ai::input_search::{InputSearch, InputSequenceResult};
 use crate::game::ai::input_sequence::{InputSequence, Translation};
@@ -13,7 +12,8 @@ use crate::game::board::Board;
 use crate::game::tetromino::TetrominoShape;
 use crate::game::recording::{GameRecording, GamePlayback};
 use std::path::Path;
-use std::io;
+use std::collections::VecDeque;
+use std::time::Duration;
 
 pub struct AiAgent {
     action_evaluate: ActionEvaluator,
@@ -23,6 +23,12 @@ pub struct AiAgent {
     recording: Option<GameRecording>,
     /// Optional playback for replaying recorded decisions
     playback: Option<GamePlayback>,
+    /// Minimum time between simulated key presses (zero = apply a whole decision instantly)
+    key_delay: Duration,
+    /// Time elapsed since the last simulated key press
+    since_last_key: Duration,
+    /// Keys that have been decided on but not yet pressed
+    pending: VecDeque<Translation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -40,7 +46,16 @@ impl AiAgent {
             look_ahead,
             recording: None,
             playback: None,
+            key_delay: Duration::ZERO,
+            since_last_key: Duration::MAX,
+            pending: VecDeque::new(),
         }
+    }
+
+    /// Limit the agent to pressing at most one key per `key_delay`
+    pub fn with_key_delay(mut self, key_delay: Duration) -> Self {
+        self.key_delay = key_delay;
+        self
     }
     
     pub fn default_linear() -> Self {
@@ -51,22 +66,62 @@ impl AiAgent {
         Self::new(ActionEvaluator::NeuralNetwork(TetrisNeuralNetwork::default()), DEFAULT_LOOKAHEAD)
     }
 
+    /// Queue the inputs to be pressed, then press as many as the key delay allows
     fn apply_inputs(&mut self, game: &mut Game, inputs: &InputSequence) {
-        let (before_soft_drop, after_soft_drop) = inputs.split_at_soft_drop();
-        game.apply_inputs(&before_soft_drop);
+        self.pending = inputs.translations().iter().copied().collect();
+        self.press_pending(game);
+    }
 
-        if let Some(after_soft_drop) = after_soft_drop {
-            self.wait_sate = Some(AgentWaitState::SoftDrop(after_soft_drop));
-        } else {
+    fn can_press(&self) -> bool {
+        self.since_last_key >= self.key_delay
+    }
+
+    /// Press pending keys, one per key delay
+    fn press_pending(&mut self, game: &mut Game) {
+        while !self.pending.is_empty() && self.can_press() {
+            if !matches!(game.state, GameState::Fall(_) | GameState::Lock(_)) {
+                // the piece locked before we finished, abandon the remaining keys
+                self.pending.clear();
+                self.wait_sate = Some(AgentWaitState::Spawn);
+                return;
+            }
+
+            let translation = self.pending.pop_front().unwrap();
+            self.since_last_key = Duration::ZERO;
+            match translation {
+                Translation::Left => { game.left(); }
+                Translation::Right => { game.right(); }
+                Translation::RotateClockwise => { game.rotate(true); }
+                Translation::RotateAnticlockwise => { game.rotate(false); }
+                Translation::HardDrop => { game.hard_drop(); }
+                Translation::SoftDrop => {
+                    game.set_soft_drop(true);
+                    let after_soft_drop = InputSequence::new(self.pending.drain(..).collect());
+                    self.wait_sate = Some(AgentWaitState::SoftDrop(after_soft_drop));
+                    return;
+                }
+            }
+        }
+
+        if self.pending.is_empty() {
             self.wait_sate = Some(AgentWaitState::Spawn);
         }
     }
 
     pub fn reset(&mut self) {
         self.wait_sate = None;
+        self.pending.clear();
+        self.since_last_key = Duration::MAX;
     }
 
-    pub fn act(&mut self, game: &mut Game) {
+    pub fn act(&mut self, game: &mut Game, delta: Duration) {
+        self.since_last_key = self.since_last_key.saturating_add(delta);
+
+        if !self.pending.is_empty() {
+            self.press_pending(game);
+            return;
+        }
+
         // Handle wait states (this works for both playback and AI modes)
         if let Some(wait_state) = self.wait_sate.clone() {
             match wait_state {
@@ -107,6 +162,10 @@ impl AiAgent {
 
         if !matches!(game.state, GameState::Fall(_)) {
             return; // only act when in a fall state
+        }
+
+        if !self.can_press() {
+            return; // still "thinking"
         }
         
         if let Some(shape) = game.board.tetromino().map(|t| t.shape()) {
@@ -163,6 +222,7 @@ impl AiAgent {
 
                 // hold the current and wait for the alt shape to fall
                 self.wait_sate = Some(AgentWaitState::Alt(alt_next_shape, best_inputs));
+                self.since_last_key = Duration::ZERO;
                 game.hold();
             } else {
                 self.apply_inputs(game, &best_inputs);
@@ -225,5 +285,99 @@ impl AiAgent {
 impl Default for AiAgent {
     fn default() -> Self {
         Self::default_neural()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::random::{RandomMode, RandomTetromino};
+
+    fn falling_game() -> Game {
+        let mut game = Game::new(1, 0, RandomTetromino::new(RandomMode::Bag, 10, 100.into()));
+        for _ in 0..1000 {
+            if matches!(game.state, GameState::Fall(_)) {
+                return game;
+            }
+            game.update(Duration::from_millis(10));
+        }
+        panic!("game never reached a fall state");
+    }
+
+    fn agent(key_delay: Duration) -> AiAgent {
+        AiAgent::default_linear().with_key_delay(key_delay)
+    }
+
+    #[test]
+    fn instant_agent_applies_a_whole_decision_in_one_act() {
+        let mut game = falling_game();
+        let mut agent = agent(Duration::ZERO);
+        agent.act(&mut game, Duration::ZERO);
+        assert!(agent.pending.is_empty());
+        assert!(agent.wait_sate.is_some(), "agent should be waiting for the next piece");
+    }
+
+    #[test]
+    fn paced_agent_presses_one_key_per_delay() {
+        let mut game = falling_game();
+        let mut agent = agent(Duration::from_millis(100));
+        agent.pending = VecDeque::from(vec![Translation::Left, Translation::Left, Translation::HardDrop]);
+
+        agent.act(&mut game, Duration::ZERO); // since_last_key starts at max so the first key is pressed
+        assert_eq!(agent.pending.len(), 2);
+
+        agent.act(&mut game, Duration::from_millis(50));
+        assert_eq!(agent.pending.len(), 2);
+
+        agent.act(&mut game, Duration::from_millis(50));
+        assert_eq!(agent.pending.len(), 1);
+
+        agent.act(&mut game, Duration::from_millis(100));
+        assert!(agent.pending.is_empty());
+        assert_eq!(agent.wait_sate, Some(AgentWaitState::Spawn));
+    }
+
+    #[test]
+    fn paced_agent_waits_before_deciding() {
+        let mut game = falling_game();
+        let mut agent = agent(Duration::from_millis(100));
+        agent.since_last_key = Duration::ZERO;
+
+        agent.act(&mut game, Duration::from_millis(50));
+        assert!(agent.pending.is_empty());
+        assert_eq!(agent.wait_sate, None, "should not have decided yet");
+
+        agent.act(&mut game, Duration::from_millis(50));
+        assert!(agent.wait_sate.is_some() || !agent.pending.is_empty(), "should have decided");
+    }
+
+    #[test]
+    fn paced_agent_plays_a_game() {
+        // simulate a "challenging" ai for a minute of game time at 60hz
+        let mut game = Game::new(1, 0, RandomTetromino::new(RandomMode::Bag, 10, 7.into()));
+        let mut agent = agent(crate::config::AiDifficulty::CHALLENGING_KEY_DELAY);
+        let step = Duration::from_millis(16);
+        let mut pieces = 0;
+        for _ in 0..(60 * 1000 / 16) {
+            agent.act(&mut game, step);
+            match game.update(step) {
+                Some(crate::event::GameEvent::GameOver { .. }) => break,
+                Some(crate::event::GameEvent::Spawn { .. }) => pieces += 1,
+                _ => {}
+            }
+            game.empty_event_buffer();
+        }
+        assert!(pieces > 10, "the agent should have placed pieces, placed {}", pieces);
+        assert!(game.metrics().lines > 0, "the agent should have cleared lines");
+    }
+
+    #[test]
+    fn reset_clears_pending_keys() {
+        let mut agent = agent(Duration::from_millis(100));
+        agent.pending = VecDeque::from(vec![Translation::Left]);
+        agent.wait_sate = Some(AgentWaitState::Spawn);
+        agent.reset();
+        assert!(agent.pending.is_empty());
+        assert_eq!(agent.wait_sate, None);
+        assert!(agent.can_press());
     }
 }
