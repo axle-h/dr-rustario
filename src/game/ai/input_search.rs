@@ -74,7 +74,15 @@ impl Search {
             if !current_board.apply_inputs(&inputs) {
                 continue;
             }
-            self.next_translations(current_board.tetromino().unwrap().pose(), &inputs);
+            // dedupe on the pose actually reached on the board (after wall kicks), not on the
+            // pose a translation would geometrically produce: two different poses can share a
+            // geometric neighbour but kick to different places, so pruning on geometry loses
+            // reachable placements.
+            let pose = current_board.tetromino().unwrap().pose();
+            if !self.visited.insert(pose) {
+                continue;
+            }
+            self.next_translations(&inputs);
             
             // soft drop is emulated with hard drop on a model-less board
             let inputs = if current_board.hard_drop().is_some() {
@@ -87,20 +95,24 @@ impl Search {
     }
     
     pub fn search_translations_from_current_results(&mut self) {
-        let poses_and_inputs: Vec<(Pose, InputSequence)> = self.results
+        // `results` is a HashMap with randomised iteration order. The order in which poses are
+        // expanded decides which input sequence first claims a pose in `visited`, so the seeds
+        // must be expanded in a deterministic order or the chosen inputs (and via the tie-break
+        // in the agent, the chosen placement) change from run to run.
+        let seeds: Vec<InputSequence> = self.results
             .values()
             .map(|result| {
-                let pose = result.board.tetromino().unwrap().pose();
                 let mut inputs = result.inputs.clone();
                 if inputs.pop_drop().is_some() {
                     inputs.push(SoftDrop);
                 }
-                (pose, inputs)
+                inputs
             })
+            .sorted()
             .collect();
 
-        for (pose, inputs) in poses_and_inputs {
-            self.next_translations(pose, &inputs);
+        for inputs in seeds {
+            self.next_translations(&inputs);
         }
     }
     
@@ -127,13 +139,9 @@ impl Search {
         }
     }
 
-    fn next_translations(&mut self, pose: Pose, inputs: &InputSequence) {
+    fn next_translations(&mut self, inputs: &InputSequence) {
         for next_translation in [Left, Right, RotateClockwise, RotateAnticlockwise] {
-            let next_pose = next_translation.apply(pose);
-            if self.visited.insert(next_pose) {
-                let input = inputs.clone() + next_translation;
-                self.visit_queue.push_back(input);
-            }
+            self.visit_queue.push_back(inputs.clone() + next_translation);
         }
     }
 }
@@ -179,6 +187,47 @@ mod tests {
         board.set_block((0, 1), BlockState::Stack(TetrominoShape::I, Rotation::North, 0));
         let inputs = board.search_all_inputs(TetrominoShape::I);
         assert_eq!(inputs.len(), 18); // 7 flat positions + 10 upright positions + 1 open hole position
+    }
+
+    /// Regression: on this board (from a real game) the S tuck into the gap at the bottom is reachable
+    /// by several equally-ranked soft drop sequences, and the search used to return whichever one the
+    /// random HashMap iteration order happened to find first, making AI games non-reproducible.
+    #[test]
+    fn search_is_deterministic_for_tied_soft_drop_sequences() {
+        fn board() -> Board {
+            let rows = [
+                "SSS  SSSSS",
+                "SSSS  SSSS",
+                "S     SSSS",
+                "S      SSS",
+                "        SS",
+                "         S",
+                "         S",
+                "         S",
+                "         S",
+                "         S",
+            ];
+            let mut board = Board::new();
+            for (y, row) in rows.iter().enumerate() {
+                for (x, c) in row.chars().enumerate() {
+                    if c == 'S' {
+                        board.set_block((x as i32, y as i32), BlockState::Stack(TetrominoShape::S, Rotation::North, 0));
+                    }
+                }
+            }
+            board
+        }
+
+        let expected: Vec<InputSequence> = board().search_all_inputs(TetrominoShape::S)
+            .into_iter().map(|r| r.inputs().clone()).collect();
+        let tuck = InputSequence::new(vec![Left, SoftDrop, RotateClockwise, RotateClockwise]);
+        assert!(expected.contains(&tuck), "expected the canonical tuck sequence, got {:?}", expected);
+        assert_eq!(expected.len(), 18);
+        for _ in 0..100 {
+            let again: Vec<InputSequence> = board().search_all_inputs(TetrominoShape::S)
+                .into_iter().map(|r| r.inputs().clone()).collect();
+            assert_eq!(again, expected);
+        }
     }
 
     #[test]

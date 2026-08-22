@@ -192,18 +192,12 @@ impl AiAgent {
                     .unwrap_or_else(|| (game.random.peek(), 1..));
 
                 let alt_best_move = self.best_move(game, alt_next_shape, &game.random.peek_buffer()[alt_next_peek]);
-                let (best_inputs, is_alt) = match (best_result, alt_best_move) {
-                    (None, None) => {
-                        // Record a null decision if no moves are possible
-                        if let Some(recording) = &mut self.recording {
-                            recording.record_null_decision();
-                        }
-                        return;
-                    },
-                    (Some((m, _)), None) => (m, false),
-                    (None, Some((m, _))) => (m, true),
-                    (Some((m1, c1)), Some((m2, c2))) =>
-                        if c1 < c2 { (m1, false) } else { (m2, true) }
+                let Some((best_inputs, is_alt)) = Self::choose(best_result, alt_best_move) else {
+                    // Record a null decision if no moves are possible
+                    if let Some(recording) = &mut self.recording {
+                        recording.record_null_decision();
+                    }
+                    return;
                 };
 
                 // Record the decision we're making (only in AI mode)
@@ -232,6 +226,19 @@ impl AiAgent {
         }
     }
     
+    /// Choose between the best move for the current piece and the best move for the held/next
+    /// piece (reached via a hold). Scores are "higher is better", matching [`Self::best_single_move`].
+    /// The current piece wins ties, so the agent only holds when it is strictly better.
+    fn choose(current: Option<(InputSequence, f64)>, alt: Option<(InputSequence, f64)>) -> Option<(InputSequence, bool)> {
+        match (current, alt) {
+            (None, None) => None,
+            (Some((m, _)), None) => Some((m, false)),
+            (None, Some((m, _))) => Some((m, true)),
+            (Some((m1, c1)), Some((m2, c2))) =>
+                if c2 > c1 { Some((m2, true)) } else { Some((m1, false)) }
+        }
+    }
+
     fn best_move(&self, game: &Game, shape: TetrominoShape, peek: &[TetrominoShape]) -> Option<(InputSequence, f64)> {
         // Normal AI decision-making (playback is now handled at the act level)
         self.best_single_move(game.board, game.board.stack_stats(), shape)
@@ -368,6 +375,19 @@ mod tests {
         }
         assert!(pieces > 10, "the agent should have placed pieces, placed {}", pieces);
         assert!(game.metrics().lines > 0, "the agent should have cleared lines");
+    }
+
+    #[test]
+    fn holds_only_when_the_alternative_scores_higher() {
+        let current = InputSequence::new(vec![Translation::HardDrop]);
+        let alt = InputSequence::new(vec![Translation::Left, Translation::HardDrop]);
+        let choose = |c: f64, a: f64| AiAgent::choose(Some((current.clone(), c)), Some((alt.clone(), a))).unwrap();
+        assert_eq!(choose(1.0, 2.0), (alt.clone(), true));
+        assert_eq!(choose(2.0, 1.0), (current.clone(), false));
+        assert_eq!(choose(1.0, 1.0), (current.clone(), false), "ties go to the current piece");
+        assert_eq!(AiAgent::choose(None, Some((alt.clone(), 0.0))), Some((alt.clone(), true)));
+        assert_eq!(AiAgent::choose(Some((current.clone(), 0.0)), None), Some((current.clone(), false)));
+        assert_eq!(AiAgent::choose(None, None), None);
     }
 
     #[test]
