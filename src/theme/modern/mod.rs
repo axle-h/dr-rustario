@@ -45,9 +45,9 @@ const TETROMINO_PREFERRED_BLOCK_SCALE: f64 = TETROMINO_PCT_OF_BLOCK / 3.0;
 const BIG_TETROMINO_PREFERRED_BLOCK_SCALE: f64 = BIG_TETROMINO_PCT_OF_BLOCK / 3.0;
 
 const VERTICAL_GUTTER_PCT_OF_BLOCK: f64 = 0.2;
-const MAX_SCORE: u32 = 999999;
-const MAX_LEVEL: u32 = 999;
-const MAX_LINES: u32 = 999;
+const MAX_SCORE: u32 = 999999999;
+const MAX_LEVEL: u32 = 99999;
+const MAX_LINES: u32 = 99999;
 
 fn block(row: i32, col: i32) -> Point {
     Point::new(4 + 56 * col, 4 + 56 * row)
@@ -134,7 +134,7 @@ impl GameMetricsTable {
             .rows
             .into_iter()
             .map(|r| GameMetricsRow {
-                value: MetricSnips::right((width, r.value.point().y()), r.value.max_value()),
+                value: MetricSnips::right((width, r.value.point().y()), r.value.max_chars()),
                 label: Point::new(width - r.label_width as i32, r.label.y()),
                 metric: r.metric,
                 label_width: r.label_width,

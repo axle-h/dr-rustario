@@ -101,3 +101,49 @@ There are no default player 2 controls.
 * t-spin
 * critical music
 * game boy color theme
+
+# AI
+
+The **players** option in the main menu selects who plays:
+
+* `1` / `2` — human players.
+* `vs challenging ai` / `vs difficult ai` / `vs impossible ai` — you against the AI, which plays as player 2 and is
+  speed limited by pressing one key every 250 ms / 80 ms / instantly (see `AiDifficulty` in `src/config.rs`).
+* `ai demo` — a single board played by the AI at full speed; player controls are disabled.
+
+Only human players can enter the high score table.
+
+For each piece, calculate all possible positions and calculate the cost of each, choose the position with the best cost.
+Cost parameters:
+* Closed holes (a gap that cannot be filled without clearing a line)
+* Open holes (a gap under a tetromino that can be filled)
+* Max height of the stack
+* bumpiness (the amount that the line height changes from left to right)
+* optimising for tetris:
+   * bad: blocks in the right most column
+   * bad: clearing less that 4 lines
+   * good: clearing a tetris
+
+Algorithm:
+
+1. wait until a frame where a tetromino is spawned
+2. calculate lowest cost for spawned tetromino
+3. if none held: calculate lowest cost for next tetromino
+   if one held: calculate lowest cost for held tetromino
+4. take the tetromino and position with lowest cost
+5. press hold if held or next tetromino was chosen
+6. apply input sequence of chosen position
+7. hard drop
+8. repeat
+
+TODO
+
+* compare recordings for the same seed with different scores to figure out what is hapenning
+* record seed in game recording
+* record tetromino sequence in game recording to validate seed in gameplay
+* genetic algorithm crossover should maybe also have a chance of averaging some weights of the parents as well as flat out crossover
+* genetic algorithm speciation
+   * define minimum distance between a species OR use k-means
+   * classify the population into species
+   * ensure we retain at least 2, 3, 4 of the best species per generation
+* AI upscale the retro themes

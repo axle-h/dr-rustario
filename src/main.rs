@@ -25,7 +25,7 @@ extern crate sdl2;
 
 use crate::animation::game_over::GameOverAnimate;
 use crate::animation::hard_drop::HardDropAnimation;
-use crate::config::{Config, GameConfig, MatchRules, MatchThemes, VideoMode};
+use crate::config::{AiDifficulty, AiMode, Config, GameConfig, MatchRules, MatchThemes, VideoMode};
 use crate::event::{GameEvent, HighScoreEntryEvent};
 use crate::game_input::GameInputKey;
 use crate::high_score::render::HighScoreRender;
@@ -53,16 +53,16 @@ use sdl2::mixer::{InitFlag as MixerInitFlag, AUDIO_S16LSB, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
-use sdl2::sys::mixer::MIX_CHANNELS;
 use sdl2::ttf::Sdl2TtfContext;
 
 use sdl2::{AudioSubsystem, EventPump, Sdl};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;
-
 use crate::menu::sound::MenuSound;
 use theme_context::{PlayerTextures, TextureMode, ThemeContext};
+use crate::game::ai::agent::AiAgent;
+use crate::game::ai::genetic::ga_main;
 use crate::icon::app_icon;
 
 #[cfg(not(feature = "retro_handheld"))]
@@ -104,7 +104,7 @@ struct TetrisSdl {
 impl TetrisSdl {
     pub fn new() -> Result<Self, String> {
         let config = Config::load()?;
-        let sdl = sdl2::init()?;
+        let sdl = sdl2::init()?;        
         let image = sdl2::image::init(ImageInitFlag::PNG)?;
         let video = sdl.video()?;
         let ttf = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -164,7 +164,7 @@ impl TetrisSdl {
         let audio = sdl.audio()?;
         sdl2::mixer::open_audio(44_100, AUDIO_S16LSB, DEFAULT_CHANNELS, 512)?;
         let _mixer_context = sdl2::mixer::init(MixerInitFlag::OGG)?;
-        sdl2::mixer::allocate_channels((MAX_PLAYERS * MIX_CHANNELS) as i32);
+        sdl2::mixer::allocate_channels((MAX_PLAYERS * 32) as i32);
         sdl2::mixer::Music::set_volume(config.audio.music_volume());
         let menu_sound = MenuSound::new(config.audio)?;
 
@@ -212,6 +212,9 @@ impl TetrisSdl {
         const MODE: &str = "mode";
         const LEVEL: &str = "level";
         const HIGH_SCORES: &str = "high scores";
+        const AI_DEMO: &str = "ai demo";
+        const VS_AI_PREFIX: &str = "vs ";
+        const VS_AI_SUFFIX: &str = " ai";
         const START: &str = "start";
         const QUIT: &str = "quit";
 
@@ -240,19 +243,21 @@ impl TetrisSdl {
             MenuItem::select(QUIT),
         ];
 
-        if MAX_PLAYERS > 1 {
-            menu_items.insert(
-                0,
-                MenuItem::select_list(
-                    PLAYERS,
-                    (1..=MAX_PLAYERS)
-                        .into_iter()
-                        .map(|i| i.to_string())
-                        .collect::<Vec<String>>(),
-                    self.game_config.players as usize - 1,
-                )
-            )
-        }
+        // 1, 2, vs challenging ai, vs difficult ai, vs impossible ai, ai demo
+        let vs_ai = if MAX_PLAYERS > 1 { AiDifficulty::ALL.as_slice() } else { &[] };
+        let players = (1..=MAX_PLAYERS)
+            .map(|i| i.to_string())
+            .chain(vs_ai.iter().map(|d| format!("{}{}{}", VS_AI_PREFIX, d.name(), VS_AI_SUFFIX)))
+            .chain(std::iter::once(AI_DEMO.to_string()))
+            .collect::<Vec<String>>();
+        let current = match self.game_config.ai {
+            AiMode::Off => self.game_config.players as usize - 1,
+            AiMode::Opponent(difficulty) => {
+                MAX_PLAYERS as usize + vs_ai.iter().position(|d| *d == difficulty).unwrap()
+            }
+            AiMode::Demo => players.len() - 1,
+        };
+        menu_items.insert(0, MenuItem::select_list(PLAYERS, players, current));
 
         let mut menu = Menu::new(
             menu_items,
@@ -285,7 +290,22 @@ impl TetrisSdl {
                         _ => {}
                     },
                     Some((name, action)) => match name {
-                        PLAYERS => self.game_config.players = action.parse::<u32>().unwrap(),
+                        PLAYERS => {
+                            let ai_difficulty = action
+                                .strip_prefix(VS_AI_PREFIX)
+                                .and_then(|s| s.strip_suffix(VS_AI_SUFFIX))
+                                .and_then(AiDifficulty::from_name);
+                            if action == AI_DEMO {
+                                self.game_config.players = 1;
+                                self.game_config.ai = AiMode::Demo;
+                            } else if let Some(difficulty) = ai_difficulty {
+                                self.game_config.players = 2;
+                                self.game_config.ai = AiMode::Opponent(difficulty);
+                            } else {
+                                self.game_config.players = action.parse::<u32>().unwrap();
+                                self.game_config.ai = AiMode::Off;
+                            }
+                        }
                         THEMES => self.game_config.themes = MatchThemes::from_str(action).unwrap(),
                         MODE => {
                             let mode_index =
@@ -436,13 +456,14 @@ impl TetrisSdl {
         bg_particles: &mut ParticleRender,
         fg_particles: &mut ParticleRender,
     ) -> Result<PostGameAction, String> {
+        let game_config = self.game_config;
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
-        let mut fixture = Match::new(self.game_config, self.config);
+        let mut fixture = Match::new(game_config, self.config);
         let window_size = self.canvas.window().size();
-        let mut themes = ThemeContext::new(all_themes, &texture_creator, self.game_config, self.config, window_size)?;
+        let mut themes = ThemeContext::new(all_themes, &texture_creator, game_config, self.config, window_size)?;
 
-        let mut player_textures = (0..self.game_config.players)
+        let mut player_textures = (0..game_config.effective_players())
             .map(|_| {
                 PlayerTextures::new(
                     &texture_creator,
@@ -476,8 +497,15 @@ impl TetrisSdl {
         let mut max_level = 0;
         let mut frame_rate = FrameRate::new();
 
+        let mut ai_agents: Vec<(u32, AiAgent)> = game_config
+            .ai_players()
+            .into_iter()
+            .map(|(player, key_delay)| (player, AiAgent::default().with_key_delay(key_delay)))
+            .collect();
+
         loop {
             let delta = frame_rate.update()?;
+
 
             let mut to_emit_particles = vec![];
 
@@ -487,39 +515,57 @@ impl TetrisSdl {
             }
 
             let mut any_key_pressed = false;
-            let events = inputs
-                .update(delta, self.event_pump.poll_iter())
-                .into_iter()
-                .flat_map(|input| {
-                    any_key_pressed = true;
-                    match input {
-                        GameInputKey::MoveLeft { player } => fixture.mut_game(player, |g| g.left()),
-                        GameInputKey::MoveRight { player } => fixture.mut_game(player, |g| g.right()),
-                        GameInputKey::SoftDrop { player } => {
-                            fixture.mut_game(player, |g| g.set_soft_drop(true))
-                        }
-                        GameInputKey::HardDrop { player } => {
-                            fixture.mut_game(player, |g| g.hard_drop())
-                        }
-                        GameInputKey::RotateClockwise { player } => {
-                            fixture.mut_game(player, |g| g.rotate(true))
-                        }
-                        GameInputKey::RotateAnticlockwise { player } => {
-                            fixture.mut_game(player, |g| g.rotate(false))
-                        }
-                        GameInputKey::Hold { player } => fixture.mut_game(player, |g| g.hold()),
-                        GameInputKey::Pause => match fixture.state() {
-                            MatchState::Normal | MatchState::Paused => fixture.toggle_paused(),
-                            _ => None,
-                        },
-                        GameInputKey::Quit => Some(GameEvent::Quit),
-                        GameInputKey::ReturnToMenu => Some(GameEvent::ReturnToMenu),
-                        GameInputKey::NextTheme => Some(GameEvent::NextTheme),
-                    }
-                })
-                .collect::<Vec<GameEvent>>();
+            let mut meta_events = vec![];
+            for input in inputs.update(delta, self.event_pump.poll_iter()) {
+                any_key_pressed = true;
 
-            for event in events.into_iter() {
+                if input.player().map_or(false, |player| fixture.is_ai_player(player)) {
+                    continue; // human controls are disabled for ai players
+                }
+
+                match input {
+                    GameInputKey::MoveLeft { player } => {
+                        fixture.mut_game(player, |g| g.left());
+                    },
+                    GameInputKey::MoveRight { player } => {
+                        fixture.mut_game(player, |g| g.right());
+                    },
+                    GameInputKey::SoftDrop { player } => {
+                        fixture.mut_game(player, |g| g.set_soft_drop(true));
+                    }
+                    GameInputKey::HardDrop { player } => {
+                        fixture.mut_game(player, |g| g.hard_drop());
+                    }
+                    GameInputKey::RotateClockwise { player } => {
+                        fixture.mut_game(player, |g| g.rotate(true));
+                    }
+                    GameInputKey::RotateAnticlockwise { player } => {
+                        fixture.mut_game(player, |g| g.rotate(false));
+                    }
+                    GameInputKey::Hold { player } => {
+                        fixture.mut_game(player, |g| g.hold());
+                    },
+                    GameInputKey::Pause => {
+                        if let MatchState::Normal | MatchState::Paused = fixture.state() {
+                            if let Some(paused_event) = fixture.toggle_paused() {
+                                meta_events.push(paused_event);
+                            }
+                        }
+                    },
+                    GameInputKey::Quit => meta_events.push(GameEvent::Quit),
+                    GameInputKey::ReturnToMenu => meta_events.push(GameEvent::ReturnToMenu),
+                    GameInputKey::NextTheme => meta_events.push(GameEvent::NextTheme),
+                }
+            }
+            
+            for (player, ai) in ai_agents.iter_mut() {
+                fixture.mut_game(*player, |g| {
+                    ai.act(g, delta);
+                    true
+                });
+            }
+
+            for event in fixture.events().into_iter().chain(meta_events) {
                 match event {
                     GameEvent::Quit => return Ok(PostGameAction::Quit),
                     GameEvent::ReturnToMenu => return Ok(PostGameAction::ReturnToMenu), // even if high score?!
@@ -629,7 +675,7 @@ impl TetrisSdl {
                                 ..
                             } => {
                                 // if playing with all themes then the theme is auto switched after each level
-                                if self.game_config.themes == MatchThemes::All && level_up {
+                                if game_config.themes == MatchThemes::All && level_up {
                                     let level = player.game.level();
                                     if level > max_level {
                                         next_theme = true;
@@ -774,6 +820,9 @@ impl TetrisSdl {
             self.canvas.present();
         }
     }
+}
+fn main2() -> Result<(), String> {
+    ga_main()
 }
 
 fn main() -> Result<(), String> {

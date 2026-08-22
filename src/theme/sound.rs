@@ -1,11 +1,9 @@
 use crate::config::AudioConfig;
 use crate::event::GameEvent;
 
-use rand::{thread_rng, Rng};
-use sdl2::get_error;
-use sdl2::mixer::{Chunk, Music};
+use rand::{rng, RngExt};
+use sdl2::mixer::{Chunk, LoaderRWops, Music};
 use sdl2::rwops::RWops;
-use sdl2::sys::mixer;
 
 pub fn load_sound(buffer: &[u8], config: AudioConfig) -> Result<Chunk, String> {
     let mut chunk = chunk_from_buffer(buffer)?;
@@ -20,12 +18,7 @@ pub fn play_sound(chunk: &Chunk) -> Result<(), String> {
 }
 
 fn chunk_from_buffer(buffer: &[u8]) -> Result<Chunk, String> {
-    let raw = unsafe { mixer::Mix_LoadWAV_RW(RWops::from_bytes(buffer)?.raw(), 0) };
-    if raw.is_null() {
-        Err(get_error())
-    } else {
-        Ok(Chunk { raw, owned: true })
-    }
+    RWops::from_bytes(buffer)?.load_wav()
 }
 
 #[derive(Debug, Clone)]
@@ -189,7 +182,7 @@ impl SoundTheme {
                     play_sound(&self.send_garbage[0])
                 } else {
                     let sound =
-                        &self.send_garbage[thread_rng().gen_range(0..self.send_garbage.len())];
+                        &self.send_garbage[rng().random_range(0..self.send_garbage.len())];
                     play_sound(sound)
                 }
             }

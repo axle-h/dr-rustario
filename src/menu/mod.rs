@@ -55,6 +55,17 @@ struct MenuRow<'a> {
     action_textures: Vec<FontTexture<'a>>,
 }
 
+/// Pack a colour for the sdl2 gfx primitives.
+///
+/// SDL2_gfx reads the `u32` colour's bytes in memory order (r, g, b, a) but sdl2 0.38's
+/// `ToColor for Color` packs it big-endian, which reverses the channels on little-endian
+/// machines (e.g. translucent white became opaque cyan). Passing a pre-packed `u32`
+/// bypasses that conversion.
+fn gfx_color(color: Color) -> u32 {
+    let (r, g, b, a) = color.rgba();
+    u32::from_ne_bytes([r, g, b, a])
+}
+
 impl<'a> MenuRow<'a> {
     fn new(
         canvas: &mut WindowCanvas,
@@ -146,7 +157,7 @@ impl<'a> MenuRow<'a> {
                         bottom_left.x() as i16,
                         bottom_left.y() as i16,
                         rad as i16,
-                        background_color,
+                        gfx_color(background_color),
                     )
                         .unwrap();
                 }
@@ -216,11 +227,32 @@ impl<'a> Menu<'a> {
         // + body height as buffer for select list bg
         let body_width = name_width + horizontal_gutter + max_action_width + row_height / 2;
 
-        let body_rect = Rect::from_center(
+        let title_font_size = window_width / 24;
+        let title_font = FontType::Retro.load(ttf, title_font_size)?;
+        let title_texture =
+            FontTexture::from_string(&title_font, texture_creator, &title_text, Color::WHITE)?;
+        let title_rect = Rect::from_center(
+            Rect::new(
+                0,
+                vertical_gutter as i32,
+                window_width,
+                title_texture.height,
+            )
+                .center(),
+            title_texture.width,
+            title_texture.height,
+        );
+
+        let mut body_rect = Rect::from_center(
             Rect::new(0, 0, window_width, window_height).center(),
             body_width,
             body_height,
         );
+        // keep the menu clear of the title when there are a lot of rows
+        let min_body_top = title_rect.bottom() + font_size as i32;
+        if body_rect.top() < min_body_top {
+            body_rect.set_y(min_body_top);
+        }
 
         let mut row_rects = vec![];
         let mut y = 0;
@@ -241,22 +273,6 @@ impl<'a> Menu<'a> {
             (window_height - watermark_texture.height - watermark_font_size) as i32,
             watermark_texture.width,
             watermark_texture.height,
-        );
-
-        let title_font_size = window_width / 24;
-        let title_font = FontType::Retro.load(ttf, title_font_size)?;
-        let title_texture =
-            FontTexture::from_string(&title_font, texture_creator, &title_text, Color::WHITE)?;
-        let title_rect = Rect::from_center(
-            Rect::new(
-                0,
-                vertical_gutter as i32,
-                window_width,
-                title_texture.height,
-            )
-                .center(),
-            title_texture.width,
-            title_texture.height,
         );
 
         let subtitle = subtitle_text.into().map(|text| {
@@ -292,7 +308,7 @@ impl<'a> Menu<'a> {
                     bottom_left.x() as i16,
                     bottom_left.y() as i16,
                     rad as i16,
-                    Color::RGBA(0xff, 0xff, 0xff, 0x80),
+                    gfx_color(Color::RGBA(0xff, 0xff, 0xff, 0x80)),
                 )
                     .unwrap();
             })

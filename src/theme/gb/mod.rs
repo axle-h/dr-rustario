@@ -2,10 +2,8 @@ use crate::animation::destroy::DestroyAnimationType;
 use crate::animation::game_over::GameOverAnimationType;
 use crate::config::Config;
 use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use std::convert::TryInto;
-use std::iter::Iterator;
 
-use crate::theme::font::{alpha_sprites, FontRenderOptions, MetricSnips};
+use crate::theme::font::{FontRenderOptions, FontSprite, MetricSnips};
 use crate::theme::geometry::VISIBLE_BUFFER;
 use crate::theme::sound::SoundThemeOptions;
 use crate::theme::sprite_sheet::TetrominoSpriteSheetMeta;
@@ -37,9 +35,10 @@ const ALPHA_PIXELS: u32 = 6;
 const BLOCK_PIXELS: u32 = 8;
 const BUFFER_PIXELS: u32 = VISIBLE_BUFFER * BLOCK_PIXELS;
 
-fn char_snip(row: i32, col: i32) -> Point {
+fn char_snip(row: i32, col: i32) -> Rect {
     // characters are in row x col with 8 pixels between columns and 7 pixels between rows
-    Point::new(1 + col * 8, 45 + row * 7)
+    let point = Point::new(1 + col * 8, 45 + row * 7);
+    Rect::new(point.x(), point.y(), ALPHA_PIXELS, ALPHA_PIXELS)
 }
 
 pub fn game_boy_theme<'a>(
@@ -47,6 +46,23 @@ pub fn game_boy_theme<'a>(
     texture_creator: &'a TextureCreator<WindowContext>,
     config: Config,
 ) -> Result<Theme<'a>, String> {
+    let mut font_sprites = Vec::with_capacity(24 * 2 + 10);
+    for i in 0..10 {
+        let snip = char_snip(3, i);
+        font_sprites.push(FontSprite::new(char::from_u32('0' as u32 + i as u32).unwrap(), snip));
+    }
+    for i in 0..24 {
+        let snip = char_snip(i / 10, i % 10);
+        // uppercase
+        font_sprites.push(
+            FontSprite::new(char::from_u32('A' as u32 + i as u32).unwrap(), snip)
+        );
+        // lowercase
+        font_sprites.push(
+            FontSprite::new(char::from_u32('a' as u32 + i as u32).unwrap(), snip)
+        );
+    }
+
     let options = RetroThemeOptions::new(
         ThemeName::GameBoy,
         TetrominoSpriteSheetMeta::new(
@@ -80,20 +96,12 @@ pub fn game_boy_theme<'a>(
         Rect::new(12, 101 + BUFFER_PIXELS as i32, 32, 32),
         FontRenderOptions::Sprites {
             file_bytes: SPRITES,
-            sprites: alpha_sprites(
-                (0..10)
-                    .map(|i| char_snip(3, i))
-                    .collect::<Vec<Point>>()
-                    .try_into()
-                    .unwrap(),
-                ALPHA_PIXELS,
-                ALPHA_PIXELS,
-            ),
+            sprites: font_sprites,
             spacing: 2,
         },
-        MetricSnips::right((46, 25), 999999),
-        MetricSnips::right((39, 52), 999),
-        MetricSnips::right((39, 78), 999),
+        MetricSnips::right((50, 25), 6),
+        MetricSnips::right((39, 52), 3),
+        MetricSnips::right((39, 78), 4),
         Point::new(55, 0),
         Point::new(8, 0),
         Color::WHITE,

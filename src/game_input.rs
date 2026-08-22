@@ -22,6 +22,22 @@ pub enum GameInputKey {
     NextTheme,
 }
 
+impl GameInputKey {
+    /// The player this key controls, if it is a player control key
+    pub fn player(&self) -> Option<u32> {
+        match self {
+            GameInputKey::MoveLeft { player }
+            | GameInputKey::MoveRight { player }
+            | GameInputKey::SoftDrop { player }
+            | GameInputKey::HardDrop { player }
+            | GameInputKey::RotateClockwise { player }
+            | GameInputKey::RotateAnticlockwise { player }
+            | GameInputKey::Hold { player } => Some(*player),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Hash, Clone, Copy, Debug, PartialEq, Eq)]
 struct GameInput {
     key: GameInputKey,

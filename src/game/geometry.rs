@@ -1,10 +1,23 @@
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Neg, Sub};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
+}
+
+impl Ord for Point {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.x.cmp(&other.x).then_with(|| self.y.cmp(&other.y))
+    }
+}
+
+impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Display for Point {
@@ -16,6 +29,10 @@ impl Display for Point {
 impl Point {
     pub const fn new(x: i32, y: i32) -> Point {
         Point { x, y }
+    }
+
+    pub const fn from_u32(x: u32, y: u32) -> Point {
+        Point { x: x as i32, y: y as i32 }
     }
 
     pub fn translate(&self, x: i32, y: i32) -> Point {
@@ -43,6 +60,12 @@ impl Point {
 impl From<(i32, i32)> for Point {
     fn from((x, y): (i32, i32)) -> Self {
         Point::new(x, y)
+    }
+}
+
+impl From<(u32, u32)> for Point {
+    fn from((x, y): (u32, u32)) -> Self {
+        Point::from_u32(x, y)
     }
 }
 
@@ -77,13 +100,20 @@ impl AddAssign for Point {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+impl Default for Point {
+    fn default() -> Self {
+        Self::new(0, 0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub enum Rotation {
-    North,
+    #[default] North,
     East,
     South,
     West,
 }
+
 impl Rotation {
     pub fn rotate(&self, clockwise: bool) -> Rotation {
         match self {
@@ -132,6 +162,50 @@ impl Rotation {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub struct Pose {
+    pub position: Point,
+    pub rotation: Rotation,
+}
+
+impl Pose {
+    pub fn new(position: Point, rotation: Rotation) -> Self {
+        Self { position, rotation }
+    }
+
+    pub fn from_position(position: Point) -> Self {
+        Self { position, rotation: Rotation::default() }
+    }
+
+    pub fn translate(&self, x: i32, y: i32) -> Self {
+        Self {
+            position: self.position.translate(x, y),
+            rotation: self.rotation,
+        }
+    }
+
+    pub fn rotate(&self, clockwise: bool) -> Self {
+        Self {
+            position: self.position,
+            rotation: self.rotation.rotate(clockwise),
+        }
+    }
+
+    pub fn rotate_mut(&mut self, clockwise: bool) -> Rotation {
+        self.rotation = self.rotation.rotate(clockwise);
+        self.rotation
+    }
+}
+
+impl Add<Point> for Pose {
+    type Output = Self;
+
+    fn add(self, rhs: Point) -> Self::Output {
+        Self { position: self.position + rhs, ..self }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
