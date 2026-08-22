@@ -8,7 +8,7 @@ resolver = "2"
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
 tag = "2024.10.21"
-dependencies = ["sdl2", "sdl2-image", "sdl2-gfx", "sdl2-mixer", "sdl2-ttf"]
+dependencies = ["sdl2"]
 
 [package.metadata.vcpkg.target]
 x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
@@ -30,7 +30,7 @@ mockall = "0.15.0"
 rand = "0.10.2"
 rand_chacha = "0.10.0"
 serde = { version = "1.0.229", default-features = false, features = ["derive"] }
-sdl2 = { version = "0.38.0", default-features = false, features = [] }
+sdl2 = { version = "0.38.0", default-features = false }
 ab_glyph = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 confy = { version = "2.0.0", default-features = false, features = ["yaml_conf"] }

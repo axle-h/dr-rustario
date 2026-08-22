@@ -2,6 +2,9 @@
 
 Dr. Mario clone written in SDL2 and Rust for fun.
 
+Only core SDL2 is required: images, fonts and audio mixing are handled in Rust
+(`image`, `ab_glyph`, `symphonia` + a small mixer on SDL's audio callback).
+
 ## Building
 
 Requires vcpkg to build.
@@ -27,10 +30,10 @@ rustflags = ["-C", "link-args=-weak_framework CoreHaptics"]
 
 ```shell
 # Fedora
-sudo dnf install SDL2-devel SDL2_gfx-devel SDL2_ttf-devel SDL2_mixer-devel SDL2_image-devel
+sudo dnf install SDL2-devel
 
 # Ubuntu/Debian
-sudo apt install libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev libsdl2-mixer-dev libsdl2-image-dev
+sudo apt install libsdl2-dev
 ```
 
 Build with pkgconfig:

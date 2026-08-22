@@ -3,10 +3,9 @@ FROM debian:10
 # Install dependencies
 RUN dpkg --add-architecture arm64 && apt update && apt upgrade -y \
   && apt install -y build-essential crossbuild-essential-arm64 zip unzip cmake meson git wget curl unzip pkg-config autoconf \
-                    libsdl2-dev:arm64 libsdl2-image-dev:arm64 libsdl2-gfx-dev:arm64 libsdl2-mixer-dev:arm64 \
-                    libsdl2-ttf-dev:arm64 libmp3lame-dev:arm64 libdrm-dev:arm64 libgbm-dev:arm64 \
+                    libsdl2-dev:arm64 libdrm-dev:arm64 libgbm-dev:arm64 \
                     libasound2-dev:arm64 libsndio-dev:arm64 libudev-dev:arm64 libdbus-1-dev:arm64 \
-                    libsamplerate0-dev:arm64 libibus-1.0-dev:arm64 libfreetype6-dev:arm64 libgl1-mesa-dev:arm64 \
+                    libsamplerate0-dev:arm64 libibus-1.0-dev:arm64 libgl1-mesa-dev:arm64 \
   && ln -sf /usr/share/pkg-config-crosswrapper /usr/bin/aarch64-linux-gnu-pkg-config
 
 # Install rust
