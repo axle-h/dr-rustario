@@ -6,7 +6,7 @@ use crate::high_score::NewHighScore;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
-use sdl2::ttf::{Font, Sdl2TtfContext};
+use crate::font::Font;
 use sdl2::video::WindowContext;
 use std::cmp::min;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
@@ -21,10 +21,10 @@ fn char_carets(font: &Font, text: &str) -> Result<Vec<Rect>, String> {
         let x = if i == 0 {
             0
         } else {
-            let (width, _) = font.size_of(&text[..i]).map_err(|e| e.to_string())?;
+            let (width, _) = font.size_of(&text[..i]);
             width + 1
         };
-        let (width, height) = font.size_of_char(char).map_err(|e| e.to_string())?;
+        let (width, height) = font.size_of_char(char);
         let rect = Rect::new(x as i32, height as i32 - 2, width - 1, CARET_HEIGHT);
         char_carets.push(rect);
     }
@@ -152,7 +152,7 @@ impl Entry {
     }
 }
 
-pub struct HighScoreRender<'a, 'ttf> {
+pub struct HighScoreRender<'a> {
     texture_creator: &'a TextureCreator<WindowContext>,
     rows: Vec<HighScoreTableRow<'a>>,
     texture: Texture<'a>,
@@ -164,22 +164,21 @@ pub struct HighScoreRender<'a, 'ttf> {
     width: u32,
     rect: Rect,
     entry: Option<Entry>,
-    font: Font<'ttf, 'ttf>,
+    font: Font,
 }
 
 /// TODO music
-impl<'a, 'ttf> HighScoreRender<'a, 'ttf> {
+impl<'a> HighScoreRender<'a> {
     pub fn new(
         table: HighScoreTable,
-        ttf: &'ttf Sdl2TtfContext,
         texture_creator: &'a TextureCreator<WindowContext>,
         (window_width, window_height): (u32, u32),
         new_high_score: Option<NewHighScore>,
     ) -> Result<Self, String> {
         let font_size = window_width / 32;
-        let font_header = FontType::Bold.load(ttf, font_size)?;
-        let font_body = FontType::Mono.load(ttf, font_size)?;
-        let font_title = FontType::Retro.load(ttf, window_width / 24)?;
+        let font_header = FontType::Bold.load(font_size)?;
+        let font_body = FontType::Mono.load(font_size)?;
+        let font_title = FontType::Retro.load(window_width / 24)?;
 
         let (table, entry) = if let Some(new_high_score) = new_high_score {
             let score_index = table

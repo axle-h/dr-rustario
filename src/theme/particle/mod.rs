@@ -22,7 +22,6 @@ use game_metrics::GameMetricType;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 use std::time::Duration;
 
@@ -119,7 +118,6 @@ fn animations(virus_idle: &'static [u8], garbage_i: i32) -> BlockAnimationsData 
 pub fn particle_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
-    ttf: &Sdl2TtfContext,
     config: Config,
 ) -> Result<Theme<'a>, String> {
     let (_, window_height) = canvas.window().size();
@@ -144,7 +142,6 @@ pub fn particle_theme<'a>(
     let font = FontRender::from_font(
         canvas,
         texture_creator,
-        ttf,
         FontType::Normal,
         font_size,
         Color::WHITE,
@@ -152,7 +149,6 @@ pub fn particle_theme<'a>(
     let font_bold = FontRender::from_font(
         canvas,
         texture_creator,
-        ttf,
         FontType::Bold,
         font_size,
         Color::WHITE,
@@ -160,7 +156,6 @@ pub fn particle_theme<'a>(
     let font_match_end = FontRender::from_font(
         canvas,
         texture_creator,
-        ttf,
         FontType::Retro,
         font_size * 3,
         Color::WHITE,

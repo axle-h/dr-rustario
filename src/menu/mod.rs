@@ -8,7 +8,7 @@ use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
-use sdl2::ttf::{Font, Sdl2TtfContext};
+use crate::font::Font;
 use sdl2::video::WindowContext;
 use crate::build_info;
 use crate::theme::helper::TextureFactory;
@@ -180,7 +180,6 @@ impl<'a> Menu<'a> {
     pub fn new<ST: Into<Option<String>>>(
         menu_items: Vec<MenuItem>,
         canvas: &mut WindowCanvas,
-        ttf: &Sdl2TtfContext,
         texture_creator: &'a TextureCreator<WindowContext>,
         title_text: String,
         subtitle_text: ST,
@@ -189,7 +188,7 @@ impl<'a> Menu<'a> {
 
         let (window_width, window_height) = canvas.window().size();
         let font_size = window_width / 32;
-        let font = FontType::Retro.load(ttf, font_size)?;
+        let font = FontType::Retro.load(font_size)?;
 
         let vertical_gutter = font_size / 3;
         let horizontal_gutter = font_size * 2;
@@ -224,7 +223,7 @@ impl<'a> Menu<'a> {
         let body_texture = texture_creator.create_texture_target_blended(body_width, body_height)?;
 
         let watermark_font_size = 3 * font_size / 5;
-        let watermark_font = FontType::Retro.load(ttf, watermark_font_size)?;
+        let watermark_font = FontType::Retro.load(watermark_font_size)?;
         let watermark = format!("{} v{} by {}", build_info::PKG_NAME, build_info::PKG_VERSION, build_info::PKG_AUTHORS);
         let watermark_texture =
             FontTexture::from_string(&watermark_font, texture_creator, &watermark, Color::WHITE)?;
@@ -236,7 +235,7 @@ impl<'a> Menu<'a> {
         );
 
         let title_font_size = window_width / 24;
-        let title_font = FontType::Retro.load(ttf, title_font_size)?;
+        let title_font = FontType::Retro.load(title_font_size)?;
         let title_texture =
             FontTexture::from_string(&title_font, texture_creator, &title_text, Color::WHITE)?;
         let title_rect = Rect::from_center(

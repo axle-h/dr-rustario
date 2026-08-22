@@ -5,7 +5,6 @@ use crate::theme::helper::TextureFactory;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
@@ -173,12 +172,11 @@ impl<'a> FontRender<'a> {
     pub fn from_font(
         canvas: &mut WindowCanvas,
         texture_creator: &'a TextureCreator<WindowContext>,
-        ttf: &Sdl2TtfContext,
         font_type: FontType,
         size: u32,
         color: Color,
     ) -> Result<Self, String> {
-        let font = font_type.load(ttf, size)?;
+        let font = font_type.load(size)?;
 
         let chars = ('A'..='Z')
             .chain('a'..='z')

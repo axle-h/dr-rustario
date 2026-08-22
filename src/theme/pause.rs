@@ -3,7 +3,6 @@ use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 
 pub struct PausedScreen<'a> {
@@ -13,11 +12,10 @@ pub struct PausedScreen<'a> {
 impl<'a> PausedScreen<'a> {
     pub fn new(
         canvas: &mut WindowCanvas,
-        ttf: &Sdl2TtfContext,
         texture_creator: &'a TextureCreator<WindowContext>,
         (window_width, window_height): (u32, u32),
     ) -> Result<Self, String> {
-        let font = FontType::Retro.load(ttf, window_width / 16)?;
+        let font = FontType::Retro.load(window_width / 16)?;
         let font_texture = FontTexture::from_string(&font, texture_creator, "pause", Color::WHITE)?;
         let font_rect = Rect::from_center(
             (window_width as i32 / 2, window_height as i32 / 2),

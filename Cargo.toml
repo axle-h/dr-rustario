@@ -30,7 +30,8 @@ mockall = "0.15.0"
 rand = "0.10.2"
 rand_chacha = "0.10.0"
 serde = { version = "1.0.229", default-features = false, features = ["derive"] }
-sdl2 = { version = "0.38.0", default-features = false, features = ["mixer","ttf"] }
+sdl2 = { version = "0.38.0", default-features = false, features = ["mixer"] }
+ab_glyph = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 confy = { version = "2.0.0", default-features = false, features = ["yaml_conf"] }
 num-format = "0.4.4"

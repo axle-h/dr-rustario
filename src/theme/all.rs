@@ -5,7 +5,6 @@ use crate::theme::particle::particle_theme;
 use crate::theme::snes::snes_theme;
 use crate::theme::{AnimationMeta, Theme};
 use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::WindowContext;
 
 #[derive(Copy, Clone, Debug)]
@@ -28,13 +27,12 @@ impl<'a> AllThemes<'a> {
     pub fn new(
         canvas: &mut WindowCanvas,
         texture_creator: &'a TextureCreator<WindowContext>,
-        ttf: &Sdl2TtfContext,
         config: Config,
     ) -> Result<Self, String> {
         let nes = nes_theme(canvas, texture_creator, config)?;
         let snes = snes_theme(canvas, texture_creator, config)?;
         let n64 = n64_theme(canvas, texture_creator, config)?;
-        let particle = particle_theme(canvas, texture_creator, ttf, config)?;
+        let particle = particle_theme(canvas, texture_creator, config)?;
         let meta = AllThemeMeta {
             nes: nes.animation_meta.clone(),
             snes: snes.animation_meta.clone(),

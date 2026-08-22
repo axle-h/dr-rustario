@@ -31,7 +31,6 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::sys::mixer::MIX_CHANNELS;
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::{AudioSubsystem, EventPump, Sdl};
 use std::str::FromStr;
 
@@ -86,7 +85,6 @@ enum PostGameAction {
 struct DrRustario {
     config: Config,
     _sdl: Sdl,
-    ttf: Sdl2TtfContext,
     canvas: WindowCanvas,
     event_pump: EventPump,
     _audio: AudioSubsystem,
@@ -100,7 +98,6 @@ impl DrRustario {
         let config = Config::load()?;
         let sdl = sdl2::init()?;
         let video = sdl.video()?;
-        let ttf = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
         // let resolutions: BTreeSet<(i32, i32)> = (0..video.num_display_modes(0)?)
         //     .into_iter()
@@ -159,7 +156,6 @@ impl DrRustario {
         Ok(Self {
             config,
             _sdl: sdl,
-            ttf,
             canvas,
             event_pump,
             _audio: audio,
@@ -230,7 +226,6 @@ impl DrRustario {
         let mut menu = Menu::new(
             menu_items,
             &mut self.canvas,
-            &self.ttf,
             &texture_creator,
             build_info::nice_app_name(),
             None,
@@ -361,7 +356,6 @@ impl DrRustario {
         let mut menu = Menu::new(
             menu_items,
             &mut self.canvas,
-            &self.ttf,
             &texture_creator,
             build_info::nice_app_name(),
             Some(subtitle),
@@ -442,7 +436,6 @@ impl DrRustario {
 
         let mut view = HighScoreRender::new(
             high_scores,
-            &self.ttf,
             &texture_creator,
             self.canvas.window().size(),
             None,
@@ -488,7 +481,6 @@ impl DrRustario {
 
         let mut table = HighScoreRender::new(
             high_scores,
-            &self.ttf,
             &texture_creator,
             self.canvas.window().size(),
             Some(new_high_score),
@@ -579,7 +571,7 @@ impl DrRustario {
         }
 
         let paused_screen =
-            PausedScreen::new(&mut self.canvas, &self.ttf, &texture_creator, window_size)?;
+            PausedScreen::new(&mut self.canvas, &texture_creator, window_size)?;
 
         let mut frame_rate = FrameRate::new();
 
@@ -896,7 +888,6 @@ fn main() -> Result<(), String> {
     let all_themes = AllThemes::new(
         &mut dr_rustario.canvas,
         &texture_creator,
-        &dr_rustario.ttf,
         dr_rustario.config,
     )?;
 
