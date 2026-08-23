@@ -7,7 +7,7 @@ use crate::theme::{AnimationMeta, Theme};
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct AllThemeMeta {
     pub nes: AnimationMeta,
     pub snes: AnimationMeta,
@@ -53,6 +53,6 @@ impl<'a> AllThemes<'a> {
     }
 
     pub fn meta(&self) -> AllThemeMeta {
-        self.meta
+        self.meta.clone()
     }
 }

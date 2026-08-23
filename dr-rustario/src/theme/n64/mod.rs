@@ -1,5 +1,5 @@
-use crate::animate::dr::DrAnimationType;
-use crate::animate::virus::VirusAnimationType;
+use crate::theme::{N64_GAME_OVER, N64_VICTORY, RETRO_THROW};
+use engine::animate::frames::FrameAnimationType;
 use crate::config::Config;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
@@ -93,11 +93,11 @@ pub fn n64_theme<'a>(
         scene_low: scene.clone(),
         scene_medium: scene.clone(),
         scene_high: scene,
-        virus_animation_type: VirusAnimationType::YoYo { fps: 5 },
-        dr_idle_animation_type: DrAnimationType::YoYo { fps: 10 },
-        dr_throw_animation_type: DrAnimationType::RETRO_THROW,
-        dr_victory_animation_type: DrAnimationType::N64_VICTORY,
-        dr_game_over_animation_type: DrAnimationType::N64_GAME_OVER,
+        virus_animation_type: FrameAnimationType::YoYo { fps: 5 },
+        dr_idle_animation_type: FrameAnimationType::YoYo { fps: 10 },
+        dr_throw_animation_type: RETRO_THROW,
+        dr_victory_animation_type: N64_VICTORY,
+        dr_game_over_animation_type: N64_GAME_OVER,
         sprites: VitaminSpriteSheetData::new(
             sprites::VITAMINS,
             pills(

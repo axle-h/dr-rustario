@@ -1,4 +1,4 @@
-use crate::game::pill::Vitamins;
+use crate::game::PlacedCell;
 use std::time::Duration;
 
 const FRAME_DURATION: f64 = 0.004; // 4 millis
@@ -6,19 +6,20 @@ const MAX_ALPHA: u8 = 100;
 const MAX_TRAIL_FRAMES: u32 = 5;
 const STEP_SIZE: f64 = 0.2;
 
+/// A fading trail of the piece falls from where it was to where it landed.
 #[derive(Clone, Debug)]
 pub struct State {
-    vitamins: Vitamins,
+    cells: Vec<PlacedCell>,
     duration: f64,
     frame: u32,
     max_frames: u32,
 }
 
 impl State {
-    pub fn new(vitamins: Vitamins, dropped_rows: u32) -> Self {
+    fn new(cells: Vec<PlacedCell>, dropped_rows: u32) -> Self {
         let max_frames = dropped_rows as f64 / STEP_SIZE;
         Self {
-            vitamins,
+            cells,
             max_frames: max_frames.round() as u32,
             duration: 0.0,
             frame: 0,
@@ -46,8 +47,8 @@ impl State {
         result
     }
 
-    pub fn vitamins(&self) -> Vitamins {
-        self.vitamins
+    pub fn cells(&self) -> &[PlacedCell] {
+        &self.cells
     }
 }
 
@@ -98,9 +99,9 @@ impl HardDropAnimation {
         self.state = None;
     }
 
-    pub fn hard_drop(&mut self, vitamins: Vitamins, dropped_rows: u32) {
+    pub fn hard_drop(&mut self, cells: &[PlacedCell], dropped_rows: u32) {
         if dropped_rows > 0 {
-            self.state = Some(State::new(vitamins, dropped_rows));
+            self.state = Some(State::new(cells.to_vec(), dropped_rows));
         }
     }
 

@@ -1,6 +1,6 @@
-use crate::animate::dr::{DrAnimation, DrAnimationType};
-
-use crate::game::pill::PillShape;
+use crate::animate::frames::FrameAnimation;
+use crate::animate::mascot::MascotMeta;
+use crate::game::PieceId;
 use sdl2::rect::Point;
 use std::f64::consts::PI;
 use std::time::Duration;
@@ -8,40 +8,40 @@ use std::time::Duration;
 const ARC_DURATION: f64 = 0.5; // secs
 const ARC_HEIGHT_BLOCKS: f64 = 4.5;
 
+/// The next piece is thrown from the mascot into the board along an arc.
+#[derive(Clone, Copy, Debug)]
+pub struct SpawnArc {
+    pub start: Point,
+    pub end: Point,
+    pub block_size: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct State {
     arc: LinearThrowArc,
-    shape: PillShape,
+    piece: PieceId,
     duration: f64,
     is_hold: bool,
-    dr: DrAnimation,
+    mascot: Option<FrameAnimation>,
 }
 
 impl State {
-    fn new(arc: LinearThrowArc, shape: PillShape, is_hold: bool, dr: DrAnimation) -> Self {
-        Self {
-            shape,
-            duration: 0.0,
-            arc,
-            dr,
-            is_hold,
-        }
-    }
-
     pub fn throw_position(&self) -> Point {
         let x = self.arc.distance(self.duration);
         let y = self.arc.height(x);
         Point::new(x.round() as i32, y.round() as i32)
     }
 
-    pub fn shape(&self) -> PillShape {
-        self.shape
+    pub fn piece(&self) -> PieceId {
+        self.piece
     }
 
-    pub fn dr_throw_frame(&self) -> usize {
-        self.dr.frame()
+    pub fn mascot_frame(&self) -> Option<usize> {
+        self.mascot.map(|m| m.frame())
     }
 
+    /// how far through the throw the queue should have shuffled along, if the piece came
+    /// from the queue rather than the hold box
     pub fn peek_offset(&self) -> Option<f64> {
         if self.is_hold {
             None
@@ -50,43 +50,39 @@ impl State {
         }
     }
 
-    pub fn pill_rotate_angle_degrees(&self) -> f64 {
+    pub fn piece_rotate_angle_degrees(&self) -> f64 {
         360.0 * self.duration / ARC_DURATION
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct ThrowAnimation {
+pub struct SpawnAnimation {
     state: Option<State>,
-    arc: LinearThrowArc,
-    dr_frames: usize,
-    dr_type: DrAnimationType,
+    arc: Option<LinearThrowArc>,
+    mascot: Option<MascotMeta>,
 }
 
-impl ThrowAnimation {
-    pub fn new(
-        start: Point,
-        end: Point,
-        block_size: u32,
-        dr_frames: usize,
-        dr_type: DrAnimationType,
-    ) -> Self {
+impl SpawnAnimation {
+    /// without an arc spawning is instant and this animation never runs
+    pub fn new(arc: Option<SpawnArc>, mascot: Option<MascotMeta>) -> Self {
         Self {
             state: None,
-            arc: LinearThrowArc::new(start, end, block_size),
-            dr_frames,
-            dr_type,
+            arc: arc.map(|arc| LinearThrowArc::new(arc.start, arc.end, arc.block_size)),
+            mascot,
         }
     }
 
+    /// returns true when a spawn animation finishes this update
     pub fn update(&mut self, delta: Duration) -> bool {
         let mut finished = false;
         if let Some(animation) = self.state.as_mut() {
             animation.duration += delta.as_secs_f64();
             if animation.duration > ARC_DURATION {
                 finished = true
-            } else if animation.dr.iteration() == 0 {
-                animation.dr.update(delta);
+            } else if let Some(mascot) = animation.mascot.as_mut() {
+                if mascot.iteration() == 0 {
+                    mascot.update(delta);
+                }
             }
         }
         if finished {
@@ -101,9 +97,21 @@ impl ThrowAnimation {
         self.state = None;
     }
 
-    pub fn throw(&mut self, shape: PillShape, is_hold: bool) {
-        let dr = DrAnimation::new(self.dr_type, self.dr_frames);
-        self.state = Some(State::new(self.arc, shape, is_hold, dr));
+    /// start the animation; returns false if this theme spawns instantly
+    pub fn spawn(&mut self, piece: PieceId, is_hold: bool) -> bool {
+        match self.arc {
+            Some(arc) => {
+                self.state = Some(State {
+                    arc,
+                    piece,
+                    duration: 0.0,
+                    is_hold,
+                    mascot: self.mascot.map(|m| m.spawn()),
+                });
+                true
+            }
+            None => false,
+        }
     }
 
     pub fn state(&self) -> Option<&State> {

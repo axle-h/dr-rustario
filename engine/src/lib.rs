@@ -1,3 +1,4 @@
+pub mod animate;
 pub mod app_info;
 pub mod audio;
 pub mod config;

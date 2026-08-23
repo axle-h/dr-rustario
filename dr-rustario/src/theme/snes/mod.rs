@@ -1,5 +1,5 @@
-use crate::animate::dr::DrAnimationType;
-use crate::animate::virus::VirusAnimationType;
+use crate::theme::{NES_SNES_VICTORY, RETRO_THROW};
+use engine::animate::frames::FrameAnimationType;
 use crate::config::Config;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
@@ -97,11 +97,11 @@ pub fn snes_theme<'a>(
         scene_low: scene.clone(),
         scene_medium: scene.clone(),
         scene_high: scene,
-        virus_animation_type: VirusAnimationType::LINEAR_STANDARD,
-        dr_idle_animation_type: DrAnimationType::Static,
-        dr_throw_animation_type: DrAnimationType::RETRO_THROW,
-        dr_victory_animation_type: DrAnimationType::NES_SNES_VICTORY,
-        dr_game_over_animation_type: DrAnimationType::Static,
+        virus_animation_type: FrameAnimationType::Linear { fps: 3 },
+        dr_idle_animation_type: FrameAnimationType::Static,
+        dr_throw_animation_type: RETRO_THROW,
+        dr_victory_animation_type: NES_SNES_VICTORY,
+        dr_game_over_animation_type: FrameAnimationType::Static,
         sprites: VitaminSpriteSheetData::new(
             sprites::VITAMINS,
             pills(

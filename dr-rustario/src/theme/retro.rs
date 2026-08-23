@@ -1,5 +1,10 @@
-use crate::animate::dr::DrAnimationType;
-use crate::animate::virus::VirusAnimationType;
+use crate::game::cell::DrCell;
+use engine::animate::destroy::DestroyStyle;
+use engine::animate::frames::FrameAnimationType;
+use engine::animate::game_over::GameOverStyle;
+use engine::animate::mascot::MascotMeta;
+use engine::animate::spawn::SpawnArc;
+use engine::game::CellId;
 use crate::game::pill::{VirusColor, LEFT_VITAMIN_SPAWN_POINT};
 use crate::theme::font::FontThemeOptions;
 use crate::theme::geometry::BottleGeometry;
@@ -18,11 +23,11 @@ pub struct RetroThemeOptions {
     pub scene_low: SceneType,
     pub scene_medium: SceneType,
     pub scene_high: SceneType,
-    pub virus_animation_type: VirusAnimationType,
-    pub dr_idle_animation_type: DrAnimationType,
-    pub dr_throw_animation_type: DrAnimationType,
-    pub dr_victory_animation_type: DrAnimationType,
-    pub dr_game_over_animation_type: DrAnimationType,
+    pub virus_animation_type: FrameAnimationType,
+    pub dr_idle_animation_type: FrameAnimationType,
+    pub dr_throw_animation_type: FrameAnimationType,
+    pub dr_victory_animation_type: FrameAnimationType,
+    pub dr_game_over_animation_type: FrameAnimationType,
     pub sprites: VitaminSpriteSheetData,
     pub geometry: BottleGeometry,
     pub audio: AudioTheme,
@@ -90,26 +95,29 @@ pub fn retro_theme<'a>(
         })
         .collect();
 
-    let animation_meta = AnimationMeta {
-        virus_type: options.virus_animation_type,
-        red_virus_frames: sprites.virus_frames(VirusColor::Red),
-        blue_virus_frames: sprites.virus_frames(VirusColor::Blue),
-        yellow_virus_frames: sprites.virus_frames(VirusColor::Yellow),
-        vitamin_pop_frames: sprites.vitamin_pop_frames(),
-        virus_pop_frames: sprites.virus_pop_frames(),
-        throw_start: options.dr_hand_point,
-        throw_end: options.geometry.point(LEFT_VITAMIN_SPAWN_POINT) + options.bottle_point + options.dr_throw_end_offset,
-        dr_throw_type: options.dr_throw_animation_type,
-        dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
-        dr_victory_type: options.dr_victory_animation_type,
-        dr_victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
-        dr_idle_type: options.dr_idle_animation_type,
-        dr_idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
-        dr_game_over_type: options.dr_game_over_animation_type,
-        dr_game_over_frames: sprites.dr_sprites(DrType::GameOver).frame_count(),
-        game_over_screen_frames: game_over_snips.len(),
-        next_level_interstitial_frames: next_level_snips.len(),
-    };
+    let animation_meta = dr_animation_meta(
+        &sprites,
+        options.virus_animation_type,
+        MascotMeta {
+            idle_type: options.dr_idle_animation_type,
+            idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
+            spawn_type: options.dr_throw_animation_type,
+            spawn_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
+            victory_type: options.dr_victory_animation_type,
+            victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
+            game_over_type: options.dr_game_over_animation_type,
+            game_over_frames: sprites.dr_sprites(DrType::GameOver).frame_count(),
+        },
+        SpawnArc {
+            start: options.dr_hand_point,
+            end: options.geometry.point(LEFT_VITAMIN_SPAWN_POINT)
+                + options.bottle_point
+                + options.dr_throw_end_offset,
+            block_size: options.geometry.block_size(),
+        },
+        game_over_snips.len(),
+        next_level_snips.len(),
+    );
 
     Ok(Theme {
         name: options.name,
@@ -162,4 +170,37 @@ pub fn retro_theme<'a>(
         peek_scale: options.peek_scale,
         peek_max: options.peek_max,
     })
+}
+
+/// Build the engine's animation description from a Dr. Rustario sprite sheet.
+pub fn dr_animation_meta(
+    sprites: &VitaminSpriteSheet,
+    virus_animation_type: FrameAnimationType,
+    mascot: MascotMeta,
+    spawn_arc: SpawnArc,
+    game_over_screen_frames: usize,
+    interstitial_frames: usize,
+) -> AnimationMeta {
+    let colors = [VirusColor::Red, VirusColor::Blue, VirusColor::Yellow];
+    let mut destroy = DestroyStyle::pop(sprites.vitamin_pop_frames());
+    for color in colors {
+        destroy = destroy.with_pop_frames(
+            CellId::from(DrCell::Virus(color)),
+            sprites.virus_pop_frames(),
+        );
+    }
+    AnimationMeta {
+        destroy,
+        game_over: GameOverStyle::Screen {
+            frames: game_over_screen_frames,
+        },
+        interstitial_frames,
+        cell_idle_type: virus_animation_type,
+        cell_idle: colors
+            .into_iter()
+            .map(|color| (CellId::from(DrCell::Virus(color)), sprites.virus_frames(color)))
+            .collect(),
+        spawn_arc: Some(spawn_arc),
+        mascot: Some(mascot),
+    }
 }

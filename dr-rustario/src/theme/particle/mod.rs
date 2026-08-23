@@ -1,9 +1,11 @@
-use crate::animate::dr::DrAnimationType;
-use crate::animate::virus::VirusAnimationType;
+use crate::theme::retro::dr_animation_meta;
+use engine::animate::frames::FrameAnimationType;
+use engine::animate::mascot::MascotMeta;
+use engine::animate::spawn::SpawnArc;
 use crate::config::Config;
 use crate::font::FontType;
 use crate::game::bottle::BOTTLE_HEIGHT;
-use crate::game::pill::{VirusColor, LEFT_VITAMIN_SPAWN_POINT};
+use crate::game::pill::LEFT_VITAMIN_SPAWN_POINT;
 use crate::game::random::MAX_VIRUSES;
 use crate::game::rules::MAX_VIRUS_LEVEL;
 use crate::game::MAX_SCORE;
@@ -17,7 +19,7 @@ use crate::theme::sound::AudioTheme;
 use crate::theme::sprite_sheet::{
     pills, BlockAnimationsData, BlockPoints, DrType, VitaminSpriteSheet, VitaminSpriteSheetData,
 };
-use crate::theme::{AnimationMeta, Theme, ThemeName};
+use crate::theme::{Theme, ThemeName};
 use game_metrics::GameMetricType;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
@@ -294,34 +296,37 @@ pub fn particle_theme<'a>(
         })
         .map_err(|e| e.to_string())?;
 
-    let animation_meta = AnimationMeta {
-        virus_type: VirusAnimationType::Linear { fps: 30 },
-        red_virus_frames: sprites.virus_frames(VirusColor::Red),
-        blue_virus_frames: sprites.virus_frames(VirusColor::Blue),
-        yellow_virus_frames: sprites.virus_frames(VirusColor::Yellow),
-        vitamin_pop_frames: sprites.vitamin_pop_frames(),
-        virus_pop_frames: sprites.virus_pop_frames(),
-        throw_start: dr_hand_point,
-        throw_end: geometry.point(LEFT_VITAMIN_SPAWN_POINT).offset(bottle_bg_snip.left(), 0),
-        dr_throw_type: DrAnimationType::Linear { fps: sprites::DR_FPS },
-        dr_throw_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
-        dr_victory_type: DrAnimationType::LinearWithPause {
-            fps: sprites::DR_FPS,
-            pause_for: Duration::from_secs(3),
-            resume_from_frame: 98,
+    let animation_meta = dr_animation_meta(
+        &sprites,
+        FrameAnimationType::Linear { fps: 30 },
+        MascotMeta {
+            idle_type: FrameAnimationType::Linear { fps: sprites::DR_FPS },
+            idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
+            spawn_type: FrameAnimationType::Linear { fps: sprites::DR_FPS },
+            spawn_frames: sprites.dr_sprites(DrType::Throw).frame_count(),
+            victory_type: FrameAnimationType::LinearWithPause {
+                fps: sprites::DR_FPS,
+                pause_for: Duration::from_secs(3),
+                resume_from_frame: 98,
+            },
+            victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
+            game_over_type: FrameAnimationType::LinearWithPause {
+                fps: sprites::DR_FPS,
+                pause_for: Duration::from_secs(3),
+                resume_from_frame: 195,
+            },
+            game_over_frames: sprites.dr_sprites(DrType::GameOver).frame_count(),
         },
-        dr_victory_frames: sprites.dr_sprites(DrType::Victory).frame_count(),
-        dr_idle_type: DrAnimationType::Linear { fps: sprites::DR_FPS },
-        dr_idle_frames: sprites.dr_sprites(DrType::Idle).frame_count(),
-        dr_game_over_type: DrAnimationType::LinearWithPause {
-            fps: sprites::DR_FPS,
-            pause_for: Duration::from_secs(3),
-            resume_from_frame: 195,
+        SpawnArc {
+            start: dr_hand_point,
+            end: geometry
+                .point(LEFT_VITAMIN_SPAWN_POINT)
+                .offset(bottle_bg_snip.left(), 0),
+            block_size: geometry.block_size(),
         },
-        dr_game_over_frames: sprites.dr_sprites(DrType::GameOver).frame_count(),
-        game_over_screen_frames: 1,
-        next_level_interstitial_frames: 1,
-    };
+        1,
+        1,
+    );
 
     let mut match_end_texture =
         texture_creator.create_texture_target_blended(geometry.width() * 2, geometry.height())?;

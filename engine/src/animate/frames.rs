@@ -1,7 +1,8 @@
 use std::time::Duration;
 
+/// How a strip of sprite frames is played back.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum DrAnimationType {
+pub enum FrameAnimationType {
     Static,
     Linear {
         fps: u32,
@@ -16,41 +17,27 @@ pub enum DrAnimationType {
     },
 }
 
-impl DrAnimationType {
-    pub const RETRO_THROW: Self = Self::LinearWithPause {
-        fps: 10,
-        pause_for: Duration::from_millis(200),
-        resume_from_frame: 0,
-    };
-
-    pub const NES_SNES_VICTORY: Self = Self::Linear {
-        fps: 4,
-    };
-    pub const N64_VICTORY: Self = Self::LinearWithPause {
-        fps: 7,
-        pause_for: Duration::from_millis(2000),
-        resume_from_frame: 0,
-    };
-
-    pub const N64_GAME_OVER: Self = Self::LinearWithPause {
-        fps: 7,
-        pause_for: Duration::from_millis(2000),
-        resume_from_frame: 18,
-    };
-
+impl FrameAnimationType {
     pub fn fps(&self) -> Option<u32> {
         match self {
-            DrAnimationType::Static => None,
-            DrAnimationType::Linear { fps } => Some(*fps),
-            DrAnimationType::YoYo { fps } => Some(*fps),
-            DrAnimationType::LinearWithPause { fps, .. } => Some(*fps)
+            FrameAnimationType::Static => None,
+            FrameAnimationType::Linear { fps }
+            | FrameAnimationType::YoYo { fps }
+            | FrameAnimationType::LinearWithPause { fps, .. } => Some(*fps),
         }
+    }
+
+    pub fn frame_duration(&self) -> Duration {
+        self.fps()
+            .map(|fps| Duration::from_secs(1) / fps)
+            .unwrap_or(Duration::ZERO)
     }
 }
 
+/// Plays `max_frame` frames according to a [`FrameAnimationType`].
 #[derive(Clone, Copy, Debug)]
-pub struct DrAnimation {
-    animation_type: DrAnimationType,
+pub struct FrameAnimation {
+    animation_type: FrameAnimationType,
     duration: Duration,
     frame_duration: Duration,
     paused_for: Option<Duration>,
@@ -60,15 +47,13 @@ pub struct DrAnimation {
     max_frame: usize,
 }
 
-impl DrAnimation {
-    pub fn new(animation_type: DrAnimationType, max_frame: usize) -> Self {
-        let frame_duration = animation_type.fps()
-            .map(|fps| Duration::from_secs(1) / fps)
-            .unwrap_or(Duration::ZERO);
+impl FrameAnimation {
+    pub fn new(animation_type: FrameAnimationType, max_frame: usize) -> Self {
+        assert!(max_frame > 0);
         Self {
             animation_type,
             duration: Duration::ZERO,
-            frame_duration,
+            frame_duration: animation_type.frame_duration(),
             paused_for: None,
             frame: 0,
             invert: false,
@@ -80,17 +65,13 @@ impl DrAnimation {
     pub fn update(&mut self, delta: Duration) {
         self.duration += delta;
         match self.animation_type {
-            DrAnimationType::Static => {
+            FrameAnimationType::Static => {
                 self.frame = 0;
                 self.iteration = 0;
             }
-            DrAnimationType::Linear { .. } => {
-                self.next_linear(false);
-            }
-            DrAnimationType::YoYo { .. } => {
-                self.next_linear(true);
-            }
-            DrAnimationType::LinearWithPause {
+            FrameAnimationType::Linear { .. } => self.next_linear(false),
+            FrameAnimationType::YoYo { .. } => self.next_linear(true),
+            FrameAnimationType::LinearWithPause {
                 pause_for,
                 resume_from_frame,
                 ..
@@ -102,7 +83,6 @@ impl DrAnimation {
                         self.paused_for = None;
                     }
                     if self.paused_for.is_none() {
-                        // unpause
                         self.duration = Duration::ZERO;
                         self.iteration += 1;
                         self.frame = resume_from_frame;
@@ -110,7 +90,6 @@ impl DrAnimation {
                 } else {
                     self.register_frames();
                     if self.frame >= self.max_frame {
-                        // pause
                         self.frame = self.max_frame - 1;
                         self.paused_for = Some(pause_for);
                     }
@@ -120,13 +99,12 @@ impl DrAnimation {
     }
 
     fn register_frames(&mut self) {
-        loop {
-            if let Some(remainder) = self.duration.checked_sub(self.frame_duration) {
-                self.duration = remainder;
-                self.frame += 1;
-            } else {
+        while let Some(remainder) = self.duration.checked_sub(self.frame_duration) {
+            if self.frame_duration.is_zero() {
                 break;
             }
+            self.duration = remainder;
+            self.frame += 1;
         }
     }
 
@@ -145,6 +123,7 @@ impl DrAnimation {
         self.duration = Duration::ZERO;
         self.frame = 0;
         self.invert = false;
+        self.paused_for = None;
     }
 
     pub fn frame(&self) -> usize {
@@ -157,5 +136,47 @@ impl DrAnimation {
 
     pub fn iteration(&self) -> usize {
         self.iteration
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linear_wraps_and_counts_iterations() {
+        let mut a = FrameAnimation::new(FrameAnimationType::Linear { fps: 10 }, 3);
+        a.update(Duration::from_millis(250));
+        assert_eq!(a.frame(), 2);
+        a.update(Duration::from_millis(100));
+        assert_eq!(a.frame(), 0);
+        assert_eq!(a.iteration(), 1);
+    }
+
+    #[test]
+    fn yo_yo_reverses() {
+        let mut a = FrameAnimation::new(FrameAnimationType::YoYo { fps: 10 }, 3);
+        a.update(Duration::from_millis(300));
+        assert_eq!(a.frame(), 2);
+        a.update(Duration::from_millis(100));
+        assert_eq!(a.frame(), 1);
+    }
+
+    #[test]
+    fn pause_holds_last_frame_then_resumes() {
+        let t = FrameAnimationType::LinearWithPause {
+            fps: 10,
+            pause_for: Duration::from_millis(200),
+            resume_from_frame: 1,
+        };
+        let mut a = FrameAnimation::new(t, 2);
+        a.update(Duration::from_millis(200));
+        assert_eq!(a.frame(), 1);
+        a.update(Duration::from_millis(100));
+        assert_eq!(a.frame(), 1);
+        assert_eq!(a.iteration(), 0);
+        a.update(Duration::from_millis(100));
+        assert_eq!(a.frame(), 1);
+        assert_eq!(a.iteration(), 1);
     }
 }

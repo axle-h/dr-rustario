@@ -1,4 +1,6 @@
-use crate::animate::PlayerAnimations;
+use crate::game::cell::{colored_blocks, vitamins_of, DrCell};
+use engine::animate::PlayerAnimations;
+use engine::game::CellId;
 use crate::game::block::Block;
 use crate::game::bottle::BOTTLE_HEIGHT;
 use crate::game::geometry::{BottlePoint, Rotation};
@@ -701,24 +703,31 @@ impl<'a> VitaminSpriteSheet<'a> {
         geometry: &BottleGeometry,
         animations: &PlayerAnimations,
     ) -> Result<(), String> {
-        if let Some(spawning_viruses) = animations.next_level().state().map(|s| s.display_viruses())
+        let virus_frame = |color: VirusColor| {
+            animations
+                .cell_idle()
+                .frame(CellId::from(DrCell::Virus(color)))
+                .unwrap_or(0)
+        };
+
+        if let Some(spawning_viruses) = animations.next_stage().state().map(|s| s.display_cells())
         {
-            for virus in spawning_viruses {
+            for virus in colored_blocks(&spawning_viruses) {
                 let dest = geometry.raw_block(virus.position);
                 self.animations(virus.color).virus_idle.draw_frame_scaled(
                     canvas,
                     dest,
-                    animations.virus().frame(virus.color),
+                    virus_frame(virus.color),
                 )?;
             }
             return Ok(());
         }
 
-        let mut draw_vitamin = !animations.throw().state().is_some();
+        let mut draw_vitamin = !animations.spawn().state().is_some();
 
         if let Some(hard_drop) = animations.hard_drop().state() {
             draw_vitamin = false;
-            let vitamins = hard_drop.vitamins();
+            let vitamins = vitamins_of(hard_drop.cells());
             for frame in hard_drop.frames() {
                 for vitamin in vitamins {
                     let dest = geometry.raw_block(vitamin.position());
@@ -761,7 +770,7 @@ impl<'a> VitaminSpriteSheet<'a> {
                     Block::Virus(color) => self.animations(color).virus_idle.draw_frame_scaled(
                         canvas,
                         dest,
-                        animations.virus().frame(color),
+                        virus_frame(color),
                     )?,
                     Block::Ghost(color, rotation, ordinal) if draw_vitamin => self.draw_vitamin(
                         canvas,
@@ -778,21 +787,15 @@ impl<'a> VitaminSpriteSheet<'a> {
         }
 
         if let Some(destroyed) = animations.destroy().state() {
-            for block in destroyed.blocks() {
-                let animations = self.animations(block.color);
-                let dest = geometry.raw_block(block.position);
-                if block.is_virus {
-                    animations.virus_pop.draw_frame_scaled(
-                        canvas,
-                        dest,
-                        destroyed.virus_frame(),
-                    )?;
+            for (position, id) in destroyed.cells().iter().copied() {
+                let cell = DrCell::from(id);
+                let sprites = self.animations(cell.color());
+                let dest = geometry.raw_block(position);
+                let frame = animations.destroy().pop_frame(id).unwrap_or(0);
+                if cell.is_virus() {
+                    sprites.virus_pop.draw_frame_scaled(canvas, dest, frame)?;
                 } else {
-                    animations.vitamin_pop.draw_frame_scaled(
-                        canvas,
-                        dest,
-                        destroyed.vitamin_frame(),
-                    )?;
+                    sprites.vitamin_pop.draw_frame_scaled(canvas, dest, frame)?;
                 }
             }
         }

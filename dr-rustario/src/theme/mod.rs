@@ -1,6 +1,26 @@
-use crate::animate::dr::DrAnimationType;
-use crate::animate::virus::VirusAnimationType;
-use crate::animate::PlayerAnimations;
+use crate::game::cell::DrCell;
+use engine::animate::frames::FrameAnimationType;
+pub use engine::animate::AnimationMeta;
+use std::time::Duration;
+
+pub const RETRO_THROW: FrameAnimationType = FrameAnimationType::LinearWithPause {
+    fps: 10,
+    pause_for: Duration::from_millis(200),
+    resume_from_frame: 0,
+};
+pub const NES_SNES_VICTORY: FrameAnimationType = FrameAnimationType::Linear { fps: 4 };
+pub const N64_VICTORY: FrameAnimationType = FrameAnimationType::LinearWithPause {
+    fps: 7,
+    pause_for: Duration::from_millis(2000),
+    resume_from_frame: 0,
+};
+pub const N64_GAME_OVER: FrameAnimationType = FrameAnimationType::LinearWithPause {
+    fps: 7,
+    pause_for: Duration::from_millis(2000),
+    resume_from_frame: 18,
+};
+use engine::animate::PlayerAnimations;
+use engine::game::CellId;
 
 use crate::game::pill::VirusColor;
 use crate::game::{Game, GameSpeed};
@@ -39,55 +59,33 @@ pub enum ThemeName {
     Particle,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct AnimationMeta {
-    pub virus_type: VirusAnimationType,
-    pub red_virus_frames: usize,
-    pub blue_virus_frames: usize,
-    pub yellow_virus_frames: usize,
-    pub vitamin_pop_frames: usize,
-    pub virus_pop_frames: usize,
-    pub throw_start: Point,
-    pub throw_end: Point,
-    pub dr_throw_type: DrAnimationType,
-    pub dr_throw_frames: usize,
-    pub dr_victory_type: DrAnimationType,
-    pub dr_victory_frames: usize,
-    pub dr_idle_type: DrAnimationType,
-    pub dr_idle_frames: usize,
-    pub dr_game_over_type: DrAnimationType,
-    pub dr_game_over_frames: usize,
-    pub game_over_screen_frames: usize,
-    pub next_level_interstitial_frames: usize,
+fn particle_animation(animation_type: FrameAnimationType, frames: usize) -> ParticleAnimationType {
+    match animation_type {
+        FrameAnimationType::Static => ParticleAnimationType::Static,
+        FrameAnimationType::Linear { fps } => ParticleAnimationType::Linear { frames, fps },
+        FrameAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps },
+        FrameAnimationType::LinearWithPause { fps, .. } => {
+            ParticleAnimationType::Linear { frames, fps }
+        }
+    }
 }
 
-impl AnimationMeta {
-    pub fn virus_particle_animation(&self, color: VirusColor) -> ParticleAnimationType {
-        let frames = match color {
-            VirusColor::Yellow => self.yellow_virus_frames,
-            VirusColor::Blue => self.blue_virus_frames,
-            VirusColor::Red => self.red_virus_frames,
-        };
-        match self.virus_type {
-            VirusAnimationType::Linear { fps } => ParticleAnimationType::Linear { frames, fps },
-            VirusAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps },
-        }
-    }
+pub fn virus_particle_animation(meta: &AnimationMeta, color: VirusColor) -> ParticleAnimationType {
+    let frames = meta
+        .cell_idle_frames(CellId::from(DrCell::Virus(color)))
+        .unwrap_or(1);
+    particle_animation(meta.cell_idle_type, frames)
+}
 
-    pub fn dr_particle_animation(&self, dr_type: DrType) -> ParticleAnimationType {
-        let (animation_type, frames) = match dr_type {
-            DrType::Throw => (self.dr_throw_type, self.dr_throw_frames),
-            DrType::GameOver => (self.dr_game_over_type, self.dr_game_over_frames),
-            DrType::Victory => (self.dr_victory_type, self.dr_victory_frames),
-            DrType::Idle => (self.dr_idle_type, self.dr_idle_frames),
-        };
-        match animation_type {
-            DrAnimationType::Static => ParticleAnimationType::Static,
-            DrAnimationType::Linear { fps } => ParticleAnimationType::Linear { frames, fps },
-            DrAnimationType::YoYo { fps } => ParticleAnimationType::YoYo { frames, fps },
-            DrAnimationType::LinearWithPause { .. } => todo!("pause, probably need to consolidate all animations"),
-        }
-    }
+pub fn dr_particle_animation(meta: &AnimationMeta, dr_type: DrType) -> ParticleAnimationType {
+    let mascot = meta.mascot.expect("dr rustario themes have a mascot");
+    let (animation_type, frames) = match dr_type {
+        DrType::Throw => (mascot.spawn_type, mascot.spawn_frames),
+        DrType::GameOver => (mascot.game_over_type, mascot.game_over_frames),
+        DrType::Victory => (mascot.victory_type, mascot.victory_frames),
+        DrType::Idle => (mascot.idle_type, mascot.idle_frames),
+    };
+    particle_animation(animation_type, frames)
 }
 
 pub struct Theme<'a> {
@@ -139,8 +137,8 @@ impl<'a> Theme<'a> {
         }
     }
 
-    pub fn animation_meta(&self) -> AnimationMeta {
-        self.animation_meta
+    pub fn animation_meta(&self) -> &AnimationMeta {
+        &self.animation_meta
     }
 
     pub fn geometry(&self) -> &BottleGeometry {
@@ -180,53 +178,53 @@ impl<'a> Theme<'a> {
                 canvas,
                 DrType::GameOver,
                 self.dr_game_over_point,
-                game_over.dr_frame(),
+                game_over.mascot_frame().unwrap_or(0),
             )?;
         } else if let Some(victory) = animations.victory().state() {
             self.sprites.draw_dr(
                 canvas,
                 DrType::Victory,
                 self.dr_victory_point,
-                victory.dr_frame(),
+                victory.mascot_frame().unwrap_or(0),
             )?;
-        } else if let Some(next_level_interstitial) = animations.next_level_interstitial().state() {
+        } else if let Some(interstitial) = animations.interstitial().state() {
             self.sprites.draw_dr(
                 canvas,
                 DrType::Victory,
                 self.dr_victory_point,
-                next_level_interstitial.dr_frame(),
+                interstitial.mascot_frame().unwrap_or(0),
             )?;
         } else {
             let peek = metrics.queue();
             let mut peek_offset = 0;
-            if let Some(spawn) = animations.throw().state() {
+            if let Some(spawn) = animations.spawn().state() {
                 if self.dr_order_first {
                     self.sprites.draw_dr(
                         canvas,
                         DrType::Throw,
                         self.dr_throw_point,
-                        spawn.dr_throw_frame(),
+                        spawn.mascot_frame().unwrap_or(0),
                     )?;
                     self.sprites.draw_pill(
                         canvas,
-                        spawn.shape(),
+                        spawn.piece().into(),
                         spawn.throw_position(),
-                        spawn.pill_rotate_angle_degrees(),
+                        spawn.piece_rotate_angle_degrees(),
                         None,
                     )?;
                 } else {
                     self.sprites.draw_pill(
                         canvas,
-                        spawn.shape(),
+                        spawn.piece().into(),
                         spawn.throw_position(),
-                        spawn.pill_rotate_angle_degrees(),
+                        spawn.piece_rotate_angle_degrees(),
                         None,
                     )?;
                     self.sprites.draw_dr(
                         canvas,
                         DrType::Throw,
                         self.dr_throw_point,
-                        spawn.dr_throw_frame(),
+                        spawn.mascot_frame().unwrap_or(0),
                     )?;
                 }
 
@@ -239,7 +237,7 @@ impl<'a> Theme<'a> {
                     canvas,
                     DrType::Idle,
                     self.dr_throw_point,
-                    animations.idle().frame(),
+                    animations.mascot_idle_frame().unwrap_or(0),
                 )?;
                 self.sprites
                     .draw_pill(canvas, peek[0], self.dr_hand_point, None, None)?;
@@ -250,7 +248,7 @@ impl<'a> Theme<'a> {
                     canvas,
                     DrType::Idle,
                     self.dr_throw_point,
-                    animations.idle().frame(),
+                    animations.mascot_idle_frame().unwrap_or(0),
                 )?;
             }
             if let Some(hold) = metrics.hold() {
@@ -296,7 +294,7 @@ impl<'a> Theme<'a> {
         if let Some(game_over_frame) = animations
             .game_over()
             .state()
-            .and_then(|s| s.game_over_screen_frame())
+            .and_then(|s| s.screen_frame())
         {
             canvas.copy(
                 &self.match_end_texture,
@@ -304,7 +302,7 @@ impl<'a> Theme<'a> {
                 self.geometry.game_snip(),
             )?;
         } else if let Some(interstitial_frame) = animations
-            .next_level_interstitial()
+            .interstitial()
             .state()
             .map(|s| s.interstitial_frame())
         {

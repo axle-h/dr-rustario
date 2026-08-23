@@ -1,9 +1,8 @@
 #![windows_subsystem = "windows"]
 
-use crate::animate::event::{AnimationEvent, AnimationType};
+use engine::animate::event::{AnimationEvent, AnimationType};
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
-use crate::game::cell::{colored_blocks, vitamins_of};
 use crate::game::event::GameEvent;
 use crate::game::random::RandomMode;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
@@ -33,7 +32,6 @@ use sdl2::render::{Texture, WindowCanvas};
 use sdl2::{EventPump, Sdl};
 use std::str::FromStr;
 
-mod animate;
 mod build_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 
@@ -685,11 +683,7 @@ impl DrRustario {
                                 dropped_rows,
                             } = event
                             {
-                                themes.animate_hard_drop(
-                                    player_id,
-                                    vitamins_of(cells),
-                                    *dropped_rows,
-                                );
+                                themes.animate_hard_drop(player_id, cells, *dropped_rows);
                                 skip_update = true;
                             }
                         }
@@ -710,7 +704,7 @@ impl DrRustario {
                 for event in animation_events.into_iter() {
                     match event {
                         AnimationEvent::Finished { player, animation }
-                            if animation == AnimationType::Throw =>
+                            if animation == AnimationType::Spawn =>
                         {
                             events.push((Some(player), GameEvent::Spawned));
                         }
@@ -765,7 +759,7 @@ impl DrRustario {
                         }
                     }
                     (Some(player), GameEvent::Clear { cells, .. }) => {
-                        themes.animate_destroy(player, colored_blocks(&cells));
+                        themes.animate_destroy(player, &cells);
                     }
                     (Some(player), GameEvent::AttackSent(attack)) => {
                         fixture.send_attack(player, attack);
@@ -774,10 +768,10 @@ impl DrRustario {
                         if dropped {
                             themes.animate_impact(player);
                         }
-                        themes.animate_lock(player, vitamins_of(&cells));
+                        themes.animate_lock(player, &cells);
                     }
                     (Some(player), GameEvent::Spawn { piece, is_hold, .. }) => {
-                        themes.animate_spawn(player, piece.into(), is_hold);
+                        themes.animate_spawn(player, piece, is_hold);
                     }
                     (Some(player), GameEvent::NextTheme) => {
                         themes.fade_into_next_theme(player, &mut self.canvas)?

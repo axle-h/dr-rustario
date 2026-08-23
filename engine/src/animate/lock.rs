@@ -1,45 +1,28 @@
-use crate::game::geometry::BottlePoint;
-use crate::game::pill::Vitamins;
+use crate::game::geometry::Point;
+use crate::game::PlacedCell;
 use std::collections::HashSet;
 use std::time::Duration;
 
-const VITAMIN_LOCK_DURATION: Duration = Duration::from_millis(100);
+const LOCK_DURATION: Duration = Duration::from_millis(100);
 const FRAMES: u32 = 1;
 const MAX_OFFSET: f64 = 0.1;
 
-#[derive(Clone, Debug)]
+/// The just-locked piece settles into the stack with a small bounce.
+#[derive(Clone, Debug, Default)]
 pub struct State {
-    vitamins: HashSet<BottlePoint>,
+    cells: HashSet<Point>,
     duration: Duration,
     frame: u32,
 }
 
 impl State {
-    fn new(vitamins: Vitamins) -> Self {
-        Self {
-            vitamins: HashSet::from_iter(vitamins.map(|v| v.position())),
-            duration: Duration::ZERO,
-            frame: 0,
-        }
+    pub fn animates(&self, point: Point) -> bool {
+        self.cells.contains(&point)
     }
 
-    pub fn animates(&self, point: BottlePoint) -> bool {
-        self.vitamins.contains(&point)
-    }
-
-    /// offset the vitamins by specified percent of a block
+    /// offset the cells by this fraction of a block
     pub fn offset_y(&self) -> f64 {
         (self.frame + 1) as f64 * (MAX_OFFSET / FRAMES as f64)
-    }
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            vitamins: HashSet::new(),
-            duration: Duration::ZERO,
-            frame: 0,
-        }
     }
 }
 
@@ -53,7 +36,7 @@ impl LockAnimation {
     pub fn new() -> Self {
         Self {
             state: None,
-            frame_duration: VITAMIN_LOCK_DURATION / FRAMES,
+            frame_duration: LOCK_DURATION / FRAMES,
         }
     }
 
@@ -77,8 +60,11 @@ impl LockAnimation {
         self.state = None;
     }
 
-    pub fn lock(&mut self, vitamins: Vitamins) {
-        self.state = Some(State::new(vitamins));
+    pub fn lock(&mut self, cells: &[PlacedCell]) {
+        self.state = Some(State {
+            cells: cells.iter().map(|(p, _)| *p).collect(),
+            ..State::default()
+        });
     }
 
     pub fn state(&self) -> Option<&State> {

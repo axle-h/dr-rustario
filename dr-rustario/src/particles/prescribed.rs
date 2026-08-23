@@ -12,6 +12,7 @@ use crate::particles::source::{
     RandomParticleSource,
 };
 use crate::theme::all::AllThemeMeta;
+use crate::theme::{dr_particle_animation, virus_particle_animation};
 use crate::theme::n64::BLOCK_SIZE as N64_BLOCK_SIZE;
 use crate::theme::nes::BLOCK_SIZE as NES_BLOCK_SIZE;
 use crate::theme::particle::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
@@ -238,23 +239,17 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Virus(
                                 ThemeName::Particle,
                                 VirusColor::Red,
-                                theme_meta
-                                    .particle
-                                    .virus_particle_animation(VirusColor::Red),
+                                virus_particle_animation(&theme_meta.particle, VirusColor::Red),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Particle,
                                 VirusColor::Blue,
-                                theme_meta
-                                    .particle
-                                    .virus_particle_animation(VirusColor::Blue),
+                                virus_particle_animation(&theme_meta.particle, VirusColor::Blue),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Particle,
                                 VirusColor::Yellow,
-                                theme_meta
-                                    .particle
-                                    .virus_particle_animation(VirusColor::Yellow),
+                                virus_particle_animation(&theme_meta.particle, VirusColor::Yellow),
                             ),
                         ],
                         modern_scale,
@@ -268,9 +263,7 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Dr(
                                 ThemeName::Particle,
                                 DrType::Idle,
-                                theme_meta
-                                    .particle
-                                    .dr_particle_animation(DrType::Idle),
+                                dr_particle_animation(&theme_meta.particle, DrType::Idle),
                             )
                         ],
                         (0.5, 0.1),
@@ -288,17 +281,17 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Virus(
                                 ThemeName::Nes,
                                 VirusColor::Red,
-                                theme_meta.nes.virus_particle_animation(VirusColor::Red),
+                                virus_particle_animation(&theme_meta.nes, VirusColor::Red),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Nes,
                                 VirusColor::Blue,
-                                theme_meta.nes.virus_particle_animation(VirusColor::Blue),
+                                virus_particle_animation(&theme_meta.nes, VirusColor::Blue),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Nes,
                                 VirusColor::Yellow,
-                                theme_meta.nes.virus_particle_animation(VirusColor::Yellow),
+                                virus_particle_animation(&theme_meta.nes, VirusColor::Yellow),
                             ),
                         ],
                         nes_scale,
@@ -312,9 +305,7 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Dr(
                                 ThemeName::Nes,
                                 DrType::Victory,
-                                theme_meta
-                                    .nes
-                                    .dr_particle_animation(DrType::Victory),
+                                dr_particle_animation(&theme_meta.nes, DrType::Victory),
                             )
                         ],
                         (nes_dr_scale, nes_dr_scale / 5.0),
@@ -332,17 +323,17 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Virus(
                                 ThemeName::Snes,
                                 VirusColor::Red,
-                                theme_meta.snes.virus_particle_animation(VirusColor::Red),
+                                virus_particle_animation(&theme_meta.snes, VirusColor::Red),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Snes,
                                 VirusColor::Blue,
-                                theme_meta.snes.virus_particle_animation(VirusColor::Blue),
+                                virus_particle_animation(&theme_meta.snes, VirusColor::Blue),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::Snes,
                                 VirusColor::Yellow,
-                                theme_meta.snes.virus_particle_animation(VirusColor::Yellow),
+                                virus_particle_animation(&theme_meta.snes, VirusColor::Yellow),
                             ),
                         ],
                         snes_scale,
@@ -356,9 +347,7 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Dr(
                                 ThemeName::Snes,
                                 DrType::Victory,
-                                theme_meta
-                                    .snes
-                                    .dr_particle_animation(DrType::Victory),
+                                dr_particle_animation(&theme_meta.snes, DrType::Victory),
                             )
                         ],
                         (snes_dr_scale, snes_dr_scale / 5.0),
@@ -377,17 +366,17 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Virus(
                                 ThemeName::N64,
                                 VirusColor::Red,
-                                theme_meta.n64.virus_particle_animation(VirusColor::Red),
+                                virus_particle_animation(&theme_meta.n64, VirusColor::Red),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::N64,
                                 VirusColor::Blue,
-                                theme_meta.n64.virus_particle_animation(VirusColor::Blue),
+                                virus_particle_animation(&theme_meta.n64, VirusColor::Blue),
                             ),
                             ParticleSprite::Virus(
                                 ThemeName::N64,
                                 VirusColor::Yellow,
-                                theme_meta.n64.virus_particle_animation(VirusColor::Yellow),
+                                virus_particle_animation(&theme_meta.n64, VirusColor::Yellow),
                             ),
                         ],
                         n64_scale,
@@ -401,9 +390,7 @@ pub fn prescribed_vitamin_race(
                             ParticleSprite::Dr(
                                 ThemeName::N64,
                                 DrType::Idle,
-                                theme_meta
-                                    .n64
-                                    .dr_particle_animation(DrType::Idle),
+                                dr_particle_animation(&theme_meta.n64, DrType::Idle),
                             )
                         ],
                         (n64_dr_scale, n64_dr_scale / 5.0),

@@ -4,11 +4,13 @@ use crate::theme::{Theme, ThemeName};
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 
-use crate::animate::event::AnimationEvent;
-use crate::animate::PlayerAnimations;
+
+use engine::animate::event::AnimationEvent;
+use engine::animate::PlayerAnimations;
+use engine::game::{PieceId, PlacedCell};
 use crate::game::event::ColoredBlock;
 use crate::game::geometry::BottlePoint;
-use crate::game::pill::{PillShape, Vitamins};
+use crate::game::pill::Vitamins;
 use crate::game::rules::{GameConfig, MatchThemes};
 use crate::game::GameSpeed;
 use crate::particles::render::ParticleRender;
@@ -72,7 +74,7 @@ impl ThemedPlayer {
             scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
         let game_snip =
             scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
-        let animations = PlayerAnimations::new(player, theme);
+        let animations = PlayerAnimations::new(player, theme.animation_meta());
         Self {
             bg_snip,
             bottle_snip,
@@ -139,7 +141,7 @@ impl<'a> ScaledTheme<'a> {
     pub fn is_pause_required_for_animation(&self, player: u32) -> bool {
         self.player_themes[player as usize]
             .animations
-            .is_animating()
+            .blocks_tick()
     }
 
 }
@@ -258,12 +260,12 @@ impl<'a> ThemeContext<'a> {
         events
     }
 
-    pub fn animate_destroy(&mut self, player: u32, blocks: Vec<ColoredBlock>) {
+    pub fn animate_destroy(&mut self, player: u32, cells: &[PlacedCell]) {
         for theme in self.themes.iter_mut() {
             theme
                 .animations_mut(player)
                 .destroy_mut()
-                .add(blocks.clone());
+                .add(cells.to_vec());
         }
     }
 
@@ -273,27 +275,27 @@ impl<'a> ThemeContext<'a> {
         }
     }
 
-    pub fn animate_lock(&mut self, player: u32, vitamins: Vitamins) {
+    pub fn animate_lock(&mut self, player: u32, cells: &[PlacedCell]) {
         for theme in self.themes.iter_mut() {
-            theme.animations_mut(player).lock_mut().lock(vitamins);
+            theme.animations_mut(player).lock_mut().lock(cells);
         }
     }
 
-    pub fn animate_hard_drop(&mut self, player: u32, vitamins: Vitamins, dropped_rows: u32) {
+    pub fn animate_hard_drop(&mut self, player: u32, cells: &[PlacedCell], dropped_rows: u32) {
         for theme in self.themes.iter_mut() {
             theme
                 .animations_mut(player)
                 .hard_drop_mut()
-                .hard_drop(vitamins, dropped_rows);
+                .hard_drop(cells, dropped_rows);
         }
     }
 
-    pub fn animate_spawn(&mut self, player: u32, shape: PillShape, is_hold: bool) {
+    pub fn animate_spawn(&mut self, player: u32, piece: PieceId, is_hold: bool) {
         for theme in self.themes.iter_mut() {
             theme
                 .animations_mut(player)
-                .throw_mut()
-                .throw(shape, is_hold);
+                .spawn_mut()
+                .spawn(piece, is_hold);
         }
     }
 
@@ -311,19 +313,21 @@ impl<'a> ThemeContext<'a> {
 
     pub fn animate_next_level_interstitial(&mut self, player: u32) {
         for theme in self.themes.iter_mut() {
-            theme
-                .animations_mut(player)
-                .next_level_interstitial_mut()
-                .display();
+            theme.animations_mut(player).interstitial_mut().display();
         }
     }
 
     pub fn animate_next_level(&mut self, player: u32, viruses: &[ColoredBlock]) {
+        let cells = viruses
+            .iter()
+            .copied()
+            .map(PlacedCell::from)
+            .collect::<Vec<PlacedCell>>();
         for theme in self.themes.iter_mut() {
             theme
                 .animations_mut(player)
-                .next_level_mut()
-                .next_level(viruses);
+                .next_stage_mut()
+                .next_stage(&cells);
         }
     }
 
@@ -332,7 +336,7 @@ impl<'a> ThemeContext<'a> {
         for index in 0..self.themes.len() {
             let theme_result = self.themes[index]
                 .animations_mut(player)
-                .next_level_interstitial_mut()
+                .interstitial_mut()
                 .dismiss();
             if index == self.current[player as usize] {
                 result = theme_result;
@@ -344,7 +348,7 @@ impl<'a> ThemeContext<'a> {
     pub fn is_animating_next_level_interstitial(&self) -> bool {
         (0..self.players()).any(|player| {
             self.player_animations(player)
-                .next_level_interstitial()
+                .interstitial()
                 .state()
                 .is_some()
         })

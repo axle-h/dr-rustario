@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AnimationType {
-    Throw,
+    Spawn,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
