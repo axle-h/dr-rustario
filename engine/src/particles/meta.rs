@@ -1,10 +1,8 @@
-use crate::game::pill::{PillShape, VirusColor};
+use crate::game::{CellId, PieceId};
 use crate::particles::meta::ParticleSprite::*;
 use crate::particles::particle::ParticleAnimationType;
-use crate::theme::ThemeName;
+use crate::render::sprite_sheet::MascotKind;
 use sdl2::rect::Rect;
-use strum_macros::EnumIter;
-use crate::theme::sprite_sheet::DrType;
 
 const PARTICLE_SPRITE_SIZE: u32 = 512;
 
@@ -17,7 +15,7 @@ fn snip(i: i32, j: i32) -> Rect {
     )
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ParticleSprite {
     Circle01,
     Circle02,
@@ -69,42 +67,42 @@ pub enum ParticleSprite {
     Twirl01,
     Twirl02,
     Twirl03,
-    Pill(ThemeName, PillShape),
-    Virus(ThemeName, VirusColor, ParticleAnimationType),
-    Dr(ThemeName, DrType, ParticleAnimationType)
+    /// a whole piece from a theme's preview sprites; `theme` indexes the renderer's themes
+    Piece {
+        theme: usize,
+        piece: PieceId,
+    },
+    /// an animated cell from a theme's sprite sheet
+    Cell {
+        theme: usize,
+        cell: CellId,
+        animation: ParticleAnimationType,
+    },
+    Mascot {
+        theme: usize,
+        kind: MascotKind,
+        animation: ParticleAnimationType,
+    },
 }
 
-type ThemePills = [ParticleSprite; 9];
-
 impl ParticleSprite {
+    /// every sprite that lives in the built-in atlas
+    pub const ATLAS: [ParticleSprite; 50] = [
+        Circle01, Circle02, Circle03, Circle04, Circle05, Dirt01, Dirt02, Dirt03, Fire01, Fire02,
+        Flare01, Light01, Light02, Light03, Magic01, Magic02, Magic03, Magic04, Magic05, Scorch01,
+        Scorch02, Scorch03, Smoke01, Smoke02, Smoke03, Smoke04, Smoke05, Smoke06, Smoke07, Smoke08,
+        Smoke09, Smoke10, Spark01, Spark02, Spark03, Spark04, Star01, Star02, Star03, Star04, Star05,
+        Star06, Star07, Star08, Star09, Symbol01, Symbol02, Twirl01, Twirl02, Twirl03,
+    ];
+
     pub const STARS: [ParticleSprite; 9] = [
         Star01, Star02, Star03, Star04, Star05, Star06, Star07, Star08, Star09,
     ];
     pub const HOLLOW_CIRCLES: [ParticleSprite; 4] = [Circle01, Circle02, Circle03, Circle04];
 
-    const fn theme_sprites(theme: ThemeName) -> ThemePills {
-        [
-            Pill(theme, PillShape::YY),
-            Pill(theme, PillShape::YB),
-            Pill(theme, PillShape::YR),
-            Pill(theme, PillShape::BB),
-            Pill(theme, PillShape::BY),
-            Pill(theme, PillShape::BR),
-            Pill(theme, PillShape::RR),
-            Pill(theme, PillShape::RY),
-            Pill(theme, PillShape::RB),
-        ]
-    }
-
-    pub const NES_PILLS: ThemePills = Self::theme_sprites(ThemeName::Nes);
-    pub const SNES_PILLS: ThemePills = Self::theme_sprites(ThemeName::Snes);
-    pub const N64_PILLS: ThemePills = Self::theme_sprites(ThemeName::N64);
-    pub const MODERN_PILLS: ThemePills = Self::theme_sprites(ThemeName::Particle);
-
     pub fn animation(&self) -> Option<ParticleAnimationType> {
         match self {
-            Virus(_, _, animation) => Some(*animation),
-            Dr(_, _, animation) => Some(*animation),
+            Cell { animation, .. } | Mascot { animation, .. } => Some(*animation),
             _ => None,
         }
     }

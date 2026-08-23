@@ -1,6 +1,8 @@
-use crate::game::event::ColoredBlock;
-use crate::game::geometry::BottlePoint;
-use crate::game::pill::{Garbage, VirusColor, Vitamins};
+use crate::game::geometry::Point as CellPoint;
+use crate::game::{CellId, PieceId, PlacedCell};
+use crate::particles::particle::ParticleAnimationType;
+use crate::render::context::ThemeContext;
+use crate::render::sprite_sheet::MascotKind;
 use crate::particles::color::ParticleColor;
 use crate::particles::geometry::Vec2D;
 use crate::particles::meta::ParticleSprite;
@@ -11,26 +13,17 @@ use crate::particles::source::{
     AggregateParticleSource, ParticleModulation, ParticleProperties, ParticleSource,
     RandomParticleSource,
 };
-use crate::theme::all::AllThemeMeta;
-use crate::theme::{dr_particle_animation, virus_particle_animation};
-use crate::theme::n64::BLOCK_SIZE as N64_BLOCK_SIZE;
-use crate::theme::nes::BLOCK_SIZE as NES_BLOCK_SIZE;
-use crate::theme::particle::sprites::SRC_BLOCK_SIZE as MODERN_BLOCK_SIZE;
-use crate::theme::snes::BLOCK_SIZE as SNES_BLOCK_SIZE;
-use crate::theme::ThemeName;
-use crate::themes::ThemeContext;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
-use crate::theme::sprite_sheet::DrType;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlayerParticleTarget {
-    Vitamins(Vitamins),
-    Blocks(Vec<BottlePoint>),
-    Garbage(Vec<Garbage>),
-    MaskedBlocks(Vec<ColoredBlock>),
-    Bottle,
+    /// whole cells
+    Cells(Vec<CellPoint>),
+    /// the opaque pixels of these cells, so particles take their shape
+    MaskedCells(Vec<PlacedCell>),
+    Board,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -197,10 +190,22 @@ pub fn prescribed_fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSour
         .into_box()
 }
 
-pub fn prescribed_vitamin_race(
+/// What one theme contributes to the piece race: `theme` indexes the particle renderer's
+/// themes, `scale` shrinks its sprites to match the other themes.
+#[derive(Clone, Debug)]
+pub struct RaceTheme {
+    pub theme: usize,
+    pub pieces: Vec<PieceId>,
+    pub cells: Vec<(CellId, ParticleAnimationType)>,
+    pub mascot: Option<ParticleAnimationType>,
+    pub scale: f64,
+}
+
+/// Pieces, animated cells and mascots from every theme drift across the window.
+pub fn prescribed_piece_race(
     window: Rect,
     scale: &Scale,
-    theme_meta: AllThemeMeta,
+    themes: &[RaceTheme],
 ) -> Box<dyn ParticleSource> {
     let modulation = ParticleModulation::Constant {
         count: 1,
@@ -213,191 +218,55 @@ pub fn prescribed_vitamin_race(
         50,
         window.height() - 2 * buffer_y,
     );
-    let nes_block_scale = MODERN_BLOCK_SIZE as f64 / NES_BLOCK_SIZE as f64 / 2.0;
-    let nes_dr_scale = nes_block_scale / 2.0;
-    let nes_scale = (nes_block_scale, nes_block_scale / 5.0);
-    let snes_block_scale = MODERN_BLOCK_SIZE as f64 / SNES_BLOCK_SIZE as f64 / 2.0;
-    let snes_dr_scale = snes_block_scale / 2.0;
-    let snes_scale = (snes_block_scale, snes_block_scale / 5.0);
-    let n64_block_scale = MODERN_BLOCK_SIZE as f64 / N64_BLOCK_SIZE as f64 / 2.0;
-    let n64_dr_scale = n64_block_scale / 2.0;
-    let n64_scale = (n64_block_scale, n64_block_scale / 5.0);
-    let modern_scale = (1.0, 0.2);
     let rotation = (0.0, 30.0);
-    let p_virus = 1.0 / 3.0;
-    let p_dr = 1.0 / 3.0;
+    let p_cell = 1.0 / 3.0;
+    let p_mascot = 1.0 / 3.0;
+    let mut table = ProbabilityTable::new();
+    for race in themes {
+        let size = (race.scale, race.scale / 5.0);
+        let pieces = race
+            .pieces
+            .iter()
+            .map(|piece| ParticleSprite::Piece {
+                theme: race.theme,
+                piece: *piece,
+            })
+            .collect::<Vec<ParticleSprite>>();
+        if !pieces.is_empty() {
+            table = table.with_1(ParticleProperties::simple(&pieces, size).angular_velocity(rotation));
+        }
+        let cells = race
+            .cells
+            .iter()
+            .map(|(cell, animation)| ParticleSprite::Cell {
+                theme: race.theme,
+                cell: *cell,
+                animation: *animation,
+            })
+            .collect::<Vec<ParticleSprite>>();
+        if !cells.is_empty() {
+            table = table.with(
+                ParticleProperties::simple(&cells, size).angular_velocity(rotation),
+                p_cell,
+            );
+        }
+        if let Some(animation) = race.mascot {
+            table = table.with(
+                ParticleProperties::simple(
+                    &[ParticleSprite::Mascot {
+                        theme: race.theme,
+                        kind: MascotKind::Idle,
+                        animation,
+                    }],
+                    (race.scale / 2.0, race.scale / 10.0),
+                )
+                .angular_velocity(rotation),
+                p_mascot,
+            );
+        }
+    }
     RandomParticleSource::new(scale.rect_source(rect), modulation)
-        .with_properties(
-            ProbabilityTable::new()
-                .with_1(
-                    ParticleProperties::simple(&ParticleSprite::MODERN_PILLS, modern_scale)
-                        .angular_velocity(rotation),
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Virus(
-                                ThemeName::Particle,
-                                VirusColor::Red,
-                                virus_particle_animation(&theme_meta.particle, VirusColor::Red),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Particle,
-                                VirusColor::Blue,
-                                virus_particle_animation(&theme_meta.particle, VirusColor::Blue),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Particle,
-                                VirusColor::Yellow,
-                                virus_particle_animation(&theme_meta.particle, VirusColor::Yellow),
-                            ),
-                        ],
-                        modern_scale,
-                    )
-                    .angular_velocity(rotation),
-                    p_virus,
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Dr(
-                                ThemeName::Particle,
-                                DrType::Idle,
-                                dr_particle_animation(&theme_meta.particle, DrType::Idle),
-                            )
-                        ],
-                        (0.5, 0.1),
-                    ).angular_velocity(rotation),
-                    p_dr,
-                )
-
-                .with_1(
-                    ParticleProperties::simple(&ParticleSprite::NES_PILLS, nes_scale)
-                        .angular_velocity(rotation),
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Virus(
-                                ThemeName::Nes,
-                                VirusColor::Red,
-                                virus_particle_animation(&theme_meta.nes, VirusColor::Red),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Nes,
-                                VirusColor::Blue,
-                                virus_particle_animation(&theme_meta.nes, VirusColor::Blue),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Nes,
-                                VirusColor::Yellow,
-                                virus_particle_animation(&theme_meta.nes, VirusColor::Yellow),
-                            ),
-                        ],
-                        nes_scale,
-                    )
-                    .angular_velocity(rotation),
-                    p_virus,
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Dr(
-                                ThemeName::Nes,
-                                DrType::Victory,
-                                dr_particle_animation(&theme_meta.nes, DrType::Victory),
-                            )
-                        ],
-                        (nes_dr_scale, nes_dr_scale / 5.0),
-                    ).angular_velocity(rotation),
-                    p_dr,
-                )
-
-                .with_1(
-                    ParticleProperties::simple(&ParticleSprite::SNES_PILLS, snes_scale)
-                        .angular_velocity(rotation),
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Virus(
-                                ThemeName::Snes,
-                                VirusColor::Red,
-                                virus_particle_animation(&theme_meta.snes, VirusColor::Red),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Snes,
-                                VirusColor::Blue,
-                                virus_particle_animation(&theme_meta.snes, VirusColor::Blue),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::Snes,
-                                VirusColor::Yellow,
-                                virus_particle_animation(&theme_meta.snes, VirusColor::Yellow),
-                            ),
-                        ],
-                        snes_scale,
-                    )
-                    .angular_velocity(rotation),
-                    p_virus,
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Dr(
-                                ThemeName::Snes,
-                                DrType::Victory,
-                                dr_particle_animation(&theme_meta.snes, DrType::Victory),
-                            )
-                        ],
-                        (snes_dr_scale, snes_dr_scale / 5.0),
-                    ).angular_velocity(rotation),
-                    p_dr,
-                )
-
-
-                .with_1(
-                    ParticleProperties::simple(&ParticleSprite::N64_PILLS, n64_scale)
-                        .angular_velocity(rotation),
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Virus(
-                                ThemeName::N64,
-                                VirusColor::Red,
-                                virus_particle_animation(&theme_meta.n64, VirusColor::Red),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::N64,
-                                VirusColor::Blue,
-                                virus_particle_animation(&theme_meta.n64, VirusColor::Blue),
-                            ),
-                            ParticleSprite::Virus(
-                                ThemeName::N64,
-                                VirusColor::Yellow,
-                                virus_particle_animation(&theme_meta.n64, VirusColor::Yellow),
-                            ),
-                        ],
-                        n64_scale,
-                    )
-                    .angular_velocity(rotation),
-                    p_virus,
-                )
-                .with(
-                    ParticleProperties::simple(
-                        &[
-                            ParticleSprite::Dr(
-                                ThemeName::N64,
-                                DrType::Idle,
-                                dr_particle_animation(&theme_meta.n64, DrType::Idle),
-                            )
-                        ],
-                        (n64_dr_scale, n64_dr_scale / 5.0),
-                    ).angular_velocity(rotation),
-                    p_dr,
-                ),
-        )
+        .with_properties(table)
         .with_velocity((Vec2D::new(0.2, 0.0), Vec2D::new(0.05, 0.02)))
         .with_alpha((0.9, 0.1))
         .into_box()
@@ -529,15 +398,12 @@ impl PlayerTargetedParticles {
         particle_scale: &Scale,
     ) -> Box<dyn ParticleSource> {
         let target_rects = match self.target {
-            PlayerParticleTarget::Bottle => vec![themes.player_bottle_snip(self.player)],
-            PlayerParticleTarget::Vitamins(vitamins) => {
-                themes.player_vitamin_snips(self.player, vitamins).to_vec()
-            }
-            PlayerParticleTarget::Blocks(blocks) => themes.player_block_snips(self.player, blocks),
-            PlayerParticleTarget::MaskedBlocks(blocks) => {
-                let is_horizontal = iter_all_eq(blocks.iter().map(|b| b.position.y()));
-                let n_blocks = blocks.len();
-                let points = themes.player_block_snips_masked(self.player, blocks, 5);
+            PlayerParticleTarget::Board => vec![themes.player_board_snip(self.player)],
+            PlayerParticleTarget::Cells(cells) => themes.player_block_snips(self.player, cells),
+            PlayerParticleTarget::MaskedCells(cells) => {
+                let is_horizontal = iter_all_eq(cells.iter().map(|(p, _)| p.y));
+                let n_blocks = cells.len();
+                let points = themes.player_block_snips_masked(self.player, cells, 5);
                 return self.particles.into_lattice_source(
                     particle_scale,
                     points,
@@ -545,10 +411,6 @@ impl PlayerTargetedParticles {
                     is_horizontal,
                 );
             }
-            PlayerParticleTarget::Garbage(garbage) => themes.player_block_snips(
-                self.player,
-                garbage.into_iter().map(|g| g.position).collect(),
-            ),
         };
 
         self.particles

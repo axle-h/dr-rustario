@@ -1,3 +1,4 @@
+use crate::animate::frames::FrameAnimationType;
 use crate::particles::color::ParticleColor;
 use crate::particles::geometry::Vec2D;
 use crate::particles::meta::ParticleSprite;
@@ -40,6 +41,19 @@ pub enum ParticleAnimationType {
         fps: u32,
         frames: usize,
     },
+}
+
+impl ParticleAnimationType {
+    /// how a sprite strip plays as a particle; a paused strip just loops
+    pub fn from_frames(animation_type: FrameAnimationType, frames: usize) -> Self {
+        match animation_type {
+            FrameAnimationType::Static => Self::Static,
+            FrameAnimationType::Linear { fps } | FrameAnimationType::LinearWithPause { fps, .. } => {
+                Self::Linear { fps, frames }
+            }
+            FrameAnimationType::YoYo { fps } => Self::YoYo { fps, frames },
+        }
+    }
 }
 
 impl ParticleAnimationType {

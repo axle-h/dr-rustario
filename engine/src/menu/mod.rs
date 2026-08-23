@@ -5,9 +5,8 @@ use crate::menu_input::MenuInputKey;
 use crate::draw::CanvasExt;
 
 use sdl2::pixels::Color;
-use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::Rect;
-use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use crate::font::Font;
 use sdl2::video::WindowContext;
 use crate::app_info;

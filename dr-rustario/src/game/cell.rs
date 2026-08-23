@@ -178,30 +178,6 @@ pub fn placed_vitamins(vitamins: Vitamins) -> Vec<PlacedCell> {
     vitamins.into_iter().map(PlacedCell::from).collect()
 }
 
-/// Rebuild the pair of vitamins an event was about. Only valid for cells produced by
-/// [`placed_vitamins`].
-pub fn vitamins_of(cells: &[PlacedCell]) -> Vitamins {
-    assert_eq!(cells.len(), 2, "a pill has exactly two vitamins");
-    let vitamin = |(position, id): PlacedCell| match DrCell::from(id) {
-        DrCell::Vitamin {
-            color,
-            rotation,
-            ordinal: VitaminOrdinal::Left,
-        } => Vitamin::left(color, position, rotation),
-        DrCell::Vitamin {
-            color,
-            rotation,
-            ordinal: VitaminOrdinal::Right,
-        } => Vitamin::right(color, position, rotation),
-        other => panic!("{:?} is not a vitamin", other),
-    };
-    [vitamin(cells[0]), vitamin(cells[1])]
-}
-
-pub fn colored_blocks(cells: &[PlacedCell]) -> Vec<ColoredBlock> {
-    cells.iter().copied().map(ColoredBlock::from).collect()
-}
-
 /// Pack up to 32 garbage colours into an [`engine::game::Attack::detail`].
 pub fn encode_garbage(colors: &[VirusColor]) -> u64 {
     colors
@@ -249,12 +225,6 @@ mod tests {
         for shape in PillShape::ALL {
             assert_eq!(PillShape::from(PieceId::from(shape)), shape);
         }
-    }
-
-    #[test]
-    fn vitamins_round_trip() {
-        let vitamins = Vitamin::vitamins(PillShape::RB);
-        assert_eq!(vitamins_of(&placed_vitamins(vitamins)), vitamins);
     }
 
     #[test]

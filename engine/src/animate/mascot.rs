@@ -30,3 +30,33 @@ impl MascotMeta {
         FrameAnimation::new(self.game_over_type, self.game_over_frames)
     }
 }
+
+/// The playback types of a mascot's strips; frame counts come from its sprites.
+#[derive(Clone, Copy, Debug)]
+pub struct MascotAnimationTypes {
+    pub idle: FrameAnimationType,
+    pub spawn: FrameAnimationType,
+    pub victory: FrameAnimationType,
+    pub game_over: FrameAnimationType,
+}
+
+impl MascotAnimationTypes {
+    pub fn with_frames(
+        &self,
+        idle_frames: usize,
+        spawn_frames: usize,
+        victory_frames: usize,
+        game_over_frames: usize,
+    ) -> MascotMeta {
+        MascotMeta {
+            idle_type: self.idle,
+            idle_frames,
+            spawn_type: self.spawn,
+            spawn_frames,
+            victory_type: self.victory,
+            victory_frames,
+            game_over_type: self.game_over,
+            game_over_frames,
+        }
+    }
+}

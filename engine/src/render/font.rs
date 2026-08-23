@@ -1,7 +1,7 @@
 use crate::font::{FontTexture, FontType};
-use crate::game::metrics::GameMetrics;
+use crate::game::{Game, MetricKind};
 use num_format::{Locale, ToFormattedString};
-use crate::theme::helper::TextureFactory;
+use crate::render::helper::TextureFactory;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
@@ -332,7 +332,8 @@ impl<'a> FontRender<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+/// A HUD number: which font draws it and where.
+#[derive(Clone, Copy, Debug)]
 pub struct ThemedNumeric {
     font_index: usize,
     snips: MetricSnips,
@@ -346,37 +347,22 @@ impl ThemedNumeric {
 
 pub struct FontThemeOptions {
     fonts: Vec<FontRenderOptions>,
-    score: ThemedNumeric,
-    virus_level: ThemedNumeric,
-    virus_count: ThemedNumeric,
+    metrics: Vec<(MetricKind, ThemedNumeric)>,
 }
 
 impl FontThemeOptions {
-    pub fn new(
-        fonts: Vec<FontRenderOptions>,
-        score: ThemedNumeric,
-        virus_level: ThemedNumeric,
-        virus_count: ThemedNumeric,
-    ) -> Self {
-        Self {
-            fonts,
-            score,
-            virus_level,
-            virus_count,
-        }
+    pub fn new(fonts: Vec<FontRenderOptions>, metrics: Vec<(MetricKind, ThemedNumeric)>) -> Self {
+        Self { fonts, metrics }
     }
 
-    pub fn simple(
-        font: FontRenderOptions,
-        score: MetricSnips,
-        virus_level: MetricSnips,
-        virus_count: MetricSnips,
-    ) -> Self {
+    /// one font for every metric
+    pub fn simple(font: FontRenderOptions, metrics: Vec<(MetricKind, MetricSnips)>) -> Self {
         Self::new(
             vec![font],
-            ThemedNumeric::new(0, score),
-            ThemedNumeric::new(0, virus_level),
-            ThemedNumeric::new(0, virus_count),
+            metrics
+                .into_iter()
+                .map(|(kind, snips)| (kind, ThemedNumeric::new(0, snips)))
+                .collect(),
         )
     }
 
@@ -388,56 +374,27 @@ impl FontThemeOptions {
         for options in self.fonts.iter() {
             fonts.push(options.build(texture_creator)?);
         }
-        Ok(FontTheme {
-            fonts,
-            score: self.score,
-            virus_level: self.virus_level,
-            virus_count: self.virus_count,
-        })
+        Ok(FontTheme::new(fonts, self.metrics.clone()))
     }
 }
 
+/// Draws a game's HUD numbers.
 pub struct FontTheme<'a> {
     fonts: Vec<FontRender<'a>>,
-    score: ThemedNumeric,
-    virus_level: ThemedNumeric,
-    virus_count: ThemedNumeric,
+    metrics: Vec<(MetricKind, ThemedNumeric)>,
 }
 
 impl<'a> FontTheme<'a> {
-    pub fn new(
-        fonts: Vec<FontRender<'a>>,
-        score: ThemedNumeric,
-        virus_level: ThemedNumeric,
-        virus_count: ThemedNumeric,
-    ) -> Self {
-        Self {
-            fonts,
-            score,
-            virus_level,
-            virus_count,
-        }
+    pub fn new(fonts: Vec<FontRender<'a>>, metrics: Vec<(MetricKind, ThemedNumeric)>) -> Self {
+        Self { fonts, metrics }
     }
 
-    pub fn render_all(
-        &self,
-        canvas: &mut WindowCanvas,
-        metrics: GameMetrics,
-    ) -> Result<(), String> {
-        self.fonts[self.score.font_index].render_number(
-            canvas,
-            self.score.snips,
-            metrics.score(),
-        )?;
-        self.fonts[self.virus_level.font_index].render_number(
-            canvas,
-            self.virus_level.snips,
-            metrics.virus_level(),
-        )?;
-        self.fonts[self.virus_count.font_index].render_number(
-            canvas,
-            self.virus_count.snips,
-            metrics.virus_count(),
-        )
+    pub fn render_all<G: Game>(&self, canvas: &mut WindowCanvas, game: &G) -> Result<(), String> {
+        for (kind, numeric) in self.metrics.iter() {
+            if let Some(value) = game.metric(*kind) {
+                self.fonts[numeric.font_index].render_number(canvas, numeric.snips, value)?;
+            }
+        }
+        Ok(())
     }
 }

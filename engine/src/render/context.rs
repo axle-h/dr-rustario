@@ -1,39 +1,35 @@
+//! Every theme scaled to the window, with per-player render targets and animations, and the
+//! cross-fade when a player changes theme. Every theme keeps animation state for every
+//! player so a mid-match theme change is seamless.
+
+use crate::animate::event::AnimationEvent;
+use crate::animate::PlayerAnimations;
+use crate::config::VideoConfig;
+use crate::game::geometry::Point as CellPoint;
+use crate::game::{Game, PieceId, PlacedCell};
+use crate::particles::render::ParticleRender;
+use crate::render::sound::AudioTheme;
+use crate::render::Theme;
 use crate::scale::Scale;
-use crate::theme::all::AllThemes;
-use crate::theme::{Theme, ThemeName};
+use crate::session::MatchState;
+use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
-
-
-use engine::animate::event::AnimationEvent;
-use engine::animate::PlayerAnimations;
-use engine::game::{PieceId, PlacedCell};
-use crate::game::event::ColoredBlock;
-use crate::game::geometry::BottlePoint;
-use crate::game::pill::Vitamins;
-use crate::game::rules::{GameConfig, MatchThemes};
-use crate::game::GameSpeed;
-use crate::particles::render::ParticleRender;
-use crate::player::{Match, MatchState};
-use crate::theme::sound::AudioTheme;
-
 use sdl2::video::WindowContext;
 use std::time::Duration;
-use sdl2::pixels::PixelFormatEnum::RGBA8888;
-use crate::config::VideoConfig;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
 
 pub struct PlayerTextures<'a> {
     pub background: Texture<'a>,
-    pub bottle: Texture<'a>,
+    pub board: Texture<'a>,
 }
 
 impl<'a> PlayerTextures<'a> {
     pub fn new(
         texture_creator: &'a TextureCreator<WindowContext>,
         background_size: (u32, u32),
-        bottle_size: (u32, u32),
+        board_size: (u32, u32),
     ) -> Result<Self, String> {
         let (bg_width, bg_height) = background_size;
         let mut background = texture_creator
@@ -41,26 +37,26 @@ impl<'a> PlayerTextures<'a> {
             .map_err(|e| e.to_string())?;
         background.set_blend_mode(BlendMode::Blend);
 
-        let (bottle_width, bottle_height) = bottle_size;
-        let mut bottle = texture_creator
-            .create_texture_target(RGBA8888, bottle_width, bottle_height)
+        let (board_width, board_height) = board_size;
+        let mut board = texture_creator
+            .create_texture_target(RGBA8888, board_width, board_height)
             .map_err(|e| e.to_string())?;
-        bottle.set_blend_mode(BlendMode::Blend);
+        board.set_blend_mode(BlendMode::Blend);
 
-        Ok(Self { background, bottle })
+        Ok(Self { background, board })
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextureMode {
     Background(u32),
-    Bottle(u32),
+    Board(u32),
 }
 
 #[derive(Clone, Debug)]
 struct ThemedPlayer {
     bg_snip: Rect,
-    bottle_snip: Rect,
+    board_snip: Rect,
     game_snip: Rect,
     animations: PlayerAnimations,
 }
@@ -70,14 +66,14 @@ impl ThemedPlayer {
         let (theme_width, theme_height) = theme.background_size();
         let mut bg_snip = scale.scale_rect(Rect::new(0, 0, theme_width, theme_height));
         bg_snip.center_on(scale.player_window(player).center());
-        let bottle_snip =
-            scale.scale_and_offset_rect(theme.bottle_snip(), bg_snip.x(), bg_snip.y());
+        let board_snip =
+            scale.scale_and_offset_rect(theme.board_snip(), bg_snip.x(), bg_snip.y());
         let game_snip =
             scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
         let animations = PlayerAnimations::new(player, theme.animation_meta());
         Self {
             bg_snip,
-            bottle_snip,
+            board_snip,
             game_snip,
             animations,
         }
@@ -91,7 +87,7 @@ impl ThemedPlayer {
 pub struct ScaledTheme<'a> {
     theme: &'a Theme<'a>,
     bg_source_snip: Rect,
-    bottle_source_snip: Rect,
+    board_source_snip: Rect,
     player_themes: Vec<ThemedPlayer>,
     scale: Scale,
 }
@@ -104,20 +100,19 @@ impl<'a> ScaledTheme<'a> {
             window_size,
             theme.geometry().block_size(),
             video_config,
-            // the modern theme does its own scaling
-            theme.name() == ThemeName::Particle,
+            theme.is_integer_scale(),
         );
         let (theme_width, theme_height) = theme.background_size();
         let bg_source_snip = Rect::new(0, 0, theme_width, theme_height);
-        let bottle_rect = theme.bottle_snip();
-        let bottle_source_snip = Rect::new(0, 0, bottle_rect.width(), bottle_rect.height());
+        let board_rect = theme.board_snip();
+        let board_source_snip = Rect::new(0, 0, board_rect.width(), board_rect.height());
         let player_themes = (0..players)
             .map(|pid| ThemedPlayer::new(pid, theme, scale))
             .collect::<Vec<ThemedPlayer>>();
         Self {
             theme,
             bg_source_snip,
-            bottle_source_snip,
+            board_source_snip,
             player_themes,
             scale,
         }
@@ -160,12 +155,14 @@ pub struct ThemeContext<'a> {
 }
 
 impl<'a> ThemeContext<'a> {
+    /// `initial` is the theme index every player starts on
     pub fn new(
-        all_themes: &'a AllThemes,
+        all_themes: &'a [Theme<'a>],
         texture_creator: &'a TextureCreator<WindowContext>,
-        game_config: GameConfig,
+        players: u32,
+        initial: usize,
         window_size: (u32, u32),
-        video_config: VideoConfig
+        video_config: VideoConfig,
     ) -> Result<Self, String> {
         let (window_width, window_height) = window_size;
 
@@ -173,21 +170,13 @@ impl<'a> ThemeContext<'a> {
             .create_texture_target(RGBA8888, window_width, window_height)
             .map_err(|e| e.to_string())?;
         fade_buffer.set_blend_mode(BlendMode::Blend);
-
-        let initial = match game_config.themes() {
-            MatchThemes::All | MatchThemes::Nes => 0,
-            MatchThemes::Snes => 1,
-            MatchThemes::N64 => 2,
-            MatchThemes::Particle => 3,
-        };
-        let players = game_config.players() as usize;
+        let players = players as usize;
 
         Ok(Self {
             current: vec![initial; players],
             themes: all_themes
-                .all()
                 .iter()
-                .map(|theme| ScaledTheme::new(theme, game_config.players(), window_size, video_config))
+                .map(|theme| ScaledTheme::new(theme, players as u32, window_size, video_config))
                 .collect(),
             fade_buffer,
             fades: vec![None; players],
@@ -206,8 +195,12 @@ impl<'a> ThemeContext<'a> {
         (width, height)
     }
 
-    pub fn max_bottle_size(&self) -> (u32, u32) {
-        let rects = self.themes.iter().map(|theme| theme.theme.bottle_snip());
+    pub fn theme_count(&self) -> usize {
+        self.themes.len()
+    }
+
+    pub fn max_board_size(&self) -> (u32, u32) {
+        let rects = self.themes.iter().map(|theme| theme.theme.board_snip());
         let width = rects.clone().map(|r| r.width()).max().unwrap();
         let height = rects.clone().map(|r| r.height()).max().unwrap();
         (width, height)
@@ -234,7 +227,7 @@ impl<'a> ThemeContext<'a> {
         self.themes[index].theme.audio()
     }
 
-    pub fn player_bottle_snip(&self, player: u32) -> Rect {
+    pub fn player_board_snip(&self, player: u32) -> Rect {
         self.current(player).player_themes[player as usize].game_snip
     }
 
@@ -311,27 +304,22 @@ impl<'a> ThemeContext<'a> {
         }
     }
 
-    pub fn animate_next_level_interstitial(&mut self, player: u32) {
+    pub fn animate_interstitial(&mut self, player: u32) {
         for theme in self.themes.iter_mut() {
             theme.animations_mut(player).interstitial_mut().display();
         }
     }
 
-    pub fn animate_next_level(&mut self, player: u32, viruses: &[ColoredBlock]) {
-        let cells = viruses
-            .iter()
-            .copied()
-            .map(PlacedCell::from)
-            .collect::<Vec<PlacedCell>>();
+    pub fn animate_next_stage(&mut self, player: u32, cells: &[PlacedCell]) {
         for theme in self.themes.iter_mut() {
             theme
                 .animations_mut(player)
                 .next_stage_mut()
-                .next_stage(&cells);
+                .next_stage(cells);
         }
     }
 
-    pub fn maybe_dismiss_next_level_interstitial(&mut self, player: u32) -> bool {
+    pub fn maybe_dismiss_interstitial(&mut self, player: u32) -> bool {
         let mut result = false;
         for index in 0..self.themes.len() {
             let theme_result = self.themes[index]
@@ -345,7 +333,7 @@ impl<'a> ThemeContext<'a> {
         result
     }
 
-    pub fn is_animating_next_level_interstitial(&self) -> bool {
+    pub fn is_animating_interstitial(&self) -> bool {
         (0..self.players()).any(|player| {
             self.player_animations(player)
                 .interstitial()
@@ -417,14 +405,12 @@ impl<'a> ThemeContext<'a> {
     /// i.e. the music owner changed theme. returns true if the music was (re)started.
     pub fn sync_music(
         &mut self,
-        fixture: &Match,
-        reevaluate_leader: bool,
+        leader: Option<u32>,
+        state: MatchState,
         is_single_player: bool,
     ) -> Result<bool, String> {
-        if reevaluate_leader {
-            if let Some(leader) = fixture.leading_player() {
-                self.music_player = leader;
-            }
+        if let Some(leader) = leader {
+            self.music_player = leader;
         }
         let wanted = self.current[self.music_player as usize];
         if self.music_theme == Some(wanted) {
@@ -433,14 +419,14 @@ impl<'a> ThemeContext<'a> {
         self.music_theme = Some(wanted);
 
         let audio = self.themes[wanted].theme.audio();
-        match fixture.state() {
-            // Only single player uses next-level *music*; in multiplayer the stage clear is a
+        match state {
+            // Only single player uses next-stage *music*; in multiplayer the stage clear is a
             // jingle and game music must keep playing, otherwise another player's still-open
             // interstitial would swap in a play-once track and leave the match silent.
-            MatchState::Normal if is_single_player && self.is_animating_next_level_interstitial() => {
-                audio.play_next_level_music()?
+            MatchState::Normal if is_single_player && self.is_animating_interstitial() => {
+                audio.play_next_stage_music()?
             }
-            MatchState::Normal => audio.fade_in_game_music()?,
+            MatchState::Normal => audio.play_game_music()?,
             MatchState::Paused => {
                 audio.play_game_music()?;
                 audio.pause_music()?
@@ -481,9 +467,14 @@ impl<'a> ThemeContext<'a> {
     }
 
     /// draw each player's scene backdrop as if it filled the whole window, clipped to their side
-    pub fn draw_scene(&self, canvas: &mut WindowCanvas, speed: GameSpeed) -> Result<(), String> {
+    pub fn draw_scene<G: Game>(
+        &self,
+        canvas: &mut WindowCanvas,
+        games: &[&G],
+    ) -> Result<(), String> {
         for player in 0..self.players() {
             let current = self.current(player);
+            let speed = games[player as usize].speed_index();
             canvas.set_clip_rect(self.player_clip(player));
             current.theme.scene(speed).draw(canvas, &current.scale)?;
         }
@@ -520,16 +511,16 @@ impl<'a> ThemeContext<'a> {
                     let player = &current.player_themes[*pid as usize];
                     canvas.copy(texture, current.bg_source_snip, player.bg_snip)?;
                 }
-                TextureMode::Bottle(pid) => {
+                TextureMode::Board(pid) => {
                     let current = self.current(*pid);
                     let player = &current.player_themes[*pid as usize];
                     let (offset_x, offset_y) = player.animations.impact().current_offset();
                     let dst = current.scale.offset_proportional_to_block_size(
-                        player.bottle_snip,
+                        player.board_snip,
                         offset_x,
                         offset_y,
                     );
-                    canvas.copy(texture, current.bottle_source_snip, dst)?;
+                    canvas.copy(texture, current.board_source_snip, dst)?;
                 }
             }
         }
@@ -555,7 +546,7 @@ impl<'a> ThemeContext<'a> {
         Ok(())
     }
 
-    pub fn player_block_snips(&self, player: u32, points: Vec<BottlePoint>) -> Vec<Rect> {
+    pub fn player_block_snips(&self, player: u32, points: Vec<CellPoint>) -> Vec<Rect> {
         let theme = self.current(player);
         let player = &theme.player_themes[player as usize];
         let geometry = theme.theme.geometry();
@@ -565,7 +556,7 @@ impl<'a> ThemeContext<'a> {
             .map(|r| {
                 theme
                     .scale
-                    .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
+                    .scale_and_offset_rect(r, player.board_snip.x(), player.board_snip.y())
             })
             .collect()
     }
@@ -573,7 +564,7 @@ impl<'a> ThemeContext<'a> {
     pub fn player_block_snips_masked(
         &self,
         player: u32,
-        blocks: Vec<ColoredBlock>,
+        cells: Vec<PlacedCell>,
         lattice_spacing: u32,
     ) -> Vec<Point> {
         let theme = self.current(player);
@@ -581,39 +572,24 @@ impl<'a> ThemeContext<'a> {
         let geometry = theme.theme.geometry();
         let sprites = theme.theme.sprites();
 
-        blocks
+        cells
             .into_iter()
-            .flat_map(|b| {
-                if b.is_virus {
-                    sprites.virus_mask(b.color)
-                } else {
-                    sprites.garbage_mask()
-                }
-                .lattice(geometry.point(b.position), lattice_spacing)
+            .flat_map(|(point, id)| match sprites.mask(id) {
+                Some(mask) => mask.lattice(geometry.point(point), lattice_spacing),
+                None => vec![geometry.point(point)],
             })
             .map(|p| {
                 theme.scale.scale_and_offset_point(
                     p,
-                    player.bottle_snip.x(),
-                    player.bottle_snip.y(),
+                    player.board_snip.x(),
+                    player.board_snip.y(),
                 )
             })
             .collect()
     }
 
-    pub fn player_vitamin_snips(&self, player: u32, vitamins: Vitamins) -> [Rect; 2] {
-        let theme = self.current(player);
-        let player = &theme.player_themes[player as usize];
-        let geometry = theme.theme.geometry();
-        vitamins.map(|v| geometry.raw_block(v.position())).map(|r| {
-            theme
-                .scale
-                .scale_and_offset_rect(r, player.bottle_snip.x(), player.bottle_snip.y())
-        })
-    }
-
     pub fn player_renders_scene_particles(&self, player: u32) -> bool {
-        self.theme(player).scene(GameSpeed::Low).is_particles()
+        self.theme(player).scene(0).is_particles()
     }
 
     /// true if any player is on a theme with a particle scene

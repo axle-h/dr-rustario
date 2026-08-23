@@ -3,18 +3,17 @@ use crate::particles::scale::Scale;
 use crate::particles::source::ParticleSource;
 use crate::particles::Particles;
 
-use crate::theme::sprite_sheet::FlatVitaminSpriteSheet;
-use crate::theme::{Theme, ThemeName};
+use crate::render::sprite_sheet::FlatSpriteSheet;
+use crate::render::Theme;
 
-use crate::theme::helper::TextureFactory;
+use crate::render::helper::TextureFactory;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
 use std::time::Duration;
-use strum::IntoEnumIterator;
 use crate::particles::particle::Particle;
-use crate::theme::animation::AnimationSpriteSheet;
+use crate::render::animation::AnimationSpriteSheet;
 
 const SPRITES: &[u8] = include_bytes!("sprites.png");
 const BASE_SCALE: f64 = 0.05;
@@ -24,7 +23,7 @@ pub struct ParticleRender<'a> {
     sprites: Texture<'a>,
     sprite_snips: HashMap<ParticleSprite, Rect>,
     particles: Particles,
-    theme_sprites: HashMap<ThemeName, FlatVitaminSpriteSheet<'a>>,
+    theme_sprites: Vec<FlatSpriteSheet<'a>>,
 }
 
 impl<'a> ParticleRender<'a> {
@@ -38,27 +37,23 @@ impl<'a> ParticleRender<'a> {
         let mut sprites = texture_creator.load_texture_bytes(SPRITES)?;
         sprites.set_blend_mode(BlendMode::Blend);
 
-        let sprite_snips = ParticleSprite::iter()
+        let sprite_snips = ParticleSprite::ATLAS
+            .into_iter()
             .filter(|s| s.snip().is_some())
             .map(|s| (s, s.snip().unwrap()))
             .collect();
 
-        let vitamin_sprites = all_themes
-            .into_iter()
-            .map(|theme| {
-                (
-                    theme.name(),
-                    theme.sprites().flatten(canvas, texture_creator).unwrap(),
-                )
-            })
-            .collect();
+        let mut theme_sprites = vec![];
+        for theme in all_themes {
+            theme_sprites.push(theme.sprites().flatten(canvas, texture_creator)?);
+        }
 
         Ok(Self {
             scale,
             particles,
             sprites,
             sprite_snips,
-            theme_sprites: vitamin_sprites,
+            theme_sprites,
         })
     }
 
@@ -88,9 +83,9 @@ impl<'a> ParticleRender<'a> {
             let point = self.scale.point_to_render_space(particle.position());
 
             match particle.sprite() {
-                ParticleSprite::Pill(theme, shape) => {
-                    let sprite_sheet = &self.theme_sprites[&theme];
-                    let snip = sprite_sheet.snip(shape);
+                ParticleSprite::Piece { theme, piece } => {
+                    let sprite_sheet = &self.theme_sprites[theme].previews;
+                    let snip = sprite_sheet.snip(piece);
                     let scale = particle.size();
                     let rect = Rect::from_center(
                         point,
@@ -112,21 +107,15 @@ impl<'a> ParticleRender<'a> {
                         canvas.copy(sprite_sheet.texture(), snip, rect)?;
                     }
                 }
-                ParticleSprite::Virus(theme, color, _) => {
-                    Self::draw_animated_particle(
-                        canvas,
-                        self.theme_sprites[&theme].virus(color),
-                        particle,
-                        point
-                    )?;
+                ParticleSprite::Cell { theme, cell, .. } => {
+                    if let Some(sheet) = self.theme_sprites[theme].idle_cells.get(&cell) {
+                        Self::draw_animated_particle(canvas, sheet, particle, point)?;
+                    }
                 }
-                ParticleSprite::Dr(theme, dr_type, _) => {
-                    Self::draw_animated_particle(
-                        canvas,
-                        self.theme_sprites[&theme].dr(dr_type),
-                        particle,
-                        point
-                    )?;
+                ParticleSprite::Mascot { theme, kind, .. } => {
+                    if let Some(mascot) = self.theme_sprites[theme].mascot.as_ref() {
+                        Self::draw_animated_particle(canvas, mascot.sheet(kind), particle, point)?;
+                    }
                 }
                 _ => {
                     if let Some(snip) = self.sprite_snips.get(&particle.sprite()) {

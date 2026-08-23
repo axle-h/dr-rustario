@@ -1,4 +1,3 @@
-use crate::game::block::Block;
 use crate::game::bottle::{SendGarbage, BOTTLE_HEIGHT, BOTTLE_WIDTH};
 use crate::game::cell::{decode_garbage, encode_garbage, placed_vitamins, GAME_ID};
 use crate::game::event::ColoredBlock;
@@ -10,7 +9,6 @@ use std::time::Duration;
 use strum::IntoEnumIterator;
 
 use crate::game::geometry::BottlePoint;
-use crate::game::metrics::GameMetrics;
 use engine::game::hold::HoldState;
 use engine::game::timing::{lock_move, LockMove, LockPlacements, Timing};
 use engine::game::{Attack, Cell, GameEvent, GameId, MetricKind, PieceId, StageState};
@@ -25,7 +23,6 @@ pub mod bottle;
 pub mod cell;
 pub mod event;
 pub mod geometry;
-pub mod metrics;
 pub mod pill;
 pub mod random;
 pub mod rules;
@@ -250,7 +247,6 @@ impl Combo {
 }
 
 pub struct Game {
-    player: u32,
     virus_level: u32,
     level_count: u32,
     speed: GameSpeed,
@@ -268,14 +264,12 @@ pub struct Game {
 
 impl Game {
     pub fn new(
-        player: u32,
         virus_level: u32,
         speed: GameSpeed,
         mut random: GameRandom,
     ) -> Result<Self, String> {
         let bottle = Bottle::from_seed(random.bottle_seed(virus_level)?);
         Ok(Self::from_bottle(
-            player,
             virus_level,
             speed,
             random,
@@ -284,14 +278,12 @@ impl Game {
     }
 
     pub fn from_bottle(
-        player: u32,
         virus_level: u32,
         speed: GameSpeed,
         random: GameRandom,
         bottle: Bottle,
     ) -> Self {
         Self {
-            player,
             virus_level,
             level_count: 0,
             speed,
@@ -325,30 +317,6 @@ impl Game {
 
     pub fn viruses(&self) -> Vec<ColoredBlock> {
         self.bottle.viruses()
-    }
-
-    pub fn speed(&self) -> GameSpeed {
-        self.speed
-    }
-
-    pub fn completed_levels(&self) -> u32 {
-        self.level_count
-    }
-
-    pub fn metrics(&self) -> GameMetrics {
-        GameMetrics::new(
-            self.player,
-            self.virus_level,
-            self.speed,
-            self.bottle.virus_count(),
-            self.score,
-            self.random.peek(),
-            self.hold.map(|h| h.piece),
-        )
-    }
-
-    pub fn row(&self, y: u32) -> &[Block] {
-        self.bottle.row(y)
     }
 
     pub fn hold(&mut self) {
@@ -743,6 +711,7 @@ impl engine::game::Game for Game {
 #[cfg(test)]
 mod tests {
     use super::pill::{Garbage, Vitamins};
+    use crate::game::block::Block;
     use super::random::{BottleSeed, RandomMode};
     use super::*;
     use crate::game::pill::Pill;
@@ -1388,7 +1357,6 @@ mod tests {
         let mut bottle = MockBottle::new();
         f(&mut bottle);
         Game::from_bottle(
-            0,
             10,
             GameSpeed::Low,
             GameRandom::from_u64_seed(12345, RandomMode::Bag),

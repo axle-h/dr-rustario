@@ -1,12 +1,10 @@
-use crate::game::cell::{colored_blocks, vitamins_of};
-use crate::game::pill::Garbage;
-use crate::game::event::GameEvent;
-use crate::game::pill::VITAMIN_SPAWN_POINTS;
+use crate::game::geometry::Point as CellPoint;
+use crate::game::GameEvent;
 use crate::particles::prescribed::{
     PlayerParticleTarget, PlayerTargetedParticles, PrescribedParticles,
 };
+use crate::render::helper::TextureFactory;
 use crate::scale::Scale;
-use crate::theme::helper::TextureFactory;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
@@ -100,58 +98,58 @@ impl<'a> SceneRender<'a> {
         matches!(self.scene_type, SceneType::Particles { .. })
     }
 
+    /// `spawn_cells` is where a new piece appears, for the `Spawned` burst
     pub fn emit_particles(
         &self,
         player: u32,
         event: &GameEvent,
+        spawn_cells: &[CellPoint],
     ) -> Option<PlayerTargetedParticles> {
-        if let SceneType::Particles { base_color } = self.scene_type {
-            match event {
-                GameEvent::Spawned => {
-                    let target = PlayerParticleTarget::Blocks(VITAMIN_SPAWN_POINTS.to_vec());
-                    let particles = PrescribedParticles::LightBurstUpAndOut { color: base_color };
-                    Some(particles.into_targeted(player, target))
-                }
-                GameEvent::HardDrop { cells, .. } => {
-                    let target = PlayerParticleTarget::Vitamins(vitamins_of(cells));
-                    let particles = PrescribedParticles::BurstUp { color: base_color };
-                    Some(particles.into_targeted(player, target))
-                }
-                GameEvent::AttackSent(_) => Some(
-                    PrescribedParticles::PerimeterBurst { color: base_color }
-                        .into_targeted(player, PlayerParticleTarget::Bottle),
-                ),
-                GameEvent::Lock { cells, dropped } if *dropped => {
-                    let target = PlayerParticleTarget::Vitamins(vitamins_of(cells));
-                    let particles = PrescribedParticles::BurstDown { color: base_color };
-                    Some(particles.into_targeted(player, target))
-                }
-                GameEvent::AttackReceived { cells } => {
-                    let garbage = cells.iter().copied().map(Garbage::from).collect();
-                    let target = PlayerParticleTarget::Garbage(garbage);
-                    let particles = PrescribedParticles::BurstDown { color: base_color };
-                    Some(particles.into_targeted(player, target))
-                }
-                GameEvent::Clear { cells, .. } => {
-                    let target = PlayerParticleTarget::MaskedBlocks(colored_blocks(cells));
-                    let particles = PrescribedParticles::FadeInLatticeBurstAndFall {
-                        fade_in: Duration::from_millis(250),
-                        color: base_color,
-                    };
-                    Some(particles.into_targeted(player, target))
-                }
-                GameEvent::Victory => Some(
-                    PrescribedParticles::PerimeterSpray { color: base_color }
-                        .into_targeted(player, PlayerParticleTarget::Bottle),
-                ),
-                GameEvent::StageComplete => Some(
-                    PrescribedParticles::PerimeterBurst { color: base_color }
-                        .into_targeted(player, PlayerParticleTarget::Bottle),
-                ),
-                _ => None,
+        let SceneType::Particles { base_color } = self.scene_type else {
+            return None;
+        };
+        let points = |cells: &[(CellPoint, crate::game::CellId)]| {
+            PlayerParticleTarget::Cells(cells.iter().map(|(p, _)| *p).collect())
+        };
+        match event {
+            GameEvent::Spawned => {
+                let target = PlayerParticleTarget::Cells(spawn_cells.to_vec());
+                let particles = PrescribedParticles::LightBurstUpAndOut { color: base_color };
+                Some(particles.into_targeted(player, target))
             }
-        } else {
-            None
+            GameEvent::HardDrop { cells, .. } => {
+                let particles = PrescribedParticles::BurstUp { color: base_color };
+                Some(particles.into_targeted(player, points(cells)))
+            }
+            GameEvent::AttackSent(_) => Some(
+                PrescribedParticles::PerimeterBurst { color: base_color }
+                    .into_targeted(player, PlayerParticleTarget::Board),
+            ),
+            GameEvent::Lock { cells, dropped } if *dropped => {
+                let particles = PrescribedParticles::BurstDown { color: base_color };
+                Some(particles.into_targeted(player, points(cells)))
+            }
+            GameEvent::AttackReceived { cells } => {
+                let particles = PrescribedParticles::BurstDown { color: base_color };
+                Some(particles.into_targeted(player, points(cells)))
+            }
+            GameEvent::Clear { cells, .. } => {
+                let target = PlayerParticleTarget::MaskedCells(cells.clone());
+                let particles = PrescribedParticles::FadeInLatticeBurstAndFall {
+                    fade_in: Duration::from_millis(250),
+                    color: base_color,
+                };
+                Some(particles.into_targeted(player, target))
+            }
+            GameEvent::Victory => Some(
+                PrescribedParticles::PerimeterSpray { color: base_color }
+                    .into_targeted(player, PlayerParticleTarget::Board),
+            ),
+            GameEvent::StageComplete => Some(
+                PrescribedParticles::PerimeterBurst { color: base_color }
+                    .into_targeted(player, PlayerParticleTarget::Board),
+            ),
+            _ => None,
         }
     }
 

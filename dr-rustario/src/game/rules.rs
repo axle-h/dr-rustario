@@ -1,6 +1,5 @@
 use crate::game::random::RandomMode;
 use crate::game::GameSpeed;
-use num_format::{Locale, ToFormattedString};
 use strum::IntoEnumIterator;
 
 pub const MAX_VIRUS_LEVEL: u32 = 30;
@@ -35,57 +34,7 @@ impl MatchThemes {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatchRules {
-    /// Endless game, player with the highest score at the end wins
-    Marathon,
-    /// Race to a certain number of virus levels
-    LevelSprint { levels: u32 },
-    /// Race to some score
-    ScoreSprint { score: u32 },
-    /// Race through all of the themes, one per virus level
-    ThemeSprint,
-}
-
-impl MatchRules {
-    pub const ONE_LEVEL_SPRINT: Self = Self::LevelSprint { levels: 1 };
-    pub const DEFAULT_SCORE_SPRINT: Self = Self::ScoreSprint { score: 10_000 };
-
-    pub const VS_MODES: [Self; 3] = [
-        Self::ONE_LEVEL_SPRINT,
-        Self::ThemeSprint,
-        Self::DEFAULT_SCORE_SPRINT,
-    ];
-    pub const SINGLE_PLAYER_MODES: [Self; 4] = [
-        Self::Marathon,
-        Self::ONE_LEVEL_SPRINT,
-        Self::ThemeSprint,
-        Self::DEFAULT_SCORE_SPRINT,
-    ];
-
-    pub fn name(&self) -> String {
-        match self {
-            MatchRules::Marathon => "marathon".to_string(),
-            MatchRules::LevelSprint { levels } => format!("{} level sprint", levels),
-            MatchRules::ScoreSprint { score } => {
-                format!("{} point sprint", score.to_formatted_string(&Locale::en))
-            }
-            MatchRules::ThemeSprint => "theme sprint".to_string(),
-        }
-    }
-
-    pub fn allow_manual_theme_change(&self) -> bool {
-        self != &Self::ThemeSprint
-    }
-
-    pub fn default_by_players(players: u32) -> Self {
-        if players == 1 {
-            MatchRules::Marathon
-        } else {
-            MatchRules::ONE_LEVEL_SPRINT
-        }
-    }
-}
+pub use engine::session::MatchRules;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GameConfig {

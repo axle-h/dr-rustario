@@ -1,19 +1,20 @@
-use crate::theme::{NES_SNES_VICTORY, RETRO_THROW};
+use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH};
+use crate::game::pill::VirusColor;
+use crate::theme::data::{
+    animations, audio, cells, hud, mascot, previews, retro_mascot, spawn_cell, strip,
+    ColorLayout, Sounds, NES_SNES_VICTORY,
+};
 use engine::animate::frames::FrameAnimationType;
-use crate::config::Config;
-use crate::game::random::MAX_VIRUSES;
-use crate::game::rules::MAX_VIRUS_LEVEL;
-use crate::game::MAX_SCORE;
-use crate::theme::animation::AnimationSpriteSheetData;
-use crate::theme::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
-use crate::theme::geometry::BottleGeometry;
-use crate::theme::retro::{retro_theme, RetroThemeOptions};
-use crate::theme::scene::SceneType;
-use crate::theme::sound::AudioTheme;
-use crate::theme::sprite_sheet::{pills, BlockAnimationsData, BlockPoints, VitaminSpriteSheetData};
-use crate::theme::{Theme, ThemeName};
+use engine::config::Config;
+use engine::render::animation::AnimationSpriteSheetData;
+use engine::render::font::{FontRenderOptions, FontThemeOptions, MetricSnips};
+use engine::render::geometry::BoardGeometry;
+use engine::render::retro::{retro_theme, RetroThemeOptions};
+use engine::render::scene::SceneType;
+use engine::render::sprite_sheet::{BlockSpriteSheetData, GhostStyle};
+use engine::render::{HoldLayout, MascotLayout, PeekLayout, Theme};
 use sdl2::pixels::Color;
-use sdl2::rect::Point;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 
@@ -62,26 +63,22 @@ fn block(i: i32, j: i32) -> Point {
     Point::new(i * BLOCK_SIZE as i32, j * BLOCK_SIZE as i32)
 }
 
-fn blocks(j: i32) -> BlockPoints {
-    BlockPoints::new(
-        [block(0, j), block(1, j)],
-        [block(2, j), block(3, j)],
-        [block(1, j), block(0, j)],
-        [block(3, j), block(2, j)],
-        block(4, j),
-    )
+fn layout(j: i32) -> ColorLayout {
+    ColorLayout {
+        north: [block(0, j), block(1, j)],
+        east: [block(2, j), block(3, j)],
+        south: [block(1, j), block(0, j)],
+        west: [block(3, j), block(2, j)],
+        garbage: block(4, j),
+    }
 }
 
-fn animations(j: i32) -> BlockAnimationsData {
-    BlockAnimationsData::non_exclusive_linear(
-        sprites::VITAMINS,
-        block(6, j),
-        2,
-        block(5, j),
-        1,
-        block(5, j),
-        1,
-        BLOCK_SIZE,
+fn color_animations(color: VirusColor, j: i32) -> Vec<(Vec<engine::game::CellId>, engine::render::sprite_sheet::CellAnimationData)> {
+    animations(
+        color,
+        strip(sprites::VITAMINS, block(6, j), 2, BLOCK_SIZE),
+        strip(sprites::VITAMINS, block(5, j), 1, BLOCK_SIZE),
+        strip(sprites::VITAMINS, block(5, j), 1, BLOCK_SIZE),
     )
 }
 
@@ -94,111 +91,134 @@ pub fn nes_theme<'a>(
     texture_creator: &'a TextureCreator<WindowContext>,
     config: Config,
 ) -> Result<Theme<'a>, String> {
+    let geometry = BoardGeometry::new(7, 1, (8, 40), BOTTLE_WIDTH, BOTTLE_HEIGHT, BOTTLE_HEIGHT);
+    // we take 1 away from the throw end as thrown pills have a border but bottle pills do not
+    let throw_end = geometry.point(spawn_cell()) + Point::new(-1, -1);
+    let checkerboard = |color| SceneType::Checkerboard {
+        width: 8,
+        height: 8,
+        colors: [Color::BLACK, color],
+    };
     let options = RetroThemeOptions {
-        name: ThemeName::Nes,
-        scene_low: SceneType::Checkerboard {
-            width: 8,
-            height: 8,
-            colors: [Color::BLACK, Color::RGB(0x00, 0x3f, 0x00)],
-        },
-        scene_medium: SceneType::Checkerboard {
-            width: 8,
-            height: 8,
-            colors: [Color::BLACK, Color::RGB(0x2d, 0x05, 0x85)],
-        },
-        scene_high: SceneType::Checkerboard {
-            width: 8,
-            height: 8,
-            colors: [Color::BLACK, Color::RGB(0x58, 0x58, 0x58)],
-        },
-        virus_animation_type: FrameAnimationType::Linear { fps: 3 },
-        dr_idle_animation_type: FrameAnimationType::Static,
-        dr_throw_animation_type: RETRO_THROW,
-        dr_victory_animation_type: NES_SNES_VICTORY,
-        dr_game_over_animation_type: FrameAnimationType::Static,
-        sprites: VitaminSpriteSheetData::new(
-            sprites::VITAMINS,
-            pills(
-                PILL_WIDTH,
-                PILL_HEIGHT,
-                pill(0, 0),
-                pill(1, 0),
-                pill(2, 0),
-                pill(0, 1),
-                pill(1, 1),
-                pill(2, 1),
-                pill(0, 2),
-                pill(1, 2),
-                pill(2, 2),
+        name: "nes",
+        scenes: vec![
+            checkerboard(Color::RGB(0x00, 0x3f, 0x00)),
+            checkerboard(Color::RGB(0x2d, 0x05, 0x85)),
+            checkerboard(Color::RGB(0x58, 0x58, 0x58)),
+        ],
+        sprites: BlockSpriteSheetData {
+            file: sprites::VITAMINS,
+            source_block_size: BLOCK_SIZE,
+            cells: cells(
+                BLOCK_SIZE,
+                [
+                    (VirusColor::Yellow, layout(0)),
+                    (VirusColor::Red, layout(2)),
+                    (VirusColor::Blue, layout(1)),
+                ],
             ),
-            (PILL_WIDTH, PILL_HEIGHT),
-            blocks(0),
-            animations(0),
-            blocks(2),
-            animations(2),
-            blocks(1),
-            animations(1),
-            BLOCK_SIZE,
-            0x40,
-            AnimationSpriteSheetData::exclusive_linear(sprites::DR_THROW, 3),
-            AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 1),
-            AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 2),
-            AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 1),
-            None,
-        ),
-        geometry: BottleGeometry::new(7, 1, (8, 40)),
-        audio: AudioTheme::new(
+            animations: [
+                color_animations(VirusColor::Yellow, 0),
+                color_animations(VirusColor::Red, 2),
+                color_animations(VirusColor::Blue, 1),
+            ]
+            .concat(),
+            ghost_alpha: 0x40,
+            previews: previews(
+                sprites::VITAMINS,
+                (PILL_WIDTH, PILL_HEIGHT),
+                [
+                    pill(0, 0),
+                    pill(1, 0),
+                    pill(2, 0),
+                    pill(0, 1),
+                    pill(1, 1),
+                    pill(2, 1),
+                    pill(0, 2),
+                    pill(1, 2),
+                    pill(2, 2),
+                ],
+            ),
+            mascot: Some(mascot(
+                AnimationSpriteSheetData::exclusive_linear(sprites::DR_THROW, 3),
+                AnimationSpriteSheetData::exclusive_linear(sprites::DR_GAME_OVER, 1),
+                AnimationSpriteSheetData::exclusive_linear(sprites::DR_VICTORY, 2),
+                AnimationSpriteSheetData::exclusive_linear(sprites::DR_IDLE, 1),
+            )),
+        },
+        geometry,
+        audio: audio(
             config.audio,
-            sound::MOVE_PILL,
-            sound::ROTATE,
-            sound::DROP,
-            sound::DESTROY_VIRUS,
-            sound::DESTROY_VIRUS_COMBO,
-            sound::DESTROY_VITAMIN,
-            sound::DESTROY_VITAMIN_COMBO,
-            sound::PAUSE,
-            sound::SPEED_LEVEL_UP,
-            sound::RECEIVE_GARBAGE,
-            sound::NEXT_LEVEL_JINGLE,
-            None,
+            Sounds {
+                move_pill: sound::MOVE_PILL,
+                rotate: sound::ROTATE,
+                drop: sound::DROP,
+                destroy_virus: sound::DESTROY_VIRUS,
+                destroy_virus_combo: sound::DESTROY_VIRUS_COMBO,
+                destroy_vitamin: sound::DESTROY_VITAMIN,
+                destroy_vitamin_combo: sound::DESTROY_VITAMIN_COMBO,
+                paused: sound::PAUSE,
+                speed_level_up: sound::SPEED_LEVEL_UP,
+                receive_garbage: sound::RECEIVE_GARBAGE,
+                next_level_jingle: sound::NEXT_LEVEL_JINGLE,
+                hard_drop: None,
+            },
         )?
         .with_game_music(sound::FEVER_INTRO, sound::FEVER_REPEAT)?
         .with_game_over_music(sound::GAME_OVER_INTRO, sound::GAME_OVER_REPEAT)?
-        .with_next_level_music(
+        .with_next_stage_music(
             sound::FEVER_NEXT_LEVEL_INTRO,
             sound::FEVER_NEXT_LEVEL_REPEAT,
         )?
         .with_victory_music(sound::VICTORY_INTRO, sound::VICTORY_REPEAT)?,
         font: FontThemeOptions::simple(
             FontRenderOptions::numeric_sprites(sprites::FONT, texture_creator, 1)?,
-            MetricSnips::zero_fill((92, 113), MAX_SCORE),
-            MetricSnips::zero_fill((123, 134), MAX_VIRUS_LEVEL),
-            MetricSnips::zero_fill((123, 155), MAX_VIRUSES),
+            hud(
+                MetricSnips::zero_fill((92, 113), crate::game::MAX_SCORE),
+                MetricSnips::zero_fill((123, 134), crate::game::rules::MAX_VIRUS_LEVEL),
+                MetricSnips::zero_fill((123, 155), crate::game::random::MAX_VIRUSES),
+            ),
         ),
-        bottles_file: sprites::BOTTLES,
-        bottle_low: Point::new(81, 0),
-        bottle_medium: Point::new(0, 0),
-        bottle_high: Point::new(162, 0),
-        bottle_width: 80,
-        bottle_height: 176,
+        board_file: sprites::BOTTLES,
+        board_snips: vec![
+            Rect::new(81, 0, 80, 176),
+            Rect::new(0, 0, 80, 176),
+            Rect::new(162, 0, 80, 176),
+        ],
+        board_point: Point::new(0, 0),
         background_file: sprites::BACKGROUND,
-        bottle_point: Point::new(0, 0),
-        match_end_file: sprites::MATCH_END,
+        background_color: Color::BLACK,
+        match_end_file: Some(sprites::MATCH_END),
         game_over_points: vec![Point::new(65, 0), Point::new(65, 129)],
-        next_level_points: vec![Point::new(0, 0), Point::new(0, 129)],
-        dr_throw_point: Point::new(97, 37),
-        // we take 1 away from the throw end as thrown pills have a border but bottle pills do not
-        dr_throw_end_offset: Point::new(-1, -1),
-        dr_game_over_point: Point::new(97, 37),
-        dr_victory_point: Point::new(102, 37),
-        dr_order_first: false,
-        dr_hand_point: Point::new(102, 30),
-        hold_point: Point::new(125, 30),
-        peek_point: Point::new(94, 55),
-        peek_offset: 10,
-        peek_max: 2,
-        peek_scale: Some(0.75),
+        interstitial_points: vec![Point::new(0, 0), Point::new(0, 129)],
+        hold: Some(HoldLayout::Point {
+            point: Point::new(125, 30),
+            scale: Some(0.75),
+        }),
+        peek: PeekLayout::Column {
+            point: Point::new(94, 55),
+            offset: 10,
+            max: 2,
+            scale: Some(0.75),
+        },
+        mascot: Some(MascotLayout {
+            hand_point: Point::new(102, 30),
+            spawn_point: Point::new(97, 37),
+            game_over_point: Point::new(97, 37),
+            victory_point: Point::new(102, 37),
+            draw_first: false,
+        }),
+        mascot_animations: Some(retro_mascot(
+            FrameAnimationType::Static,
+            NES_SNES_VICTORY,
+            FrameAnimationType::Static,
+        )),
+        spawn_arc: Some((Point::new(102, 30), throw_end)),
+        cell_idle_type: FrameAnimationType::Linear { fps: 3 },
+        destroy_style: None,
+        game_over_style: None,
+        curtain_cell: None,
+        ghost_style: GhostStyle::Alpha,
     };
-
     retro_theme(canvas, texture_creator, options)
 }

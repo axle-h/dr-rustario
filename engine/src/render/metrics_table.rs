@@ -1,26 +1,19 @@
-use crate::theme::font::{FontRender, MetricSnips};
+use crate::game::MetricKind;
+use crate::render::font::{FontRender, MetricSnips};
 
 use sdl2::rect::Point;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum GameMetricType {
-    Score,
-    Level,
-    VirusCount,
-}
-
-impl GameMetricType {
-    pub fn label(&self) -> &str {
-        match self {
-            GameMetricType::Score => "Score",
-            GameMetricType::Level => "Level",
-            GameMetricType::VirusCount => "Virus",
-        }
+pub fn metric_label(kind: MetricKind) -> &'static str {
+    match kind {
+        MetricKind::Score => "Score",
+        MetricKind::Level => "Level",
+        MetricKind::Lines => "Lines",
+        MetricKind::Viruses => "Virus",
     }
 }
 
 pub struct GameMetricsRow {
-    metric: GameMetricType,
+    metric: MetricKind,
     value: MetricSnips,
     label: Point,
     label_width: u32,
@@ -32,7 +25,7 @@ impl GameMetricsRow {
         self.value_width.max(self.label_width)
     }
 
-    pub fn metric(&self) -> GameMetricType {
+    pub fn metric(&self) -> MetricKind {
         self.metric
     }
     pub fn label(&self) -> Point {
@@ -52,7 +45,7 @@ impl GameMetricsTable {
         bottle_visible_height: u32,
         font: &FontRender,
         font_bold: &FontRender,
-        labelled_max: &[(GameMetricType, u32)],
+        labelled_max: &[(MetricKind, u32)],
     ) -> Self {
         let mut y = bottle_visible_height as i32; // start from the bottom
         let x = 0;
@@ -62,7 +55,7 @@ impl GameMetricsTable {
             .copied()
             .map(|(metric, max)| {
                 let (value_width, value_height) = font.number_size(max);
-                let (label_width, label_height) = font_bold.string_size(metric.label());
+                let (label_width, label_height) = font_bold.string_size(metric_label(metric));
                 y -= value_height as i32;
                 let value = MetricSnips::left((x, y), max);
                 y -= label_height as i32;
