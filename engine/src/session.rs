@@ -89,13 +89,13 @@ impl<G: Game> Player<G> {
 
     /// swap in the next stage's game, keeping score and stage count; speed carries over only
     /// to the same game, as different games have different speed scales
-    pub fn replace_game(&mut self, mut game: G) {
+    pub fn replace_game(&mut self, mut game: G) -> G {
         game.set_score(self.game.score());
         if game.game_id() == self.game.game_id() {
             game.set_speed_index(self.game.speed_index());
         }
         game.set_completed_stages(self.game.completed_stages());
-        self.game = game;
+        std::mem::replace(&mut self.game, game)
     }
 
     pub fn is_winner(&self) -> bool {

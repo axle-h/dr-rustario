@@ -5,7 +5,7 @@ use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::audio;
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
-use crate::game::{Game, GameEvent, StageTransition};
+use crate::game::{Game, GameEvent, StageState, StageTransition};
 use crate::game_input::{GameInputContext, GameInputKey};
 use crate::high_score::event::HighScoreEntryEvent;
 use crate::high_score::render::HighScoreRender;
@@ -502,6 +502,10 @@ impl App {
         let mut frame_rate = FrameRate::new();
         // per player: time since they finished a playlist stage, until the switch happens
         let mut pending_switches: Vec<Option<Duration>> = vec![None; players as usize];
+        // per player: games of a playlist set aside while another game is played, so each
+        // game picks up where it left off (its stack, hold and level)
+        let mut parked: Vec<Vec<G>> = (0..players).map(|_| vec![]).collect();
+        let mut completed_stages: Vec<u32> = vec![0; players as usize];
 
         for player in 0..players {
             let cells = fixture.player(player).game().stage_intro_cells();
@@ -721,7 +725,6 @@ impl App {
                         } else if settings.playlist {
                             // the finished board holds for a moment, then the next game of
                             // the playlist fades in (see the pending switches below)
-                            fixture.player_mut(player).game_mut().next_stage()?;
                             pending_switches[player as usize] = Some(Duration::ZERO);
                         } else {
                             match fixture.player(player).game().stage_transition() {
@@ -829,11 +832,20 @@ impl App {
                     }
                     pending_switches[player as usize] = None;
                     stage_changed = true;
-                    let completed = fixture.player(player).game().completed_stages();
+                    let index = player as usize;
+                    completed_stages[index] += 1;
+                    let completed = completed_stages[index];
                     if let Some(change) = next_stage(player, completed) {
                         let same_game = change.game.is_none();
                         if let Some(next_game) = change.game {
-                            fixture.player_mut(player).replace_game(next_game);
+                            // resume this game where it was parked, else start the new one
+                            let wanted = next_game.game_id();
+                            let resumed = match parked[index].iter().position(|g| g.game_id() == wanted) {
+                                Some(i) => parked[index].swap_remove(i),
+                                None => next_game,
+                            };
+                            let outgoing = fixture.player_mut(player).replace_game(resumed);
+                            parked[index].push(outgoing);
                         }
                         if same_game && change.settings.theme_mode == ThemeMode::All {
                             themes.fade_into_next_theme(player, &mut self.canvas)?;
@@ -848,6 +860,12 @@ impl App {
                     } else if settings.players[player as usize].theme_mode == ThemeMode::All {
                         themes.fade_into_next_theme(player, &mut self.canvas)?;
                     }
+                    // a game that was mid-stage-change when parked starts its next stage now
+                    let game = fixture.player_mut(player).game_mut();
+                    if game.stage_state() == StageState::StageComplete {
+                        game.next_stage()?;
+                    }
+                    game.set_completed_stages(completed);
                     let cells = fixture.player(player).game().stage_intro_cells();
                     themes.animate_next_stage(player, &cells);
                 }
