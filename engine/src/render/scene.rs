@@ -12,10 +12,20 @@ use sdl2::video::WindowContext;
 use std::time::Duration;
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 
+/// How a particle scene shows cleared cells.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClearParticles {
+    /// particles in the shape of each cleared cell, sweeping along them
+    Masked { fade_in: Duration },
+    /// particles over the whole cleared rows, cascading in, growing then bursting
+    Rows { fade_in: Duration },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneType {
     Particles {
         base_color: Color,
+        clear: ClearParticles,
     },
     /// a flat colour
     Solid(Color),
@@ -110,7 +120,7 @@ impl<'a> SceneRender<'a> {
         event: &GameEvent,
         spawn_cells: &[CellPoint],
     ) -> Option<PlayerTargetedParticles> {
-        let SceneType::Particles { base_color } = self.scene_type else {
+        let SceneType::Particles { base_color, clear } = self.scene_type else {
             return None;
         };
         let points = |cells: &[(CellPoint, crate::game::CellId)]| {
@@ -139,9 +149,19 @@ impl<'a> SceneRender<'a> {
                 Some(particles.into_targeted(player, points(cells)))
             }
             GameEvent::Clear { cells, .. } => {
-                let target = PlayerParticleTarget::MaskedCells(cells.clone());
+                let (target, fade_in) = match clear {
+                    ClearParticles::Masked { fade_in } => {
+                        (PlayerParticleTarget::MaskedCells(cells.clone()), fade_in)
+                    }
+                    ClearParticles::Rows { fade_in } => {
+                        let mut rows = cells.iter().map(|(p, _)| p.y as u32).collect::<Vec<u32>>();
+                        rows.sort();
+                        rows.dedup();
+                        (PlayerParticleTarget::Rows(rows), fade_in)
+                    }
+                };
                 let particles = PrescribedParticles::FadeInLatticeBurstAndFall {
-                    fade_in: Duration::from_millis(250),
+                    fade_in,
                     color: base_color,
                 };
                 Some(particles.into_targeted(player, target))

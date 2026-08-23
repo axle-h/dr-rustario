@@ -9,6 +9,7 @@ use engine::config::Config;
 use engine::game::CellId;
 use engine::render::animation::AnimationSpriteSheetData;
 use engine::render::modern::{modern_theme, ModernThemeOptions};
+use engine::render::scene::ClearParticles;
 use engine::render::sprite_sheet::{BlockSpriteSheetData, CellAnimationData, GhostStyle};
 use engine::render::Theme;
 use sdl2::pixels::Color;
@@ -193,6 +194,9 @@ pub fn modern_dr_theme<'a>(
         cell_idle_type: FrameAnimationType::Linear { fps: 30 },
         queue_max: 2,
         particle_color: Color::WHITE,
+        clear_particles: ClearParticles::Masked {
+            fade_in: Duration::from_millis(250),
+        },
         destroy_style: None,
         game_over_style: None,
         ghost_style: GhostStyle::Alpha,

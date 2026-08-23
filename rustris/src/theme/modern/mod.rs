@@ -7,6 +7,7 @@ use engine::animate::frames::FrameAnimationType;
 use engine::config::Config;
 use engine::game::geometry::Rotation;
 use engine::render::modern::{modern_theme, ModernThemeOptions};
+use engine::render::scene::ClearParticles;
 use engine::render::sprite_sheet::{BlockSpriteSheetData, GhostStyle};
 use engine::render::Theme;
 use sdl2::pixels::Color;
@@ -110,6 +111,9 @@ pub fn modern_rustris_theme<'a>(
         cell_idle_type: FrameAnimationType::Static,
         queue_max: 5,
         particle_color: Color::WHITE,
+        clear_particles: ClearParticles::Rows {
+            fade_in: PARTICLE_FADE_IN,
+        },
         destroy_style: Some(DestroyStyle::Vanish {
             hold: PARTICLE_FADE_IN,
         }),

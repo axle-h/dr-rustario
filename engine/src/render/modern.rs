@@ -14,7 +14,7 @@ use crate::render::font::{FontRender, FontTheme, ThemedNumeric};
 use crate::render::geometry::BoardGeometry;
 use crate::render::helper::{TextureFactory, TextureQuery};
 use crate::render::metrics_table::{metric_label, GameMetricsTable};
-use crate::render::scene::SceneType;
+use crate::render::scene::{ClearParticles, SceneType};
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, BlockSpriteSheetData, GhostStyle, MascotKind};
 use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, OverlayFit, PeekLayout, Theme};
@@ -55,6 +55,7 @@ pub struct ModernThemeOptions {
     pub cell_idle_type: FrameAnimationType,
     pub queue_max: u32,
     pub particle_color: Color,
+    pub clear_particles: ClearParticles,
     pub destroy_style: Option<DestroyStyle>,
     pub game_over_style: Option<GameOverStyle>,
     pub ghost_style: GhostStyle,
@@ -311,6 +312,7 @@ pub fn modern_theme<'a>(
 
     let scene_type = SceneType::Particles {
         base_color: options.particle_color,
+        clear: options.clear_particles,
     };
 
     let (hold, peek) = if mascot_layout.is_some() {

@@ -599,6 +599,20 @@ impl<'a> ThemeContext<'a> {
         Ok(())
     }
 
+    pub fn player_row_snips(&self, player: u32, rows: Vec<u32>) -> Vec<Rect> {
+        let theme = self.current(player);
+        let player = &theme.player_themes[player as usize];
+        let geometry = theme.theme.geometry();
+        rows.into_iter()
+            .map(|j| geometry.row_snip(j))
+            .map(|r| {
+                theme
+                    .scale
+                    .scale_and_offset_rect(r, player.board_snip.x(), player.board_snip.y())
+            })
+            .collect()
+    }
+
     pub fn player_block_snips(&self, player: u32, points: Vec<CellPoint>) -> Vec<Rect> {
         let theme = self.current(player);
         let player = &theme.player_themes[player as usize];

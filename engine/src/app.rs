@@ -825,6 +825,10 @@ impl App {
                     let Some(elapsed) = pending_switches[player as usize] else {
                         continue;
                     };
+                    if themes.is_pause_required_for_animation(player) {
+                        // let the clear finish first; the hold starts after it
+                        continue;
+                    }
                     let elapsed = elapsed + delta;
                     if elapsed < GAME_SWITCH_HOLD {
                         pending_switches[player as usize] = Some(elapsed);

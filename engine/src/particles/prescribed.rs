@@ -23,6 +23,8 @@ pub enum PlayerParticleTarget {
     Cells(Vec<CellPoint>),
     /// the opaque pixels of these cells, so particles take their shape
     MaskedCells(Vec<PlacedCell>),
+    /// whole rows of the board
+    Rows(Vec<u32>),
     Board,
 }
 
@@ -400,6 +402,7 @@ impl PlayerTargetedParticles {
         let target_rects = match self.target {
             PlayerParticleTarget::Board => vec![themes.player_board_snip(self.player)],
             PlayerParticleTarget::Cells(cells) => themes.player_block_snips(self.player, cells),
+            PlayerParticleTarget::Rows(rows) => themes.player_row_snips(self.player, rows),
             PlayerParticleTarget::MaskedCells(cells) => {
                 let is_horizontal = iter_all_eq(cells.iter().map(|(p, _)| p.y));
                 let n_blocks = cells.len();
