@@ -180,6 +180,7 @@ pub fn nes_theme<'a>(
             ),
         ),
         board_file: sprites::BOTTLES,
+        board_alpha: 0xff,
         board_snips: vec![
             Rect::new(81, 0, 80, 176),
             Rect::new(0, 0, 80, 176),

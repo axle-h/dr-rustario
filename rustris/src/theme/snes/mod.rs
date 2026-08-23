@@ -18,6 +18,7 @@ use sdl2::video::WindowContext;
 
 const SPRITES: &[u8] = include_bytes!("sprites.png");
 const BACKGROUND_FILE: &[u8] = include_bytes!("background.png");
+const BACKGROUND_TILE: &[u8] = include_bytes!("background-tile-gold.png");
 const BOARD_FILE: &[u8] = include_bytes!("board.png");
 const GAME_OVER_FILE: &[u8] = include_bytes!("game-over.png");
 const GAME_OVER_SOUND: &[u8] = include_bytes!("game-over.ogg");
@@ -56,7 +57,9 @@ pub fn snes_theme<'a>(
     let buffer = BUFFER_PIXELS as i32;
     let options = RetroThemeOptions {
         name: "snes",
-        scenes: vec![SceneType::Solid(BACKGROUND_COLOR)],
+        scenes: vec![SceneType::Tile {
+            texture: BACKGROUND_TILE,
+        }],
         sprites: BlockSpriteSheetData {
             file: SPRITES,
             source_block_size: BLOCK_PIXELS,
@@ -100,6 +103,7 @@ pub fn snes_theme<'a>(
             hud(buffer, zero_fill((7, 22), 6), zero_fill((23, 62), 3), zero_fill((23, 98), 4)),
         ),
         board_file: BOARD_FILE,
+        board_alpha: 0xff,
         board_snips: vec![],
         top_padding: BUFFER_PIXELS,
         board_point: Point::new(62, 0),

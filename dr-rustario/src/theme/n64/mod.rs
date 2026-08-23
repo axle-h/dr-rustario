@@ -172,6 +172,7 @@ pub fn n64_theme<'a>(
             ],
         ),
         board_file: sprites::BOTTLES,
+        board_alpha: 0xff,
         board_snips: vec![Rect::new(0, 0, 96, 209)],
         top_padding: 0,
         board_point: Point::new(0, 0),

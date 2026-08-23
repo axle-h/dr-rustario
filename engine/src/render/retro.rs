@@ -30,6 +30,8 @@ pub struct RetroThemeOptions {
     pub audio: AudioTheme,
     pub font: FontThemeOptions,
     pub board_file: &'static [u8],
+    /// board frame opacity; below 0xff the scene shows through the board
+    pub board_alpha: u8,
     /// the board frame per speed band within `board_file`; empty for the whole file
     pub board_snips: Vec<Rect>,
     /// transparent rows added above the board and background art, for a visible buffer
@@ -68,8 +70,14 @@ pub fn retro_theme<'a>(
     options: RetroThemeOptions,
 ) -> Result<Theme<'a>, String> {
     let sprites = BlockSpriteSheet::new(canvas, texture_creator, &options.sprites, None)?;
-    let board_texture =
+    let mut board_texture =
         padded_texture(canvas, texture_creator, options.board_file, options.top_padding)?;
+    if options.board_alpha < 0xff {
+        // written verbatim into the transparent board target (no blend) so the scene
+        // is blended through exactly once, when the board target is composited
+        board_texture.set_blend_mode(sdl2::render::BlendMode::None);
+        board_texture.set_alpha_mod(options.board_alpha);
+    }
 
     let background_texture = padded_texture(
         canvas,

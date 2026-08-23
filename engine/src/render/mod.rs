@@ -395,7 +395,8 @@ impl<'a> Theme<'a> {
         canvas.set_draw_color(Color::RGBA(0, 0, 0, 0));
         canvas.clear();
 
-        let board_snip = self.board_snips[self.band(game.speed_index())];
+        let board_snip = self.board_snips
+            [(game.speed_index() as usize).min(self.board_snips.len().saturating_sub(1))];
         let board_dest = Rect::new(0, 0, board_snip.width(), board_snip.height());
         canvas.copy(&self.board_texture, board_snip, board_dest)?;
 
