@@ -26,3 +26,7 @@ dr-rustario = { path = "../dr-rustario" }
 rustris = { path = "../rustris" }
 sdl2.workspace = true
 titlecase.workspace = true
+
+[dev-dependencies]
+# examples/frame_shot.rs writes a rendered frame straight to a png
+image.workspace = true

@@ -7,6 +7,7 @@ pub mod context;
 pub mod font;
 pub mod geometry;
 pub mod helper;
+pub mod layout;
 pub mod metrics_table;
 pub mod modern;
 pub mod pause;
@@ -25,6 +26,7 @@ use crate::render::geometry::BoardGeometry;
 use crate::render::scene::SceneRender;
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, GhostStyle, MascotKind};
+use crate::scale::ScaleMode;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{Texture, WindowCanvas};
@@ -131,8 +133,11 @@ pub struct Theme<'a> {
     pub(crate) ghost_style: GhostStyle,
     /// themes that emit particles do so in this colour
     pub(crate) particle_color: Option<Color>,
-    /// the window-scaling rule: true for themes that size themselves to the window
-    pub(crate) integer_scale: bool,
+    /// how this theme's art may be resized to the window
+    pub(crate) scale_mode: ScaleMode,
+    /// source pixels at the top of the background that nothing is ever drawn into, so they
+    /// may fall outside the window rather than cost the board a whole step
+    pub(crate) top_slack: u32,
 }
 
 impl<'a> Theme<'a> {
@@ -180,8 +185,24 @@ impl<'a> Theme<'a> {
         self.particle_color
     }
 
-    pub fn is_integer_scale(&self) -> bool {
-        self.integer_scale
+    pub fn scale_mode(&self) -> ScaleMode {
+        self.scale_mode
+    }
+
+    pub fn top_slack(&self) -> u32 {
+        self.top_slack
+    }
+
+    /// the playfield within the background, in source pixels: the board frame's place in the
+    /// background plus the board's own offset within that frame
+    pub fn playfield_snip(&self) -> Rect {
+        let snip = self.geometry.game_snip();
+        Rect::new(
+            self.board_bg_snip.x() + snip.x(),
+            self.board_bg_snip.y() + snip.y(),
+            snip.width(),
+            snip.height(),
+        )
     }
 
     /// what this theme contributes to the menu's piece race, see

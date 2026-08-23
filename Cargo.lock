@@ -202,6 +202,7 @@ dependencies = [
  "dr-rustario",
  "embed-resource",
  "engine",
+ "image",
  "rustris",
  "sdl2",
  "titlecase",

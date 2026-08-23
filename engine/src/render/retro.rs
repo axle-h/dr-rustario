@@ -15,6 +15,7 @@ use crate::render::scene::SceneType;
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, BlockSpriteSheetData, GhostStyle, MascotKind};
 use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, OverlayFit, PeekLayout, Theme};
+use crate::scale::ScaleMode;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
@@ -169,7 +170,9 @@ pub fn retro_theme<'a>(
         peek: options.peek,
         ghost_style: options.ghost_style,
         particle_color: None,
-        integer_scale: false,
+        scale_mode: ScaleMode::Source,
+        // the band above the skyline is where pieces spawn, so it is not empty
+        top_slack: 0,
     })
 }
 

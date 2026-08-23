@@ -101,6 +101,7 @@ pub fn modern_dr_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
     config: Config,
+    block_size: u32,
 ) -> Result<Theme<'a>, String> {
     let mascot_types = MascotAnimationTypes {
         idle: FrameAnimationType::Linear { fps: sprites::DR_FPS },
@@ -187,6 +188,9 @@ pub fn modern_dr_theme<'a>(
         columns: BOTTLE_WIDTH,
         rows: BOTTLE_HEIGHT,
         visible_rows: BOTTLE_HEIGHT,
+        block_size,
+        // the bottle shows every row it simulates: nothing above the neck to give away
+        top_buffer_rows: 0,
         metrics: HUD_MAX.to_vec(),
         metrics_left: vec![],
         mascot: Some((mascot_types, DR_SCALE_OF_BLOCK)),

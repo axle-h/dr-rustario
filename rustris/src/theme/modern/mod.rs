@@ -51,6 +51,8 @@ pub fn modern_rustris_theme<'a>(
     canvas: &mut WindowCanvas,
     texture_creator: &'a TextureCreator<WindowContext>,
     config: Config,
+    block_size: u32,
+    top_buffer_rows: u32,
 ) -> Result<Theme<'a>, String> {
     let spawn = TetrominoShape::I.meta().spawn_point();
     let spawn_cell = {
@@ -104,6 +106,8 @@ pub fn modern_rustris_theme<'a>(
         columns: BOARD_WIDTH,
         rows: TOTAL_HEIGHT,
         visible_rows: VISIBLE_HEIGHT,
+        block_size,
+        top_buffer_rows,
         metrics: HUD_MAX[1..].to_vec(),
         metrics_left: HUD_MAX[..1].to_vec(),
         mascot: None,

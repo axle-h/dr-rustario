@@ -7,10 +7,12 @@ pub mod nes;
 pub mod snes;
 
 use crate::game::tetromino::TetrominoShape;
+use crate::game::VISIBLE_BUFFER;
 use engine::config::Config;
 use engine::game::PieceId;
 use engine::particles::prescribed::RaceTheme;
 use engine::menu::sound::{MenuMusic, MenuSounds};
+use engine::render::layout::reference_block_size;
 use engine::render::Theme;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
@@ -21,12 +23,24 @@ pub fn all_themes<'a>(
     texture_creator: &'a TextureCreator<WindowContext>,
     config: Config,
 ) -> Result<Vec<Theme<'a>>, String> {
-    Ok(vec![
+    let mut themes = vec![
         gb::game_boy_theme(canvas, texture_creator, config)?,
         nes::nes_theme(canvas, texture_creator, config)?,
         snes::snes_theme(canvas, texture_creator, config)?,
-        modern::modern_rustris_theme(canvas, texture_creator, config)?,
-    ])
+    ];
+    let block_size = reference_block_size(
+        &themes.iter().collect::<Vec<&Theme>>(),
+        canvas.window().size(),
+        config.video,
+    );
+    themes.push(modern::modern_rustris_theme(
+        canvas,
+        texture_creator,
+        config,
+        block_size,
+        VISIBLE_BUFFER,
+    )?);
+    Ok(themes)
 }
 
 /// the themes' contributions to the title screen piece race
@@ -39,11 +53,9 @@ pub fn race_themes(themes: &[Theme]) -> Vec<RaceTheme> {
         .iter()
         .enumerate()
         .map(|(index, theme)| {
-            let scale = if theme.is_integer_scale() {
-                1.0
-            } else {
-                modern::SRC_BLOCK_SIZE as f64 / theme.sprites().block_size() as f64 / 2.0
-            };
+            // every theme's sprites are drawn at the same size in the race, whatever cell
+            // size the theme itself was built at
+            let scale = modern::SRC_BLOCK_SIZE as f64 / theme.sprites().block_size() as f64 / 2.0;
             theme.race_theme(index, pieces.clone(), scale)
         })
         .collect()

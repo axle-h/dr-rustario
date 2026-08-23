@@ -18,13 +18,13 @@ use crate::render::scene::{ClearParticles, SceneType};
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, BlockSpriteSheetData, GhostStyle, MascotKind};
 use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, OverlayFit, PeekLayout, Theme};
+use crate::scale::ScaleMode;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 
 const BOARD_TOP_BUFFER_PCT: f64 = 0.15;
-const MIN_VERTICAL_BUFFER_PCT: f64 = 0.03;
 const BOARD_BORDER_PCT_OF_BLOCK: f64 = 0.5;
 const BOARD_BORDER_SHADOW: u8 = 0x99;
 const VERTICAL_GUTTER_PCT_OF_BLOCK: f64 = 0.2;
@@ -44,6 +44,12 @@ pub struct ModernThemeOptions {
     pub columns: u32,
     pub rows: u32,
     pub visible_rows: u32,
+    /// the cell pitch to build at. The board is drawn at its built size or smaller, so pass
+    /// the largest block the window can hold: see [`crate::scale::fit`].
+    pub block_size: u32,
+    /// the topmost visible rows, kept above the skyline for spawning pieces. Like the gap
+    /// above the board they may fall off the top of the window rather than cost a whole step.
+    pub top_buffer_rows: u32,
     /// HUD rows under the side column, top to bottom, with the largest value each can show
     pub metrics: Vec<(MetricKind, u32)>,
     /// HUD rows under the hold box on the left
@@ -71,10 +77,11 @@ pub fn modern_theme<'a>(
     let (_, window_height) = canvas.window().size();
 
     let board_top_buffer = (BOARD_TOP_BUFFER_PCT * window_height as f64).round() as u32;
-    let block_size = (window_height as f64
-        - (2.0 * window_height as f64 * MIN_VERTICAL_BUFFER_PCT)
-        - board_top_buffer as f64)
-        / options.visible_rows as f64;
+    let block_size = options.block_size as f64;
+    // a retro theme's board frame starts at the skyline with the spawning rows floating
+    // above it; the queue and hold sit alongside. Match that.
+    let above_skyline = options.top_buffer_rows * options.block_size;
+    let skyline = board_top_buffer + above_skyline;
     let border_weight = (block_size * BOARD_BORDER_PCT_OF_BLOCK).round() as u32;
     let vertical_gutter = (VERTICAL_GUTTER_PCT_OF_BLOCK * block_size).round() as u32;
     let slot_size = (SLOT_BLOCKS * block_size).round() as u32;
@@ -159,7 +166,7 @@ pub fn modern_theme<'a>(
     }
     let sprites = BlockSpriteSheet::new(canvas, texture_creator, &sprite_data, block_size)?;
 
-    let side_y = board_top_buffer as i32;
+    let side_y = skyline as i32;
     let side_x = board_bg_snip.right() + vertical_gutter as i32;
 
     let (mascot_layout, mascot_meta, side_width, hand_point) = match (sprites.mascot(), options.mascot)
@@ -206,9 +213,9 @@ pub fn modern_theme<'a>(
         };
         let rect = Rect::new(
             i as i32,
-            board_top_buffer as i32,
+            skyline as i32,
             geometry.width() - 2 * i + 2 * border_weight,
-            geometry.height() - i + border_weight,
+            geometry.height() - above_skyline - i + border_weight,
         );
         borders.push((rect, alpha))
     }
@@ -318,7 +325,7 @@ pub fn modern_theme<'a>(
     let (hold, peek) = if mascot_layout.is_some() {
         (
             HoldLayout::Point {
-                point: Point::new(0, board_top_buffer as i32),
+                point: Point::new(0, side_y),
                 scale: Some(PEEK_SCALE),
             },
             PeekLayout::Column {
@@ -338,7 +345,7 @@ pub fn modern_theme<'a>(
         }
         (
             HoldLayout::Slot {
-                slot: Rect::new(0, board_top_buffer as i32, slot_size, slot_size),
+                slot: Rect::new(0, side_y, slot_size, slot_size),
                 max_scale: SLOT_MAX_SCALE,
             },
             PeekLayout::Slots {
@@ -374,6 +381,8 @@ pub fn modern_theme<'a>(
         peek,
         ghost_style: options.ghost_style,
         particle_color: Some(options.particle_color),
-        integer_scale: true,
+        scale_mode: ScaleMode::Native,
+        // nothing is ever drawn in the gap above the board, unlike the rows below it
+        top_slack: board_top_buffer,
     })
 }

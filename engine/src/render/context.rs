@@ -8,6 +8,7 @@ use crate::config::VideoConfig;
 use crate::game::geometry::Point as CellPoint;
 use crate::game::{Game, PieceId, PlacedCell};
 use crate::particles::render::ParticleRender;
+use crate::render::layout::BoardLayout;
 use crate::render::sound::AudioTheme;
 use crate::render::Theme;
 use crate::scale::Scale;
@@ -16,12 +17,46 @@ use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
+use std::collections::HashMap;
 use std::ops::Range;
 use std::time::Duration;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
 /// moving to another game of a playlist fades more gently
 pub const GAME_SWITCH_FADE_DURATION: Duration = Duration::from_millis(1800);
+
+/// themes of the same board size and shape are laid out together
+fn board_of(theme: &Theme) -> (u32, u32) {
+    (theme.geometry().columns(), theme.geometry().visible_rows())
+}
+
+/// each theme's layout, and its place within that layout's group
+fn board_layouts(
+    all_themes: &[Theme],
+    players: u32,
+    window_size: (u32, u32),
+    video_config: VideoConfig,
+) -> Vec<(BoardLayout, usize)> {
+    let mut groups: HashMap<(u32, u32), Vec<usize>> = HashMap::new();
+    for (index, theme) in all_themes.iter().enumerate() {
+        groups.entry(board_of(theme)).or_default().push(index);
+    }
+    let mut layouts: Vec<Option<(BoardLayout, usize)>> = vec![None; all_themes.len()];
+    for members in groups.into_values() {
+        let group = members
+            .iter()
+            .map(|index| &all_themes[*index])
+            .collect::<Vec<&Theme>>();
+        let layout = BoardLayout::new(&group, players, window_size, video_config);
+        for (within, index) in members.into_iter().enumerate() {
+            layouts[index] = Some((layout.clone(), within));
+        }
+    }
+    layouts
+        .into_iter()
+        .map(|layout| layout.expect("every theme is in exactly one group"))
+        .collect()
+}
 
 pub struct PlayerTextures<'a> {
     pub background: Texture<'a>,
@@ -65,14 +100,19 @@ struct ThemedPlayer {
 }
 
 impl ThemedPlayer {
-    pub fn new(player: u32, theme: &Theme, scale: Scale) -> Self {
+    /// `game_snip` is where the group agreed to put the playfield: the background hangs off
+    /// it by whatever margins this theme's art has around its own board.
+    pub fn new(player: u32, theme: &Theme, scale: Scale, game_snip: Rect) -> Self {
         let (theme_width, theme_height) = theme.background_size();
-        let mut bg_snip = scale.scale_rect(Rect::new(0, 0, theme_width, theme_height));
-        bg_snip.center_on(scale.player_window(player).center());
+        let playfield = theme.playfield_snip();
+        let bg_snip = Rect::new(
+            game_snip.x() - scale.scale_coordinate(playfield.x()),
+            game_snip.y() - scale.scale_coordinate(playfield.y()),
+            scale.scale_length(theme_width),
+            scale.scale_length(theme_height),
+        );
         let board_snip =
             scale.scale_and_offset_rect(theme.board_snip(), bg_snip.x(), bg_snip.y());
-        let game_snip =
-            scale.scale_and_offset_rect(theme.geometry().game_snip(), bg_snip.x(), bg_snip.y());
         let animations = PlayerAnimations::new(player, theme.animation_meta());
         Self {
             bg_snip,
@@ -96,21 +136,25 @@ pub struct ScaledTheme<'a> {
 }
 
 impl<'a> ScaledTheme<'a> {
-    fn new(theme: &'a Theme, players: u32, window_size: (u32, u32), video_config: VideoConfig) -> Self {
+    fn new(
+        theme: &'a Theme,
+        index: usize,
+        players: u32,
+        window_size: (u32, u32),
+        layout: &BoardLayout,
+    ) -> Self {
         let scale = Scale::new(
             players,
-            theme.background_size(),
             window_size,
             theme.geometry().block_size(),
-            video_config,
-            theme.is_integer_scale(),
+            layout.scale(index, theme),
         );
         let (theme_width, theme_height) = theme.background_size();
         let bg_source_snip = Rect::new(0, 0, theme_width, theme_height);
         let board_rect = theme.board_snip();
         let board_source_snip = Rect::new(0, 0, board_rect.width(), board_rect.height());
         let player_themes = (0..players)
-            .map(|pid| ThemedPlayer::new(pid, theme, scale))
+            .map(|pid| ThemedPlayer::new(pid, theme, scale, layout.playfield(index, theme, pid)))
             .collect::<Vec<ThemedPlayer>>();
         Self {
             theme,
@@ -192,12 +236,19 @@ impl<'a> ThemeContext<'a> {
         fade_buffer.set_blend_mode(BlendMode::Blend);
         let players = player_themes.len();
 
+        // themes of the same board share a layout, so a player switching theme mid-game keeps
+        // the same board in the same place. Different boards (a bottle and a well) cannot.
+        let layouts = board_layouts(all_themes, players as u32, window_size, video_config);
+
         Ok(Self {
             current: player_themes.iter().map(|p| p.initial).collect(),
             ranges: player_themes.into_iter().map(|p| p.range).collect(),
             themes: all_themes
                 .iter()
-                .map(|theme| ScaledTheme::new(theme, players as u32, window_size, video_config))
+                .zip(layouts.iter())
+                .map(|(theme, (layout, within))| {
+                    ScaledTheme::new(theme, *within, players as u32, window_size, layout)
+                })
                 .collect(),
             fade_buffer,
             fades: vec![None; players],
