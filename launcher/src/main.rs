@@ -17,11 +17,7 @@ mod build_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-#[cfg(not(feature = "retro_handheld"))]
 const MAX_PLAYERS: u32 = 2;
-
-#[cfg(feature = "retro_handheld")]
-const MAX_PLAYERS: u32 = 1;
 
 const QUIT: &str = "quit";
 

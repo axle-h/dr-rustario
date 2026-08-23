@@ -55,8 +55,8 @@ DEPLOY_HOST=root@rocknix ./build-portmaster.sh # ... and copy it to the device
 ```
 
 This cross-compiles in Docker (`Dockerfile.aarch64`: Ubuntu 20.04 / glibc 2.31, the PortMaster
-baseline) with the `retro_handheld` feature, then zips the binary up with the launcher script and
-metadata from [portmaster/](portmaster). SDL2 is not bundled: like other native PortMaster ports
+baseline) with the `retro_handheld` and `ai` features, then zips the binary up with the launcher
+script and metadata from [portmaster/](portmaster). SDL2 is not bundled: like other native PortMaster ports
 the binary links the firmware's own `libSDL2-2.0.so.0`.
 
 To install without PortMaster's catalogue drop the zip into the device's
@@ -64,8 +64,8 @@ To install without PortMaster's catalogue drop the zip into the device's
 open PortMaster, or unzip it straight into `/roms/ports/`. Config and high scores are then kept
 in `/roms/ports/dr-rustario-vs-rustris/`.
 
-The `retro_handheld` feature defaults to desktop fullscreen, single player, no integer scaling
-and stores config next to the binary.
+The `retro_handheld` feature defaults to desktop fullscreen and no integer scaling, and stores
+config next to the binary.
 
 ## Config
 

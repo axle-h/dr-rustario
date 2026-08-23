@@ -182,6 +182,10 @@ impl App {
         .build()
         .map_err(|e| e.to_string())?;
 
+        // the window built under FullScreenDesktop (or any mode the WM adjusts) only knows
+        // its real size now: particle space is normalised to it, so it must be the real one
+        let (window_width, window_height) = canvas.window().size();
+
         let event_pump = sdl.event_pump()?;
         // SDL_GAMECONTROLLERCONFIG (set by e.g. PortMaster) is read by the subsystem on init;
         // already-attached pads arrive as ControllerDeviceAdded events on the first poll
@@ -202,7 +206,7 @@ impl App {
             controllers,
             _audio: audio,
             menu_sound,
-            particle_scale: ParticleScale::new((width, height)),
+            particle_scale: ParticleScale::new((window_width, window_height)),
             max_players,
         })
     }

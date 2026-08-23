@@ -408,19 +408,17 @@ impl<'a> Menu<'a> {
                     // draw value
                     if let Some(current_action) = row.current_action_id() {
                         let texture = &row.action_textures[current_action];
-                        let offset_by_action_width = -1 * texture.width as i32;
-                        let mut rect = Rect::from_enclose_points(
-                            &[
-                                row_rect.top_right(),
-                                row_rect.bottom_right(),
-                                row_rect.top_right().offset(offset_by_action_width, 0),
-                                row_rect.bottom_right().offset(offset_by_action_width, 0),
-                            ],
-                            None,
-                        )
-                        .unwrap();
-                        // move left a bit for the bg buffer
-                        rect.offset(-1 * row_rect.height() as i32 / 2, 0);
+                        // right-aligned at its natural size (stretching to the row distorts
+                        // the text), inset half a row height for the rounded bg
+                        let rect = Rect::new(
+                            row_rect.right()
+                                - texture.width as i32
+                                - row_rect.height() as i32 / 2,
+                            row_rect.y()
+                                + (row_rect.height() as i32 - texture.height as i32) / 2,
+                            texture.width,
+                            texture.height,
+                        );
                         tc.copy(&texture.texture, None, rect).unwrap();
                     }
                 }

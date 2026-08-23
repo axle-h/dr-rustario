@@ -4,7 +4,7 @@
 #   ./build-portmaster.sh                       -> dist/dr-rustario-vs-rustris.zip
 #   DEPLOY_HOST=root@rocknix ./build-portmaster.sh
 #       also copies the zip into the device's PortMaster/autoinstall folder; open PortMaster
-#       on the device to install it (ROCKNIX default path below, override with DEPLOY_PATH)
+#       on the device to install it (probes the known ROCKNIX/muOS paths, override with DEPLOY_PATH)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -42,7 +42,23 @@ echo "--- $DIST/$PORT.zip"
 unzip -l "$DIST/$PORT.zip"
 
 if [ -n "${DEPLOY_HOST:-}" ]; then
-  DEPLOY_PATH=${DEPLOY_PATH:-/storage/roms/ports/PortMaster/autoinstall/}
+  # Known PortMaster autoinstall locations (ROCKNIX, muOS); override with DEPLOY_PATH
+  AUTOINSTALL_PATHS=(
+    /storage/roms/ports/PortMaster/autoinstall/
+    /mnt/mmc/MUOS/PortMaster/autoinstall/
+  )
+  if [ -z "${DEPLOY_PATH:-}" ]; then
+    for path in "${AUTOINSTALL_PATHS[@]}"; do
+      if ssh "$DEPLOY_HOST" "[ -d '$path' ]"; then
+        DEPLOY_PATH=$path
+        break
+      fi
+    done
+    if [ -z "${DEPLOY_PATH:-}" ]; then
+      echo "error: no PortMaster autoinstall folder found on $DEPLOY_HOST (tried: ${AUTOINSTALL_PATHS[*]})" >&2
+      exit 1
+    fi
+  fi
   scp "$DIST/$PORT.zip" "$DEPLOY_HOST:$DEPLOY_PATH"
   echo "copied to $DEPLOY_HOST:$DEPLOY_PATH - open PortMaster on the device to install"
 fi
