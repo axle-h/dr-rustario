@@ -2,20 +2,17 @@ use crate::game::block::Block;
 use crate::game::bottle::{BOTTLE_HEIGHT, BOTTLE_WIDTH, TOTAL_BLOCKS};
 use crate::game::geometry::BottlePoint;
 use crate::game::pill::{PillShape, VirusColor};
+pub use engine::game::random::{RandomMode, Seed};
+use engine::game::random::BagRandom;
 use rand::distr::StandardUniform;
 use rand::prelude::*;
-use rand::seq::SliceRandom;
-use rand::{rng, RngExt};
-use rand_chacha::{ChaCha8Rng, ChaChaRng};
-use std::collections::{HashSet, VecDeque};
+use rand_chacha::ChaChaRng;
+use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
-use strum::IntoEnumIterator;
 
 pub const PEEK_SIZE: usize = 5;
 pub const MAX_BOTTLE_SEED_ATTEMPTS: usize = 100_000;
 pub const MAX_VIRUSES: u32 = 99;
-
-type Seed = <ChaCha8Rng as SeedableRng>::Seed;
 
 impl Distribution<VirusColor> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> VirusColor {
@@ -29,37 +26,8 @@ impl Distribution<PillShape> for StandardUniform {
     }
 }
 
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Default,
-    strum::IntoStaticStr,
-    strum::EnumIter,
-    strum::EnumString,
-)]
-pub enum RandomMode {
-    /// All pills placed in a shuffled "bag" and drawn until the bag is empty, after which a new bag is shuffled
-    #[strum(serialize = "bag")]
-    #[default]
-    Bag = 0,
-
-    /// Random pill every time
-    #[strum(serialize = "true")]
-    True = 1,
-}
-
-impl RandomMode {
-    pub fn names() -> Vec<&'static str> {
-        Self::iter().map(|e| e.into()).collect()
-    }
-}
-
 pub fn random(count: usize, mode: RandomMode) -> Vec<GameRandom> {
-    let mut seed: Seed = Default::default();
-    rng().fill(&mut seed);
+    let seed = Seed::random();
     (0..count)
         .map(|_| GameRandom::from_seed(seed, mode))
         .collect()
@@ -149,78 +117,39 @@ impl Debug for BottleSeed {
 }
 
 pub struct GameRandom {
-    mode: RandomMode,
-    pill_rng: ChaChaRng,
+    pills: BagRandom<PillShape>,
     bottle_rng: ChaChaRng,
-    queue: VecDeque<PillShape>,
 }
 
 impl GameRandom {
     pub fn from_seed(seed: Seed, mode: RandomMode) -> Self {
-        Self::new(ChaChaRng::from_seed(seed), mode)
+        Self::new(seed.rng(), mode)
     }
 
     #[cfg(test)]
     pub fn from_u64_seed(seed: u64, mode: RandomMode) -> Self {
-        Self::new(ChaChaRng::seed_from_u64(seed), mode)
+        Self::new(Seed::from_u64(seed).rng(), mode)
     }
 
     pub fn new(rng: ChaChaRng, mode: RandomMode) -> Self {
         let bottle_rng = rng.clone();
-        let mut pill_rng = rng;
-        let queue = match mode {
-            RandomMode::True => (0..PEEK_SIZE).map(|_| pill_rng.random()).collect(),
-            RandomMode::Bag => PillShape::ALL
-                .sample(&mut pill_rng, PillShape::ALL.len())
-                .cloned()
-                .collect(),
-        };
         Self {
-            mode,
-            pill_rng,
+            pills: BagRandom::new(rng, mode, &PillShape::ALL, PEEK_SIZE),
             bottle_rng,
-            queue,
-        }
-    }
-
-    fn assert_bags(&mut self) {
-        while self.queue.len() <= PEEK_SIZE {
-            let bag = PillShape::ALL
-                .sample(&mut self.pill_rng, PillShape::ALL.len())
-                .cloned()
-                .collect::<Vec<PillShape>>();
-            for shape in bag {
-                self.queue.push_back(shape);
-            }
         }
     }
 
     pub fn peek(&self) -> [PillShape; PEEK_SIZE] {
-        self.queue
-            .iter()
-            .take(PEEK_SIZE)
-            .copied()
-            .collect::<Vec<PillShape>>()
-            .try_into()
-            .unwrap()
+        self.pills.peek().try_into().unwrap()
     }
 
     pub fn next_pill(&mut self) -> PillShape {
-        match self.mode {
-            RandomMode::True => self.next_true(),
-            RandomMode::Bag => self.next_bag(),
-        }
+        self.pills.next()
     }
 
-    fn next_true(&mut self) -> PillShape {
-        self.queue.push_back(self.pill_rng.random());
-        self.queue.pop_front().unwrap()
-    }
-
-    fn next_bag(&mut self) -> PillShape {
-        let result = self.queue.pop_front().unwrap();
-        self.assert_bags();
-        result
+    /// a colour for garbage sent by a game that has no colours of its own
+    pub fn random_color(&mut self) -> VirusColor {
+        self.bottle_rng.random()
     }
 
     pub fn bottle_seed(&mut self, virus_level: u32) -> Result<BottleSeed, String> {

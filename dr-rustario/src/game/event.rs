@@ -1,61 +1,8 @@
 use crate::game::block::Block;
-use crate::game::bottle::SendGarbage;
 use crate::game::geometry::BottlePoint;
-use crate::game::pill::{Garbage, PillShape, VirusColor, Vitamins};
+use crate::game::pill::VirusColor;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GameEvent {
-    Move,
-    Rotate,
-    Hold,
-    SoftDrop,
-    HardDrop {
-        player: u32,
-        vitamins: Vitamins,
-        dropped_rows: u32,
-    },
-    Fall,
-    SendGarbage {
-        player: u32,
-        garbage: SendGarbage,
-    },
-    ReceivedGarbage {
-        player: u32,
-        garbage: Vec<Garbage>,
-    },
-    DropGarbage,
-    Spawn {
-        player: u32,
-        shape: PillShape,
-        is_hold: bool,
-    },
-    Spawned {
-        player: u32,
-    },
-    SpeedLevelUp,
-    GameOver {
-        player: u32,
-    },
-    Victory {
-        player: u32,
-    },
-    LevelComplete {
-        player: u32,
-    },
-    Lock {
-        player: u32,
-        vitamins: Vitamins,
-        hard_or_soft_dropped: bool,
-    },
-    Destroy {
-        player: u32,
-        blocks: Vec<ColoredBlock>,
-        is_combo: bool,
-    },
-    Paused,
-    UnPaused,
-    NextTheme,
-}
+pub use engine::game::GameEvent;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ColoredBlock {

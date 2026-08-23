@@ -4,6 +4,7 @@ pub mod config;
 pub mod draw;
 pub mod font;
 pub mod frame_rate;
+pub mod game;
 pub mod game_input;
 pub mod high_score;
 pub mod icon;

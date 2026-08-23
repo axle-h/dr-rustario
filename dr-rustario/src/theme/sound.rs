@@ -1,5 +1,6 @@
 use crate::audio::{self, Sound};
 use crate::config::AudioConfig;
+use crate::game::cell::DrCell;
 use crate::game::event::GameEvent;
 pub use engine::audio::theme::{LoadSound, StructuredMusic};
 use std::rc::Rc;
@@ -143,14 +144,14 @@ impl AudioTheme {
         match event {
             GameEvent::Move => self.move_pill.play(),
             GameEvent::Rotate => self.rotate.play(),
-            GameEvent::Lock { .. } | GameEvent::DropGarbage => self.drop.play(),
+            GameEvent::Lock { .. } | GameEvent::Settle => self.drop.play(),
             GameEvent::HardDrop { .. } => {
                 self.hard_drop.as_ref().map(|c| c.play()).unwrap_or(Ok(()))
             }
-            GameEvent::Destroy {
-                blocks, is_combo, ..
+            GameEvent::Clear {
+                cells, is_combo, ..
             } => {
-                if blocks.iter().any(|b| b.is_virus) {
+                if cells.iter().any(|(_, id)| DrCell::from(*id).is_virus()) {
                     if is_combo {
                         self.destroy_virus_combo.play()
                     } else {
@@ -164,8 +165,8 @@ impl AudioTheme {
                     }
                 }
             }
-            GameEvent::ReceivedGarbage { .. } => self.receive_garbage.play(),
-            GameEvent::SpeedLevelUp => self.speed_level_up.play(),
+            GameEvent::AttackReceived { .. } => self.receive_garbage.play(),
+            GameEvent::SpeedUp => self.speed_level_up.play(),
             GameEvent::Paused => {
                 audio::pause_music()?;
                 self.paused.play()

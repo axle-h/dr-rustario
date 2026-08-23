@@ -3,6 +3,7 @@
 use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
+use crate::game::cell::{colored_blocks, vitamins_of};
 use crate::game::event::GameEvent;
 use crate::game::random::RandomMode;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
@@ -679,16 +680,17 @@ impl DrRustario {
                         game.consume_events(&mut player_events);
                         // pre-update actions
                         for event in player_events.iter() {
-                            match event {
-                                GameEvent::HardDrop {
-                                    player: event_player,
-                                    vitamins,
-                                    dropped_rows,
-                                } if *event_player == player_id => {
-                                    themes.animate_hard_drop(*event_player, *vitamins, *dropped_rows);
-                                    skip_update = true;
-                                }
-                                _ => {}
+                            if let GameEvent::HardDrop {
+                                cells,
+                                dropped_rows,
+                            } = event
+                            {
+                                themes.animate_hard_drop(
+                                    player_id,
+                                    vitamins_of(cells),
+                                    *dropped_rows,
+                                );
+                                skip_update = true;
                             }
                         }
 
@@ -710,7 +712,7 @@ impl DrRustario {
                         AnimationEvent::Finished { player, animation }
                             if animation == AnimationType::Throw =>
                         {
-                            events.push((Some(player), GameEvent::Spawned { player }));
+                            events.push((Some(player), GameEvent::Spawned));
                         }
                         _ => {}
                     }
@@ -730,13 +732,13 @@ impl DrRustario {
                     if let Some(emit) = themes
                         .theme(player)
                         .scene(self.game_config.speed())
-                        .emit_particles(event.clone())
+                        .emit_particles(player, &event)
                     {
                         to_emit_particles.push(emit);
                     }
                 }
-                match event {
-                    GameEvent::LevelComplete { player } => {
+                match (event_player, event) {
+                    (Some(player), GameEvent::StageComplete) => {
                         if fixture.next_level_ends_match(player) {
                             fixture.set_winner(player);
                         } else {
@@ -748,7 +750,7 @@ impl DrRustario {
                             themes.animate_next_level_interstitial(player);
                         }
                     }
-                    GameEvent::GameOver { player } => {
+                    (Some(player), GameEvent::GameOver) => {
                         if self.game_config.is_single_player() {
                             // single player is a simple game over
                             themes.animate_game_over(player);
@@ -762,34 +764,27 @@ impl DrRustario {
                             }
                         }
                     }
-                    GameEvent::Destroy { player, blocks, .. } => {
-                        themes.animate_destroy(player, blocks);
+                    (Some(player), GameEvent::Clear { cells, .. }) => {
+                        themes.animate_destroy(player, colored_blocks(&cells));
                     }
-                    GameEvent::SendGarbage { player, garbage } => {
-                        fixture.send_garbage(player, garbage);
+                    (Some(player), GameEvent::AttackSent(attack)) => {
+                        fixture.send_attack(player, attack);
                     }
-                    GameEvent::Lock {
-                        player,
-                        vitamins,
-                        hard_or_soft_dropped,
-                    } => {
-                        if hard_or_soft_dropped {
+                    (Some(player), GameEvent::Lock { cells, dropped }) => {
+                        if dropped {
                             themes.animate_impact(player);
                         }
-                        themes.animate_lock(player, vitamins);
+                        themes.animate_lock(player, vitamins_of(&cells));
                     }
-                    GameEvent::Spawn {
-                        player,
-                        shape,
-                        is_hold,
-                        ..
-                    } => {
-                        themes.animate_spawn(player, shape, is_hold);
+                    (Some(player), GameEvent::Spawn { piece, is_hold, .. }) => {
+                        themes.animate_spawn(player, piece.into(), is_hold);
                     }
-                    GameEvent::NextTheme => match event_player {
-                        Some(player) => themes.fade_into_next_theme(player, &mut self.canvas)?,
-                        None => themes.fade_all_into_next_theme(&mut self.canvas)?,
-                    },
+                    (Some(player), GameEvent::NextTheme) => {
+                        themes.fade_into_next_theme(player, &mut self.canvas)?
+                    }
+                    (None, GameEvent::NextTheme) => {
+                        themes.fade_all_into_next_theme(&mut self.canvas)?
+                    }
                     _ => {}
                 }
             }
@@ -799,11 +794,10 @@ impl DrRustario {
                 if fixture.maybe_set_game_over() {
                     stage_changed = true;
                     themes.animate_victory(winner);
-                    let event = GameEvent::Victory { player: winner };
                     if let Some(emit) = themes
                         .theme(winner)
                         .scene(self.game_config.speed())
-                        .emit_particles(event)
+                        .emit_particles(winner, &GameEvent::Victory)
                     {
                         to_emit_particles.push(emit);
                     }

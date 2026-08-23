@@ -4,7 +4,7 @@ use crate::game::Game;
 use crate::high_score::table::HighScoreTable;
 use crate::high_score::NewHighScore;
 
-use crate::game::bottle::SendGarbage;
+use engine::game::{Attack, Game as _};
 use crate::game::metrics::GameMetrics;
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 use rand::prelude::ThreadRng;
@@ -228,7 +228,7 @@ impl Match {
         self.players.get_mut(player as usize).unwrap()
     }
 
-    pub fn send_garbage(&mut self, from_player: u32, garbage: SendGarbage) {
+    pub fn send_attack(&mut self, from_player: u32, attack: Attack) {
         if self.players.len() < 2 {
             return;
         }
@@ -246,7 +246,7 @@ impl Match {
             .get_mut(pid)
             .unwrap()
             .game
-            .send_garbage(garbage);
+            .receive_attack(attack);
     }
 
     fn highest_score(&self) -> GameMetrics {
