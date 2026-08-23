@@ -62,7 +62,7 @@ use std::str::FromStr;
 use crate::menu::sound::MenuSound;
 use theme_context::{PlayerTextures, TextureMode, ThemeContext};
 use crate::game::ai::agent::AiAgent;
-use crate::game::ai::genetic::ga_main;
+use crate::game::ai::genetic::{ga_diagnose, ga_main_auto, ga_main_score, ga_main_survival};
 use crate::icon::app_icon;
 
 #[cfg(not(feature = "retro_handheld"))]
@@ -821,11 +821,20 @@ impl TetrisSdl {
         }
     }
 }
-fn main2() -> Result<(), String> {
-    ga_main()
-}
-
 fn main() -> Result<(), String> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(first) = args.first() {
+        if first == "ga" {
+            return match args.get(1).map(String::as_str) {
+                None | Some("auto") => ga_main_auto(),
+                Some("survival") => ga_main_survival(),
+                Some("score") => ga_main_score(),
+                Some("diagnose") => ga_diagnose(),
+                Some(other) => Err(format!("unknown ga mode '{}', expected: auto, survival, score or diagnose", other))
+            };
+        }
+    }
+
     let mut rustris = TetrisSdl::new()?;
     let texture_creator = rustris.canvas.texture_creator();
     let (_, window_height) = rustris.canvas.window().size();

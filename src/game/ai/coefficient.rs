@@ -7,9 +7,9 @@ pub const COEFFICIENT_STEP: f64 = 0.000001;
 
 pub const RANDOM_RAW_COEFFICIENT_RANGE: RangeInclusive<i64> = raw_coefficient_range(1.0);
 
-pub const RANDOM_RAW_COEFFICIENT_DELTA_RANGE: RangeInclusive<i64> = raw_coefficient_range(0.1);
+pub const DEFAULT_MUTATION_STEP: f64 = 0.1;
 
-const fn raw_coefficient_range(delta: f64) -> RangeInclusive<i64> {
+pub const fn raw_coefficient_range(delta: f64) -> RangeInclusive<i64> {
     let from = Coefficient::from_f64_unchecked(-delta).raw();
     let to = Coefficient::from_f64_unchecked(delta).raw();
     from ..= to

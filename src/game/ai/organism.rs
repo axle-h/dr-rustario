@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use crate::game::ai::game_result::GameResult;
 use crate::game::ai::genome::Genome;
+use crate::game::ai::objective::Objective;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Organism<const GENOME: usize> {
@@ -21,8 +22,8 @@ impl<const GENOME: usize> Organism<GENOME> {
         self.result.unwrap()
     }
     
-    pub fn fitness(&self) -> f64 {
-        self.result.unwrap().score() as f64
+    pub fn fitness(&self, objective: Objective) -> f64 {
+        objective.fitness(&self.result())
     }
 
     pub fn set_result<F>(&mut self, f: F) where F : FnOnce(&Genome<GENOME>) -> GameResult {

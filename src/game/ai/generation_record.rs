@@ -21,7 +21,7 @@ impl GenerationRecord {
         let mut record = Self { file, path };
 
         // Write CSV header
-        writeln!(record.file, "Generation,Score,Lines,Score P95,Lines P95,Score P50,Lines P50,Seed,Genome")?;
+        writeln!(record.file, "Generation,Phase,Fitness,Score,Lines,Tetris Lines,Pieces,Fitness P95,Score P95,Lines P95,Tetris Lines P95,Fitness P50,Score P50,Lines P50,Tetris Lines P50,Seed,Genome")?;
         Ok(record)
     }
     
@@ -32,14 +32,22 @@ impl GenerationRecord {
     pub fn add<const N: usize>(&mut self, stats: &GenerationStatistics<N>) -> io::Result<()> {
         writeln!(
             self.file,
-            "{},{},{},{},{},{},{},\"{}\",\"{}\"",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",\"{}\"",
             stats.id(),
+            stats.objective(),
+            stats.objective().fitness(&stats.max().result()),
             stats.max().result().score(),
             stats.max().result().lines(),
+            stats.max().result().tetris_lines(),
+            stats.max().result().pieces(),
+            stats.objective().fitness(&stats.p95().result()),
             stats.p95().result().score(),
             stats.p95().result().lines(),
+            stats.p95().result().tetris_lines(),
+            stats.objective().fitness(&stats.median().result()),
             stats.median().result().score(),
             stats.median().result().lines(),
+            stats.median().result().tetris_lines(),
             stats.seed(),
             stats.max().genome()
         )

@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use crate::game::ai::objective::Objective;
 use crate::game::ai::organism::Organism;
 use crate::game::random::Seed;
 use std::time::Duration;
@@ -6,6 +7,7 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GenerationStatistics<const GENOME: usize> {
     id: usize,
+    objective: Objective,
     seed: Seed,
     max: Organism<GENOME>,
     p95: Organism<GENOME>,
@@ -19,18 +21,22 @@ pub struct GenerationStatistics<const GENOME: usize> {
 
 impl<const GENOME: usize> Display for GenerationStatistics<GENOME> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] p100: {{{}}}, p95: {{{}}}, p50: {{{}}}, mutation_rate: {:.2}, crossover_rate: {:.2}, game seconds/second: {:.2}",
-               self.id, self.max.result(), self.p95.result(), self.median.result(), self.mutation_rate, self.crossover_rate, self.game_seconds_per_second)
+        write!(f, "[{} {}] p100: {{{}}}, p95: {{{}}}, p50: {{{}}}, mutation_rate: {:.3}, crossover_rate: {:.3}, game seconds/second: {:.2}",
+               self.id, self.objective, self.max.result(), self.p95.result(), self.median.result(), self.mutation_rate, self.crossover_rate, self.game_seconds_per_second)
     }
 }
 
 impl<const GENOME: usize> GenerationStatistics<GENOME> {
-    pub fn new(id: usize, seed: Seed, max: Organism<GENOME>, p95: Organism<GENOME>, median: Organism<GENOME>, mutation_rate: f64, crossover_rate: f64, total_gameplay_time: Duration, generation_duration: Duration, game_seconds_per_second: f64) -> Self {
-        Self { id, seed, max, p95, median, mutation_rate, crossover_rate, total_gameplay_time, generation_duration, game_seconds_per_second }
+    pub fn new(id: usize, objective: Objective, seed: Seed, max: Organism<GENOME>, p95: Organism<GENOME>, median: Organism<GENOME>, mutation_rate: f64, crossover_rate: f64, total_gameplay_time: Duration, generation_duration: Duration, game_seconds_per_second: f64) -> Self {
+        Self { id, objective, seed, max, p95, median, mutation_rate, crossover_rate, total_gameplay_time, generation_duration, game_seconds_per_second }
     }
 
     pub fn id(&self) -> usize {
         self.id
+    }
+
+    pub fn objective(&self) -> Objective {
+        self.objective
     }
 
     pub fn max(&self) -> Organism<GENOME> {

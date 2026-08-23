@@ -15,4 +15,5 @@ mod genome;
 pub mod linear;
 mod generation_record;
 mod organism;
+mod objective;
 

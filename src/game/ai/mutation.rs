@@ -3,9 +3,10 @@ use std::ops::RangeInclusive;
 use rand::{Rng, RngExt, SeedableRng};
 use std::collections::VecDeque;
 use rand_chacha::ChaChaRng;
-use crate::game::ai::coefficient::{Coefficient, RANDOM_RAW_COEFFICIENT_DELTA_RANGE};
+use crate::game::ai::coefficient::{raw_coefficient_range, Coefficient, DEFAULT_MUTATION_STEP};
 use crate::game::ai::generation_stats::GenerationStatistics;
 use crate::game::ai::genome::Genome;
+use crate::game::ai::objective::Objective;
 use crate::game::ai::organism::Organism;
 use crate::game::random::Seed;
 
@@ -54,6 +55,7 @@ impl Default for RateLimits {
 pub struct GenomeMutation<const GENOME: usize> {
     mutation_rate: RateLimits,
     crossover_rate: RateLimits,
+    delta_range: RangeInclusive<i64>,
     samples: VecDeque<f64>,
     stat_fn: fn(GenerationStatistics<GENOME>) -> f64,
     rng: ChaChaRng,
@@ -67,7 +69,33 @@ impl<const N: usize> GenomeMutation<N> {
         seed: Seed,
         stat_fn: fn(GenerationStatistics<N>) -> f64
     ) -> Self {
-        Self { mutation_rate, crossover_rate, samples: VecDeque::with_capacity(max_samples), stat_fn, rng: seed.into() }
+        Self {
+            mutation_rate,
+            crossover_rate,
+            delta_range: raw_coefficient_range(DEFAULT_MUTATION_STEP),
+            samples: VecDeque::with_capacity(max_samples),
+            stat_fn,
+            rng: seed.into()
+        }
+    }
+
+    /// change the magnitude of a mutation nudge (the default is 0.1)
+    pub fn with_mutation_step(mut self, step: f64) -> Self {
+        self.set_mutation_step(step);
+        self
+    }
+
+    pub fn set_mutation_step(&mut self, step: f64) {
+        assert!(step > 0.0, "mutation step must be positive");
+        self.delta_range = raw_coefficient_range(step);
+    }
+
+    /// reconfigure rates and mutation step, e.g. when switching training phase; forgets the trend samples
+    pub fn set_rates(&mut self, mutation_rate: RateLimits, crossover_rate: RateLimits, mutation_step: f64) {
+        self.mutation_rate = mutation_rate;
+        self.crossover_rate = crossover_rate;
+        self.set_mutation_step(mutation_step);
+        self.samples.clear();
     }
     
     pub fn current_mutation_rate(&self) -> f64 {
@@ -89,7 +117,7 @@ impl<const N: usize> GenomeMutation<N> {
             crossover_rate,
             max_samples,
             seed,
-            |stats: GenerationStatistics<N>| stats.median().result().score() as f64
+            |stats: GenerationStatistics<N>| stats.objective().fitness(&stats.median().result())
         )
     }
 
@@ -104,7 +132,7 @@ impl<const N: usize> GenomeMutation<N> {
             crossover_rate,
             max_samples,
             seed,
-            |stats: GenerationStatistics<N>| stats.max().result().score() as f64
+            |stats: GenerationStatistics<N>| stats.objective().fitness(&stats.max().result())
         )
     }
 
@@ -141,7 +169,7 @@ impl<const N: usize> GenomeMutation<N> {
     pub fn mutate(&mut self, genome: Genome<N>) -> Genome<N> {
         genome.map(|coefficient| {
             if self.mutation_rate.test(&mut self.rng) {
-                self.rng.mutate(coefficient)
+                self.rng.mutate(coefficient, &self.delta_range)
             } else {
                 coefficient
             }
@@ -165,8 +193,8 @@ impl<const N: usize> GenomeMutation<N> {
         [self.mutate(child1.into()), self.mutate(child2.into())]
     }
 
-    pub fn parents(&mut self, population: &[Organism<N>], count: usize) -> Vec<[Genome<N>; 2]> {
-        let scaled_population = scale_fitness(&population);
+    pub fn parents(&mut self, population: &[Organism<N>], count: usize, objective: Objective) -> Vec<[Genome<N>; 2]> {
+        let scaled_population = scale_fitness(&population, objective);
         let mut parents: Vec<[Genome<N>; 2]> = vec![];
         for _ in 0..count {
             let mut next_parent = || {
@@ -205,27 +233,33 @@ impl<const N: usize> GenomeMutation<N> {
     }
 }
 
-fn scale_fitness<const N: usize>(population: &[Organism<N>]) -> Vec<(Genome<N>, f64)> {
+fn scale_fitness<const N: usize>(population: &[Organism<N>], objective: Objective) -> Vec<(Genome<N>, f64)> {
     let sum_fitness: f64 = population.iter()
-        .map(|result| result.fitness())
+        .map(|result| result.fitness(objective))
         .sum();
 
-    population.into_iter().map(|result| (result.genome(), result.fitness() / sum_fitness)).collect()
+    if sum_fitness <= 0.0 {
+        // nobody has any fitness yet (e.g. no tetris clears): select uniformly
+        let uniform = 1.0 / population.len() as f64;
+        return population.iter().map(|result| (result.genome(), uniform)).collect();
+    }
+
+    population.into_iter().map(|result| (result.genome(), result.fitness(objective) / sum_fitness)).collect()
 }
 
 trait RngMutation {
-    fn mutate(&mut self, value: Coefficient) -> Coefficient;
+    fn mutate(&mut self, value: Coefficient, delta_range: &RangeInclusive<i64>) -> Coefficient;
 }
 
 impl<R: Rng + ?Sized> RngMutation for R {
-    fn mutate(&mut self, value: Coefficient) -> Coefficient {
+    fn mutate(&mut self, value: Coefficient, delta_range: &RangeInclusive<i64>) -> Coefficient {
         let random_chance: f64 = self.random();
         if random_chance < 0.2 {
             // small chance of a completely random value
             self.random()
         } else {
             // otherwise just nudge the existing value
-            let delta = Coefficient::new(self.random_range(RANDOM_RAW_COEFFICIENT_DELTA_RANGE));
+            let delta = Coefficient::new(self.random_range(delta_range.clone()));
             value + delta
         }
     }
@@ -272,7 +306,7 @@ mod tests {
             member.set_result(|_| result);
             member
         }).collect();
-        let parents = mutation(None, None).parents(&population, N / 2);
+        let parents = mutation(None, None).parents(&population, N / 2, Objective::Survival);
 
         assert_eq!(parents.len(), N / 2);
 
@@ -288,6 +322,32 @@ mod tests {
         assert!(counts[0].0 > counts[1].0, "Coefficient(1) should appear more often than Coefficient(2), got {} & {}", counts[0].0, counts[1].0);
     }
     
+
+    #[test]
+    fn zero_fitness_population_selects_uniformly() {
+        let population: Vec<_> = (0 .. 10).map(|i| {
+            let mut member = Organism::new(genome(i + 1));
+            member.set_result(|_| GameResult::default());
+            member
+        }).collect();
+        let parents = mutation(None, None).parents(&population, 5, Objective::Score);
+        assert_eq!(parents.len(), 5);
+        for [p1, p2] in parents {
+            assert_ne!(p1, p2);
+        }
+    }
+
+    #[test]
+    fn mutation_step_limits_the_nudge() {
+        let parent = genome(0);
+        let child = mutation(RateLimits::ALWAYS, RateLimits::NEVER)
+            .with_mutation_step(0.01)
+            .mutate(parent);
+        // 20% of genes are fully randomised; the rest must be within the step
+        let limit = Coefficient::from_f64(0.01).raw();
+        let nudged = child.iter().filter(|&&c| c.raw().abs() <= limit).count();
+        assert!(nudged >= 1, "expected at least one small nudge");
+    }
 
     #[test]
     fn crossover_can_swap_all_genes_without_modification() {
@@ -352,7 +412,7 @@ mod tests {
     fn mutates_coefficients() {
         let mut rng = ChaChaRng::seed_from_u64(101);
         let coefficient = Coefficient::from_f64(1000.0);
-        let result = rng.mutate(coefficient);
+        let result = rng.mutate(coefficient, &raw_coefficient_range(DEFAULT_MUTATION_STEP));
         assert_ne!(result, coefficient);
         assert!(result >= Coefficient::from_f64(990.0) && result <= Coefficient::from_f64(1010.0));
     }
@@ -361,7 +421,7 @@ mod tests {
     fn mutates_negative_coefficients() {
         let mut rng = ChaChaRng::seed_from_u64(101);
         let coefficient = Coefficient::from_f64(-1000.0);
-        let result = rng.mutate(coefficient);
+        let result = rng.mutate(coefficient, &raw_coefficient_range(DEFAULT_MUTATION_STEP));
         assert_ne!(result, coefficient);
         assert!(result >= Coefficient::from_f64(-1010.0) && result <= Coefficient::from_f64(-990.0));
     }
@@ -370,7 +430,7 @@ mod tests {
     fn mutation_can_completely_randomize_coefficients() {
         let mut rng = ChaChaRng::seed_from_u64(100); // <- this seed triggers the rule
         let coefficient = Coefficient::from_f64(1000.0);
-        let result = rng.mutate(coefficient);
+        let result = rng.mutate(coefficient, &raw_coefficient_range(DEFAULT_MUTATION_STEP));
         assert_ne!(result, coefficient);
         assert!(result < Coefficient::from_f64(990.0) || result > Coefficient::from_f64(1010.0));
     }
