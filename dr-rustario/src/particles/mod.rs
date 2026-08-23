@@ -3,8 +3,8 @@ use particle::{Particle, ParticleGroup};
 
 use std::time::Duration;
 
-pub mod color;
-pub mod geometry;
+pub use engine::particles::color;
+pub use engine::particles::geometry;
 mod meta;
 pub mod particle;
 pub mod prescribed;

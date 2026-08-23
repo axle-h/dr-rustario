@@ -154,8 +154,8 @@ pub fn decode_all(bytes: &'static [u8]) -> Result<Vec<i16>, String> {
 mod tests {
     use super::*;
 
-    const MOVE: &[u8] = include_bytes!("../theme/nes/move.ogg");
-    const MONO: &[u8] = include_bytes!("../theme/particle/hard-drop.ogg");
+    const MOVE: &[u8] = include_bytes!("test/stereo.ogg");
+    const MONO: &[u8] = include_bytes!("test/mono.ogg");
 
     #[test]
     fn decodes_stereo_sfx() {

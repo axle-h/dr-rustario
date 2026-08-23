@@ -1,6 +1,7 @@
 //! Audio output: a hand-rolled mixer fed through SDL's core audio callback.
 //! Effects are decoded up front; music is streamed from the embedded OGG files.
 
+pub mod theme;
 mod decode;
 mod mixer;
 

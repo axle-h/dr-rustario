@@ -1,6 +1,6 @@
 use crate::scale::Scale;
 use crate::theme::all::AllThemes;
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeName};
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 
@@ -102,7 +102,8 @@ impl<'a> ScaledTheme<'a> {
             window_size,
             theme.geometry().block_size(),
             video_config,
-            theme.name()
+            // the modern theme does its own scaling
+            theme.name() == ThemeName::Particle,
         );
         let (theme_width, theme_height) = theme.background_size();
         let bg_source_snip = Rect::new(0, 0, theme_width, theme_height);

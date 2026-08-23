@@ -1,7 +1,6 @@
 use sdl2::rect::{Point, Rect};
 use std::cmp::min;
 use crate::config::VideoConfig;
-use crate::theme::ThemeName;
 
 const PLAYER_BUFFER_PCT: f64 = 0.002;
 
@@ -24,7 +23,7 @@ impl Scale {
         (window_width, window_height): (u32, u32),
         block_size: u32,
         config: VideoConfig,
-        theme: ThemeName
+        force_integer_scale: bool,
     ) -> Self {
         let player_buffer_width = (PLAYER_BUFFER_PCT * window_width as f64).round() as u32;
         let player_buffer_height = (PLAYER_BUFFER_PCT * window_height as f64).round() as u32;
@@ -32,7 +31,7 @@ impl Scale {
         let effective_bg_height = bg_height + 2 * player_buffer_height;
 
         // the modern theme does it's own scaling
-        let is_integer_scale = theme == ThemeName::Particle || config.integer_scale;
+        let is_integer_scale = force_integer_scale || config.integer_scale;
 
         let (scale, integer_scale) = if is_integer_scale {
             let scale = min(window_width / (effective_bg_width * players), window_height / effective_bg_height);

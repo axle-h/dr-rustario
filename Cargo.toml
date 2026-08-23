@@ -1,32 +1,13 @@
-[package]
-name = "dr-rustario"
-authors = ["Alex Haslehurst"]
-version = "1.0.0"
-edition = "2021"
+[workspace]
 resolver = "2"
+members = ["engine", "dr-rustario"]
+default-members = ["dr-rustario"]
 
-[package.metadata.vcpkg]
-git = "https://github.com/microsoft/vcpkg"
-tag = "2024.10.21"
-dependencies = ["sdl2"]
+[workspace.package]
+authors = ["Alex Haslehurst"]
+edition = "2021"
 
-[package.metadata.vcpkg.target]
-x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
-
-[features]
-default = ["pkgconfig"]
-vcpkg = ["sdl2/static-link", "sdl2/use-vcpkg"]
-pkgconfig = ["sdl2/use-pkgconfig"]
-retro_handheld = []
-
-[build-dependencies]
-built = { version = "0.8.1", default-features = false, features = [] }
-embed-resource = "3.0.11"
-
-[dev-dependencies]
-mockall = "0.15.0"
-
-[dependencies]
+[workspace.dependencies]
 rand = "0.10.2"
 rand_chacha = "0.10.0"
 serde = { version = "1.0.229", default-features = false, features = ["derive"] }
@@ -39,6 +20,14 @@ symphonia = { version = "0.5", default-features = false, features = ["ogg", "vor
 strum = { version = "0.28.0", features = ["derive"] }
 strum_macros = "0.28.0"
 titlecase = "3.6.0"
+
+[workspace.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+tag = "2024.10.21"
+dependencies = ["sdl2"]
+
+[workspace.metadata.vcpkg.target]
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
 
 [profile.release]
 strip = "symbols"

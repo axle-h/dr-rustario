@@ -224,7 +224,7 @@ pub fn config_path(name: &str) -> Result<PathBuf, String> {
 
 #[cfg(not(feature = "retro_handheld"))]
 pub fn config_path(name: &str) -> Result<PathBuf, String> {
-    confy::get_configuration_file_path(crate::build_info::PKG_NAME, name)
+    confy::get_configuration_file_path(crate::app_info::get().name, name)
         .map_err(|e| e.to_string())
 }
 

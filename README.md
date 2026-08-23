@@ -111,6 +111,6 @@ input:
   quit: Escape
 ```
 
-All key names are defined in [src/config.rs](src/config.rs).
+All key names are defined in [engine/src/config.rs](engine/src/config.rs).
 
 There are no default player 2 controls.

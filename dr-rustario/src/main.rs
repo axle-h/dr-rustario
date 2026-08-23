@@ -33,7 +33,6 @@ use sdl2::{EventPump, Sdl};
 use std::str::FromStr;
 
 mod animate;
-mod audio;
 mod build_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 
@@ -41,21 +40,13 @@ mod build_info {
         titlecase::titlecase(&PKG_NAME.replace("-", ". "))
     }
 }
-mod config;
-mod draw;
-mod font;
-mod frame_rate;
 mod game;
-mod game_input;
-mod high_score;
-mod icon;
-mod menu;
-mod menu_input;
 mod particles;
 mod player;
-mod scale;
 mod theme;
 mod themes;
+
+use engine::{audio, config, font, frame_rate, game_input, high_score, icon, menu, menu_input, scale};
 
 #[cfg(not(feature = "retro_handheld"))]
 const MAX_PLAYERS: u32 = 2;
@@ -134,7 +125,7 @@ impl DrRustario {
             .build()
             .map_err(|e| e.to_string())?;
 
-        window.set_icon(app_icon()?);
+        window.set_icon(app_icon(include_bytes!("../icon.png"))?);
 
         let canvas_builder = window.into_canvas().target_texture().accelerated();
 
@@ -894,7 +885,11 @@ impl DrRustario {
 }
 
 fn main() -> Result<(), String> {
-    // return demo::main();
+    engine::app_info::init(engine::app_info::AppInfo {
+        name: build_info::PKG_NAME,
+        version: build_info::PKG_VERSION,
+        authors: build_info::PKG_AUTHORS,
+    });
 
     let mut dr_rustario = DrRustario::new()?;
     let texture_creator = dr_rustario.canvas.texture_creator();

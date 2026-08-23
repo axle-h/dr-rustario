@@ -10,8 +10,8 @@ use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use crate::font::Font;
 use sdl2::video::WindowContext;
-use crate::build_info;
-use crate::theme::helper::TextureFactory;
+use crate::app_info;
+use crate::render::helper::TextureFactory;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuAction {
@@ -224,7 +224,7 @@ impl<'a> Menu<'a> {
 
         let watermark_font_size = 3 * font_size / 5;
         let watermark_font = FontType::Retro.load(watermark_font_size)?;
-        let watermark = format!("{} v{} by {}", build_info::PKG_NAME, build_info::PKG_VERSION, build_info::PKG_AUTHORS);
+        let watermark = format!("{} v{} by {}", app_info::get().name, app_info::get().version, app_info::get().authors);
         let watermark_texture =
             FontTexture::from_string(&watermark_font, texture_creator, &watermark, Color::WHITE)?;
         let watermark_rect = Rect::new(
