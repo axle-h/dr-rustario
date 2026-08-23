@@ -312,7 +312,8 @@ impl Game {
         self.total_pills = 0;
         self.soft_drop = false;
         self.hard_dropped = false;
-        self.hold = None;
+        // the held pill carries into the next bottle
+        HoldState::unlock(&mut self.hold);
         self.garbage_buffer.clear();
         Ok(())
     }

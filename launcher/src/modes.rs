@@ -2,7 +2,7 @@
 //! and a versus mode where every player plays the same playlist of both games.
 
 use crate::games::{AnyGame, GameKind};
-use engine::app::{MatchSettings, PlayerSettings, ThemeMode};
+use engine::app::{MatchSettings, PlayerSettings, StageChange, ThemeMode};
 use engine::menu::sound::MenuSounds;
 use engine::menu::MenuItem;
 use engine::particles::prescribed::RaceTheme;
@@ -70,12 +70,8 @@ pub trait Mode {
     fn high_score_key(&self) -> String;
     fn settings(&self, themes: &Themes) -> MatchSettings;
     fn games(&self) -> Result<Vec<AnyGame>, String>;
-    fn next_stage(
-        &self,
-        themes: &Themes,
-        player: u32,
-        completed: u32,
-    ) -> Option<(AnyGame, PlayerSettings)>;
+    fn next_stage(&self, themes: &Themes, player: u32, completed: u32)
+        -> Option<StageChange<AnyGame>>;
     fn controllers(&self) -> Vec<Controller<'_>>;
 }
 
@@ -178,7 +174,7 @@ impl Mode for DrRustarioMode {
             .collect())
     }
 
-    fn next_stage(&self, _: &Themes, _: u32, _: u32) -> Option<(AnyGame, PlayerSettings)> {
+    fn next_stage(&self, _: &Themes, _: u32, _: u32) -> Option<StageChange<AnyGame>> {
         None
     }
 
@@ -265,7 +261,7 @@ impl Mode for RustrisMode {
             .collect())
     }
 
-    fn next_stage(&self, _: &Themes, _: u32, _: u32) -> Option<(AnyGame, PlayerSettings)> {
+    fn next_stage(&self, _: &Themes, _: u32, _: u32) -> Option<StageChange<AnyGame>> {
         None
     }
 
@@ -541,17 +537,26 @@ impl Mode for VersusMode {
         themes: &Themes,
         _player: u32,
         completed: u32,
-    ) -> Option<(AnyGame, PlayerSettings)> {
+    ) -> Option<StageChange<AnyGame>> {
         let stages = self.stages(themes);
         let (kind, theme_mode) = *stages.get(completed as usize)?;
-        let game = self.new_games(kind, 1).ok()?.pop()?;
-        Some((
+        let previous = completed
+            .checked_sub(1)
+            .and_then(|i| stages.get(i as usize))
+            .map(|(kind, _)| *kind);
+        // the same game again keeps its board and hold: only the theme changes
+        let game = if previous == Some(kind) {
+            None
+        } else {
+            Some(self.new_games(kind, 1).ok()?.pop()?)
+        };
+        Some(StageChange {
             game,
-            PlayerSettings {
+            settings: PlayerSettings {
                 themes: themes.range(kind),
                 theme_mode,
             },
-        ))
+        })
     }
 
     fn controllers(&self) -> Vec<Controller<'_>> {

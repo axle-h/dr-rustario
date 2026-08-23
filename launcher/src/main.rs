@@ -132,7 +132,7 @@ fn run_mode<M: Mode>(
             let key = settings.high_score_key.clone();
             let controllers = mode.controllers();
             let mode_ref: &M = mode;
-            let next_stage = |player: u32, completed: u32| -> Option<(AnyGame, _)> {
+            let next_stage = |player: u32, completed: u32| {
                 mode_ref.next_stage(themes, player, completed)
             };
             match app.run_match(

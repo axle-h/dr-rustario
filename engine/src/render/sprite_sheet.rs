@@ -750,15 +750,23 @@ impl<'a> BlockSpriteSheet<'a> {
                 }
                 DestroyStyle::Vanish { .. } => {}
                 DestroyStyle::Sweep => {
+                    // a gap opens from the middle of each cleared row outwards, pixel by pixel
                     let progress = destroy.sweep_progress().unwrap_or(1.0);
-                    let sweep_x = geometry.offset().x()
-                        + (geometry.width() as f64 * progress).round() as i32;
-                    for (point, id) in destroyed.cells().iter().copied() {
-                        let dest = geometry.raw_block(point);
-                        if dest.left() >= sweep_x {
-                            self.draw_cell(canvas, id, true, dest, 0.0, None)?;
+                    let row = geometry.row_snip(0);
+                    let half_gap = (row.width() as f64 * progress / 2.0).round() as i32;
+                    let centre = row.center().x();
+                    let left = Rect::new(row.left(), i32::MIN / 2, (centre - half_gap - row.left()).max(0) as u32, u32::MAX / 2);
+                    let right = Rect::new(centre + half_gap, i32::MIN / 2, (row.right() - centre - half_gap).max(0) as u32, u32::MAX / 2);
+                    for clip in [left, right] {
+                        if clip.width() == 0 {
+                            continue;
+                        }
+                        canvas.set_clip_rect(clip);
+                        for (point, id) in destroyed.cells().iter().copied() {
+                            self.draw_cell(canvas, id, true, geometry.raw_block(point), 0.0, None)?;
                         }
                     }
+                    canvas.set_clip_rect(None);
                 }
             }
         }

@@ -97,6 +97,14 @@ impl PlayerSettings {
     }
 }
 
+/// What a playlist does to a player at a stage boundary: a new game, or the same game on
+/// different themes.
+pub struct StageChange<G> {
+    /// `None` carries the current game (its stack and hold) into the next stage
+    pub game: Option<G>,
+    pub settings: PlayerSettings,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchSettings {
     pub rules: MatchRules,
@@ -437,7 +445,7 @@ impl App {
         mut settings: MatchSettings,
         fg_particles: &mut ParticleRender,
         bg_particles: &mut ParticleRender,
-        mut next_stage: impl FnMut(u32, u32) -> Option<(G, PlayerSettings)>,
+        mut next_stage: impl FnMut(u32, u32) -> Option<StageChange<G>>,
         mut controllers: Vec<(u32, Box<dyn FnMut(&mut G, std::time::Duration) + '_>)>,
     ) -> Result<PostGameAction, String> {
         let texture_creator = self.canvas.texture_creator();
@@ -528,15 +536,17 @@ impl App {
                             stage_changed = true;
 
                             let completed = game.completed_stages();
-                            if let Some((next_game, next_settings)) = next_stage(player, completed) {
+                            if let Some(change) = next_stage(player, completed) {
                                 // the playlist moves this player to another game
-                                fixture.player_mut(player).replace_game(next_game);
+                                if let Some(next_game) = change.game {
+                                    fixture.player_mut(player).replace_game(next_game);
+                                }
                                 themes.switch_player_themes(
                                     player,
-                                    next_settings.player_themes(),
+                                    change.settings.player_themes(),
                                     &mut self.canvas,
                                 )?;
-                                settings.players[player as usize] = next_settings;
+                                settings.players[player as usize] = change.settings;
                                 if is_single_player {
                                     themes.music_audio().play_game_music()?;
                                 }
@@ -705,14 +715,21 @@ impl App {
                             game.next_stage()?;
                             let completed = game.completed_stages();
                             stage_changed = true;
-                            if let Some((next_game, next_settings)) = next_stage(player, completed) {
-                                fixture.player_mut(player).replace_game(next_game);
-                                themes.switch_player_themes(
-                                    player,
-                                    next_settings.player_themes(),
-                                    &mut self.canvas,
-                                )?;
-                                settings.players[player as usize] = next_settings;
+                            if let Some(change) = next_stage(player, completed) {
+                                let same_game = change.game.is_none();
+                                if let Some(next_game) = change.game {
+                                    fixture.player_mut(player).replace_game(next_game);
+                                }
+                                if same_game && change.settings.theme_mode == ThemeMode::All {
+                                    deferred_events.push((Some(player), GameEvent::NextTheme));
+                                } else {
+                                    themes.switch_player_themes(
+                                        player,
+                                        change.settings.player_themes(),
+                                        &mut self.canvas,
+                                    )?;
+                                }
+                                settings.players[player as usize] = change.settings;
                             } else if settings.players[player as usize].theme_mode == ThemeMode::All {
                                 deferred_events.push((Some(player), GameEvent::NextTheme));
                             }
