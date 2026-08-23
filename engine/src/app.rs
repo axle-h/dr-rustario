@@ -671,6 +671,10 @@ impl App {
             // post-update events; a seamless stage change may queue a theme change
             let mut deferred_events: Vec<(Option<u32>, GameEvent)> = vec![];
             for (event_player, event) in events {
+                if matches!(event, GameEvent::AttackSent(_)) && fixture.player_count() < 2 {
+                    // nobody to attack
+                    continue;
+                }
                 // sound effects play through the theme of the player that caused them;
                 // match-wide events (pause etc.) go through the theme whose music is playing
                 let (audio, clear_class) = match event_player {
@@ -695,13 +699,27 @@ impl App {
                     (Some(player), GameEvent::StageComplete) => {
                         if fixture.next_stage_ends_match(player) {
                             fixture.set_winner(player);
+                        } else if settings.playlist {
+                            // straight into the next game of the playlist, fading the side
+                            let game = fixture.player_mut(player).game_mut();
+                            game.next_stage()?;
+                            let completed = game.completed_stages();
+                            stage_changed = true;
+                            if let Some((next_game, next_settings)) = next_stage(player, completed) {
+                                fixture.player_mut(player).replace_game(next_game);
+                                themes.switch_player_themes(
+                                    player,
+                                    next_settings.player_themes(),
+                                    &mut self.canvas,
+                                )?;
+                                settings.players[player as usize] = next_settings;
+                            } else if settings.players[player as usize].theme_mode == ThemeMode::All {
+                                deferred_events.push((Some(player), GameEvent::NextTheme));
+                            }
+                            let cells = fixture.player(player).game().stage_intro_cells();
+                            themes.animate_next_stage(player, &cells);
                         } else {
-                            let transition = if settings.playlist {
-                                StageTransition::Interstitial
-                            } else {
-                                fixture.player(player).game().stage_transition()
-                            };
-                            match transition {
+                            match fixture.player(player).game().stage_transition() {
                                 StageTransition::Interstitial => {
                                     if is_single_player {
                                         themes.music_audio().play_next_stage_music()?;
