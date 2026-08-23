@@ -20,6 +20,8 @@ use std::ops::Range;
 use std::time::Duration;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
+/// moving to another game of a playlist fades more gently
+pub const GAME_SWITCH_FADE_DURATION: Duration = Duration::from_millis(1800);
 
 pub struct PlayerTextures<'a> {
     pub background: Texture<'a>,
@@ -165,7 +167,8 @@ pub struct ThemeContext<'a> {
     themes: Vec<ScaledTheme<'a>>,
     fade_buffer: Texture<'a>,
     /// per-player theme fade timer
-    fades: Vec<Option<Duration>>,
+    /// per-player (elapsed, total) theme fade timers
+    fades: Vec<Option<(Duration, Duration)>>,
     /// the player whose theme music is playing
     music_player: u32,
     /// the theme index whose music is playing
@@ -432,7 +435,7 @@ impl<'a> ThemeContext<'a> {
         let index = player as usize;
         self.ranges[index] = themes.range;
         self.current[index] = themes.initial;
-        self.start_fade(player, canvas)
+        self.start_fade_for(player, canvas, GAME_SWITCH_FADE_DURATION)
     }
 
     pub fn fade_all_into_next_theme(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
@@ -489,7 +492,16 @@ impl<'a> ThemeContext<'a> {
     }
 
     fn start_fade(&mut self, player: u32, canvas: &mut WindowCanvas) -> Result<(), String> {
-        self.fades[player as usize] = Some(Duration::ZERO);
+        self.start_fade_for(player, canvas, THEME_FADE_DURATION)
+    }
+
+    fn start_fade_for(
+        &mut self,
+        player: u32,
+        canvas: &mut WindowCanvas,
+        total: Duration,
+    ) -> Result<(), String> {
+        self.fades[player as usize] = Some((Duration::ZERO, total));
 
         // only snapshot this player's side so another player's in-progress fade is untouched
         let clip = self.player_clip(player);
@@ -569,19 +581,18 @@ impl<'a> ThemeContext<'a> {
 
         // fade out the previous theme on each side that is changing
         for player in 0..self.players() {
-            let Some(duration) = self.fades[player as usize] else {
+            let Some((duration, total)) = self.fades[player as usize] else {
                 continue;
             };
             let duration = duration + delta;
-            if duration > THEME_FADE_DURATION {
+            if duration > total {
                 self.fades[player as usize] = None;
             } else {
-                let alpha = 255.0 * duration.as_millis() as f64
-                    / THEME_FADE_DURATION.as_millis() as f64;
+                let alpha = 255.0 * duration.as_millis() as f64 / total.as_millis() as f64;
                 self.fade_buffer.set_alpha_mod(255 - alpha as u8);
                 let clip = self.player_clip(player);
                 canvas.copy(&self.fade_buffer, clip, clip)?;
-                self.fades[player as usize] = Some(duration);
+                self.fades[player as usize] = Some((duration, total));
             }
         }
 

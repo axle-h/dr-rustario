@@ -3,7 +3,6 @@
 mod games;
 mod modes;
 
-use crate::games::AnyGame;
 use crate::modes::{
     DrRustarioMode, Mode, RustrisMode, Themes, VersusMode, BACK, HIGH_SCORES, START,
 };

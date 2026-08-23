@@ -32,12 +32,15 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use sdl2::{EventPump, Sdl};
+use std::time::Duration;
 use std::ops::Range;
 
 /// Simultaneous sound effects per player (SDL_mixer's default channel count).
 const EFFECT_CHANNELS_PER_PLAYER: u32 = 8;
 
 pub const MAX_PARTICLES_PER_PLAYER: usize = 100000;
+/// how long a finished playlist stage stays on screen before the next game fades in
+const GAME_SWITCH_HOLD: Duration = Duration::from_millis(800);
 pub const MAX_BACKGROUND_PARTICLES: usize = 100000;
 
 /// How a menu loop ended.
@@ -497,6 +500,8 @@ impl App {
             PausedScreen::new(&mut self.canvas, &texture_creator, window_size)?;
 
         let mut frame_rate = FrameRate::new();
+        // per player: time since they finished a playlist stage, until the switch happens
+        let mut pending_switches: Vec<Option<Duration>> = vec![None; players as usize];
 
         for player in 0..players {
             let cells = fixture.player(player).game().stage_intro_cells();
@@ -523,6 +528,9 @@ impl App {
             let mut events: Vec<(Option<u32>, GameEvent)> = vec![];
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
                 if let Some(player) = key.player() {
+                    if pending_switches[player as usize].is_some() {
+                        continue;
+                    }
                     if controllers.iter().any(|(p, _)| *p == player)
                         && !themes.is_pause_required_for_animation(player)
                     {
@@ -633,6 +641,7 @@ impl App {
                         let player_id = player.player();
                         if themes.is_pause_required_for_animation(player_id)
                             || themes.is_fading(player_id)
+                            || pending_switches[player_id as usize].is_some()
                         {
                             continue;
                         }
@@ -710,31 +719,10 @@ impl App {
                         if fixture.next_stage_ends_match(player) {
                             fixture.set_winner(player);
                         } else if settings.playlist {
-                            // straight into the next game of the playlist, fading the side
-                            let game = fixture.player_mut(player).game_mut();
-                            game.next_stage()?;
-                            let completed = game.completed_stages();
-                            stage_changed = true;
-                            if let Some(change) = next_stage(player, completed) {
-                                let same_game = change.game.is_none();
-                                if let Some(next_game) = change.game {
-                                    fixture.player_mut(player).replace_game(next_game);
-                                }
-                                if same_game && change.settings.theme_mode == ThemeMode::All {
-                                    deferred_events.push((Some(player), GameEvent::NextTheme));
-                                } else {
-                                    themes.switch_player_themes(
-                                        player,
-                                        change.settings.player_themes(),
-                                        &mut self.canvas,
-                                    )?;
-                                }
-                                settings.players[player as usize] = change.settings;
-                            } else if settings.players[player as usize].theme_mode == ThemeMode::All {
-                                deferred_events.push((Some(player), GameEvent::NextTheme));
-                            }
-                            let cells = fixture.player(player).game().stage_intro_cells();
-                            themes.animate_next_stage(player, &cells);
+                            // the finished board holds for a moment, then the next game of
+                            // the playlist fades in (see the pending switches below)
+                            fixture.player_mut(player).game_mut().next_stage()?;
+                            pending_switches[player as usize] = Some(Duration::ZERO);
                         } else {
                             match fixture.player(player).game().stage_transition() {
                                 StageTransition::Interstitial => {
@@ -825,6 +813,43 @@ impl App {
                     )? {
                         themes.music_audio().play_victory_music()?;
                     }
+                }
+            }
+
+            // playlist switches that have held long enough
+            if fixture.state().is_normal() {
+                for player in 0..players {
+                    let Some(elapsed) = pending_switches[player as usize] else {
+                        continue;
+                    };
+                    let elapsed = elapsed + delta;
+                    if elapsed < GAME_SWITCH_HOLD {
+                        pending_switches[player as usize] = Some(elapsed);
+                        continue;
+                    }
+                    pending_switches[player as usize] = None;
+                    stage_changed = true;
+                    let completed = fixture.player(player).game().completed_stages();
+                    if let Some(change) = next_stage(player, completed) {
+                        let same_game = change.game.is_none();
+                        if let Some(next_game) = change.game {
+                            fixture.player_mut(player).replace_game(next_game);
+                        }
+                        if same_game && change.settings.theme_mode == ThemeMode::All {
+                            themes.fade_into_next_theme(player, &mut self.canvas)?;
+                        } else {
+                            themes.switch_player_themes(
+                                player,
+                                change.settings.player_themes(),
+                                &mut self.canvas,
+                            )?;
+                        }
+                        settings.players[player as usize] = change.settings;
+                    } else if settings.players[player as usize].theme_mode == ThemeMode::All {
+                        themes.fade_into_next_theme(player, &mut self.canvas)?;
+                    }
+                    let cells = fixture.player(player).game().stage_intro_cells();
+                    themes.animate_next_stage(player, &cells);
                 }
             }
 

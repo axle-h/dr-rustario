@@ -752,11 +752,21 @@ impl<'a> BlockSpriteSheet<'a> {
                 DestroyStyle::Sweep => {
                     // a gap opens from the middle of each cleared row outwards, pixel by pixel
                     let progress = destroy.sweep_progress().unwrap_or(1.0);
-                    let row = geometry.row_snip(0);
-                    let half_gap = (row.width() as f64 * progress / 2.0).round() as i32;
-                    let centre = row.center().x();
-                    let left = Rect::new(row.left(), i32::MIN / 2, (centre - half_gap - row.left()).max(0) as u32, u32::MAX / 2);
-                    let right = Rect::new(centre + half_gap, i32::MIN / 2, (row.right() - centre - half_gap).max(0) as u32, u32::MAX / 2);
+                    let board = geometry.game_snip();
+                    let half_gap = (board.width() as f64 * progress / 2.0).round() as i32;
+                    let centre = board.center().x();
+                    let left = Rect::new(
+                        board.left(),
+                        board.top(),
+                        (centre - half_gap - board.left()).max(0) as u32,
+                        board.height(),
+                    );
+                    let right = Rect::new(
+                        centre + half_gap,
+                        board.top(),
+                        (board.right() - centre - half_gap).max(0) as u32,
+                        board.height(),
+                    );
                     for clip in [left, right] {
                         if clip.width() == 0 {
                             continue;
