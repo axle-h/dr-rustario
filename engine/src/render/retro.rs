@@ -57,6 +57,8 @@ pub struct RetroThemeOptions {
     pub game_over_style: Option<GameOverStyle>,
     pub curtain_cell: Option<CellId>,
     pub ghost_style: GhostStyle,
+    /// rows the hard drop trail falls per 4ms frame; see `animate::hard_drop`
+    pub hard_drop_rows_per_frame: f64,
 }
 
 pub fn retro_theme<'a>(
@@ -132,6 +134,7 @@ pub fn retro_theme<'a>(
             block_size: options.geometry.block_size(),
         }),
         mascot,
+        hard_drop_rows_per_frame: options.hard_drop_rows_per_frame,
     };
 
     let mut scenes = vec![];

@@ -209,6 +209,7 @@ pub fn n64_theme<'a>(
         game_over_style: None,
         curtain_cell: None,
         ghost_style: GhostStyle::Alpha,
+        hard_drop_rows_per_frame: engine::animate::hard_drop::DEFAULT_ROWS_PER_FRAME,
     };
     retro_theme(canvas, texture_creator, options)
 }

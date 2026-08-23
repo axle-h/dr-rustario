@@ -15,73 +15,11 @@ pub enum GameKind {
 }
 
 impl GameKind {
-    pub fn name(&self) -> &'static str {
-        match self {
-            GameKind::DrRustario => "dr. rustario",
-            GameKind::Rustris => "rustris",
-        }
-    }
-
     /// the high score table key
     pub fn key(&self) -> &'static str {
         match self {
             GameKind::DrRustario => "dr-rustario",
             GameKind::Rustris => "rustris",
-        }
-    }
-}
-
-/// What a player picks on the title screen: one game, or a playlist of games played a stage
-/// each in turn.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Choice {
-    Game(GameKind),
-    /// alternate between two games, starting with the first
-    Alternate(GameKind, GameKind),
-}
-
-impl Choice {
-    pub const ALL: [Choice; 4] = [
-        Choice::Game(GameKind::DrRustario),
-        Choice::Game(GameKind::Rustris),
-        Choice::Alternate(GameKind::Rustris, GameKind::DrRustario),
-        Choice::Alternate(GameKind::DrRustario, GameKind::Rustris),
-    ];
-
-    pub fn name(&self) -> String {
-        match self {
-            Choice::Game(kind) => kind.name().to_string(),
-            Choice::Alternate(a, b) => format!("{} then {}", a.name(), b.name()),
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|c| c.name() == name)
-    }
-
-    /// the game played in the given stage
-    pub fn stage(&self, stage: u32) -> GameKind {
-        match self {
-            Choice::Game(kind) => *kind,
-            Choice::Alternate(a, b) => {
-                if stage % 2 == 0 {
-                    *a
-                } else {
-                    *b
-                }
-            }
-        }
-    }
-
-    pub fn is_playlist(&self) -> bool {
-        matches!(self, Choice::Alternate(..))
-    }
-
-    /// every game this choice plays
-    pub fn kinds(&self) -> Vec<GameKind> {
-        match self {
-            Choice::Game(kind) => vec![*kind],
-            Choice::Alternate(a, b) => vec![*a, *b],
         }
     }
 }
@@ -217,20 +155,5 @@ impl GameRender for AnyGame {
 
     fn stage_intro_cells(&self) -> Vec<PlacedCell> {
         delegate!(self, g => GameRender::stage_intro_cells(g))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn alternating_playlist_switches_game_each_stage() {
-        let choice = Choice::Alternate(GameKind::Rustris, GameKind::DrRustario);
-        assert_eq!(choice.stage(0), GameKind::Rustris);
-        assert_eq!(choice.stage(1), GameKind::DrRustario);
-        assert_eq!(choice.stage(2), GameKind::Rustris);
-        assert!(choice.is_playlist());
-        assert_eq!(Choice::from_name(&choice.name()), Some(choice));
     }
 }

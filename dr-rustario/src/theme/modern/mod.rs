@@ -196,6 +196,7 @@ pub fn modern_dr_theme<'a>(
         destroy_style: None,
         game_over_style: None,
         ghost_style: GhostStyle::Alpha,
+        hard_drop_rows_per_frame: engine::animate::hard_drop::DEFAULT_ROWS_PER_FRAME,
     };
     modern_theme(canvas, texture_creator, options)
 }

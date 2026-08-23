@@ -1,6 +1,6 @@
 use crate::game::board::{BOARD_WIDTH, TOTAL_HEIGHT};
 use crate::game::cell::Mino;
-use crate::game::{VISIBLE_BUFFER, VISIBLE_HEIGHT};
+use crate::game::{HARD_DROP_ROWS_PER_FRAME, VISIBLE_BUFFER, VISIBLE_HEIGHT};
 use crate::theme::data::{audio, cells, curtain, hud, previews, retro_font, right, Sounds};
 use engine::animate::destroy::DestroyStyle;
 use engine::animate::frames::FrameAnimationType;
@@ -132,6 +132,7 @@ pub fn game_boy_theme<'a>(
         game_over_style: Some(curtain(false)),
         curtain_cell: Some(Mino::garbage()),
         ghost_style: GhostStyle::Alpha,
+        hard_drop_rows_per_frame: HARD_DROP_ROWS_PER_FRAME,
     };
     retro_theme(canvas, texture_creator, options)
 }

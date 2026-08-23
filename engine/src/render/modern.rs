@@ -58,6 +58,8 @@ pub struct ModernThemeOptions {
     pub destroy_style: Option<DestroyStyle>,
     pub game_over_style: Option<GameOverStyle>,
     pub ghost_style: GhostStyle,
+    /// rows the hard drop trail falls per 4ms frame; see `animate::hard_drop`
+    pub hard_drop_rows_per_frame: f64,
 }
 
 pub fn modern_theme<'a>(
@@ -273,6 +275,7 @@ pub fn modern_theme<'a>(
         cell_idle: sprites.idle_cells(),
         spawn_arc,
         mascot: mascot_meta,
+        hard_drop_rows_per_frame: options.hard_drop_rows_per_frame,
     };
 
     let mut match_end_texture =

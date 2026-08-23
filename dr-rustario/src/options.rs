@@ -35,6 +35,14 @@ impl Options {
             .set_rules(MatchRules::default_by_players(players));
     }
 
+    pub fn players(&self) -> u32 {
+        self.config.players()
+    }
+
+    pub fn is_single_player(&self) -> bool {
+        self.config.is_single_player()
+    }
+
     /// `compact` leaves out the mode and randomiser, for a mixed match's second game
     pub fn menu_items(&self, compact: bool) -> Vec<MenuItem> {
         let modes = Self::modes(self.config.players());

@@ -12,7 +12,7 @@ use crate::high_score::render::HighScoreRender;
 use crate::high_score::table::HighScoreTable;
 use crate::high_score::NewHighScore;
 use crate::icon::app_icon;
-use crate::menu::sound::MenuSound;
+use crate::menu::sound::{MenuSound, MenuSounds};
 use crate::menu::{Menu, MenuItem};
 use crate::menu_input::{MenuInputContext, MenuInputKey};
 use crate::particles::prescribed::{
@@ -176,7 +176,7 @@ impl App {
             max_players * EFFECT_CHANNELS_PER_PLAYER,
             config.audio.music_volume(),
         )?;
-        let menu_sound = MenuSound::new(config.audio)?;
+        let menu_sound = MenuSound::new(config.audio, MenuSounds::MODERN)?;
 
         Ok(Self {
             config,
@@ -192,6 +192,12 @@ impl App {
 
     pub fn config(&self) -> Config {
         self.config
+    }
+
+    /// the menu sounds and music from here on
+    pub fn set_menu_sound(&mut self, sounds: MenuSounds) -> Result<(), String> {
+        self.menu_sound = MenuSound::new(self.config.audio, sounds)?;
+        Ok(())
     }
 
     pub fn canvas(&mut self) -> &mut WindowCanvas {

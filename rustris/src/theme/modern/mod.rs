@@ -1,6 +1,6 @@
 use crate::game::board::{BOARD_WIDTH, TOTAL_HEIGHT};
 use crate::game::tetromino::TetrominoShape;
-use crate::game::VISIBLE_HEIGHT;
+use crate::game::{HARD_DROP_ROWS_PER_FRAME, VISIBLE_HEIGHT};
 use crate::theme::data::{audio, cells, curtain, previews, Sounds, HUD_MAX};
 use engine::animate::destroy::DestroyStyle;
 use engine::animate::frames::FrameAnimationType;
@@ -117,6 +117,7 @@ pub fn modern_rustris_theme<'a>(
         ghost_style: GhostStyle::Outline {
             color: Color::WHITE,
         },
+        hard_drop_rows_per_frame: HARD_DROP_ROWS_PER_FRAME,
     };
     let _ = SEND_GARBAGE_ALT_SOUND;
     modern_theme(canvas, texture_creator, options)

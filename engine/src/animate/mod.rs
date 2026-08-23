@@ -43,6 +43,8 @@ pub struct AnimationMeta {
     pub cell_idle: Vec<(CellId, usize)>,
     pub spawn_arc: Option<SpawnArc>,
     pub mascot: Option<MascotMeta>,
+    /// how fast the hard drop trail falls, in rows per 4ms frame
+    pub hard_drop_rows_per_frame: f64,
 }
 
 impl AnimationMeta {
@@ -79,7 +81,7 @@ impl PlayerAnimations {
             destroy: DestroyAnimation::new(meta.destroy.clone()),
             impact: ImpactAnimation::new(),
             lock: LockAnimation::new(),
-            hard_drop: HardDropAnimation::new(),
+            hard_drop: HardDropAnimation::new(meta.hard_drop_rows_per_frame),
             spawn: SpawnAnimation::new(meta.spawn_arc, meta.mascot),
             game_over: GameOverAnimation::new(meta.game_over, meta.mascot),
             victory: VictoryAnimation::new(meta.mascot),

@@ -10,6 +10,7 @@ use crate::game::tetromino::TetrominoShape;
 use engine::config::Config;
 use engine::game::PieceId;
 use engine::particles::prescribed::RaceTheme;
+use engine::menu::sound::{MenuMusic, MenuSounds};
 use engine::render::Theme;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
@@ -47,3 +48,18 @@ pub fn race_themes(themes: &[Theme]) -> Vec<RaceTheme> {
         })
         .collect()
 }
+
+mod menu_assets {
+    pub const CHIME: &[u8] = include_bytes!("menu/chime.ogg");
+    pub const MAIN_MENU: &[u8] = include_bytes!("menu/main-menu.ogg");
+    pub const HIGH_SCORE: &[u8] = include_bytes!("menu/high-score.ogg");
+}
+
+/// Rustris's own menu sounds
+pub const MENU_SOUNDS: MenuSounds = MenuSounds {
+    chime: menu_assets::CHIME,
+    select: None,
+    title: MenuMusic::Loop(menu_assets::MAIN_MENU),
+    menu: MenuMusic::Loop(menu_assets::MAIN_MENU),
+    high_score: MenuMusic::Loop(menu_assets::HIGH_SCORE),
+};

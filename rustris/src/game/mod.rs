@@ -29,6 +29,8 @@ pub const MAX_LINES: u32 = 9_999;
 /// rows shown above the skyline
 pub const VISIBLE_BUFFER: u32 = 2;
 pub const VISIBLE_HEIGHT: u32 = board::BOARD_HEIGHT + VISIBLE_BUFFER;
+/// tetrominoes slam down: the hard drop trail covers a row per frame
+pub const HARD_DROP_ROWS_PER_FRAME: f64 = 1.0;
 
 const TIMING: Timing = Timing::new(Duration::from_millis(500), Duration::from_millis(500 / 2))
     .with_spawn_delay_cap(Duration::from_millis(500));

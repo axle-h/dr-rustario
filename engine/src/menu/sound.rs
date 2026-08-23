@@ -18,6 +18,45 @@ const MENU: &'static [u8] = include_bytes!("modern/menu.ogg");
 const HIGH_SCORE_INTRO: &'static [u8] = include_bytes!("modern/high-score-intro.ogg");
 const HIGH_SCORE_REPEAT: &'static [u8] = include_bytes!("modern/high-score-repeat.ogg");
 
+/// A menu track: looped, or a one-shot intro then a loop.
+#[derive(Clone, Copy, Debug)]
+pub enum MenuMusic {
+    Loop(&'static [u8]),
+    IntroLoop(&'static [u8], &'static [u8]),
+}
+
+impl MenuMusic {
+    fn load(&self) -> Result<Rc<StructuredMusic>, String> {
+        Ok(match self {
+            MenuMusic::Loop(music) => StructuredMusic::repeat(music)?,
+            MenuMusic::IntroLoop(intro, repeat) => StructuredMusic::new(intro, repeat)?,
+        }
+        .into_rc())
+    }
+}
+
+/// The sounds of a set of menus.
+#[derive(Clone, Copy, Debug)]
+pub struct MenuSounds {
+    pub chime: &'static [u8],
+    /// defaults to the chime
+    pub select: Option<&'static [u8]>,
+    pub title: MenuMusic,
+    pub menu: MenuMusic,
+    pub high_score: MenuMusic,
+}
+
+impl MenuSounds {
+    /// the engine's own menu sounds
+    pub const MODERN: MenuSounds = MenuSounds {
+        chime: CHIME,
+        select: Some(SELECT),
+        title: MenuMusic::Loop(TITLE),
+        menu: MenuMusic::Loop(MENU),
+        high_score: MenuMusic::IntroLoop(HIGH_SCORE_INTRO, HIGH_SCORE_REPEAT),
+    };
+}
+
 pub struct MenuSound {
     chime: Sound,
     select: Sound,
@@ -27,13 +66,13 @@ pub struct MenuSound {
 }
 
 impl MenuSound {
-    pub fn new(config: AudioConfig) -> Result<Self, String> {
+    pub fn new(config: AudioConfig, sounds: MenuSounds) -> Result<Self, String> {
         Ok(Self {
-            chime: config.load_sound(CHIME)?,
-            select: config.load_sound(SELECT)?,
-            menu_music: StructuredMusic::repeat(MENU)?.into_rc(),
-            title_music: StructuredMusic::repeat(TITLE)?.into_rc(),
-            high_score_music: StructuredMusic::new(HIGH_SCORE_INTRO, HIGH_SCORE_REPEAT)?.into_rc(),
+            chime: config.load_sound(sounds.chime)?,
+            select: config.load_sound(sounds.select.unwrap_or(sounds.chime))?,
+            menu_music: sounds.menu.load()?,
+            title_music: sounds.title.load()?,
+            high_score_music: sounds.high_score.load()?,
         })
     }
 

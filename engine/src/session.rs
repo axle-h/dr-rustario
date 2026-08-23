@@ -87,10 +87,13 @@ impl<G: Game> Player<G> {
         &mut self.game
     }
 
-    /// swap in the next stage's game, keeping score, speed and stage count
+    /// swap in the next stage's game, keeping score and stage count; speed carries over only
+    /// to the same game, as different games have different speed scales
     pub fn replace_game(&mut self, mut game: G) {
         game.set_score(self.game.score());
-        game.set_speed_index(self.game.speed_index());
+        if game.game_id() == self.game.game_id() {
+            game.set_speed_index(self.game.speed_index());
+        }
         game.set_completed_stages(self.game.completed_stages());
         self.game = game;
     }
@@ -363,6 +366,7 @@ mod tests {
 
     /// a game that only keeps the numbers a playlist carries between stages
     struct Counter {
+        id: u16,
         score: u32,
         speed: u32,
         stages: u32,
@@ -370,7 +374,7 @@ mod tests {
 
     impl Game for Counter {
         fn game_id(&self) -> GameId {
-            GameId(0)
+            GameId(self.id)
         }
         fn update(&mut self, _: Duration) {}
         fn left(&mut self) {}
@@ -436,6 +440,7 @@ mod tests {
 
     fn counter(score: u32, speed: u32, stages: u32) -> Counter {
         Counter {
+            id: 0,
             score,
             speed,
             stages,
@@ -449,6 +454,17 @@ mod tests {
         assert_eq!(player.game().score(), 1234);
         assert_eq!(player.game().speed_index(), 3);
         assert_eq!(player.game().completed_stages(), 2);
+    }
+
+    #[test]
+    fn speed_does_not_carry_to_a_different_game() {
+        let mut player = Player::new(0, counter(10, 3, 1));
+        let mut other = counter(0, 7, 0);
+        other.id = 1;
+        player.replace_game(other);
+        assert_eq!(player.game().score(), 10);
+        assert_eq!(player.game().speed_index(), 7);
+        assert_eq!(player.game().completed_stages(), 1);
     }
 
     #[test]

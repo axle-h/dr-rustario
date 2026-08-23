@@ -14,24 +14,9 @@ const THEMES: &str = "themes";
 const MODE: &str = "mode";
 const LEVEL: &str = "level";
 const RANDOM: &str = "random";
-const AI: &str = "ai";
-const AI_OFF: &str = "off";
-const AI_DEMO: &str = "demo";
-
-fn ai_names() -> Vec<String> {
-    let mut names = vec![AI_OFF.to_string()];
-    names.extend(AiDifficulty::ALL.iter().map(|d| format!("vs {}", d.name())));
-    names.push(AI_DEMO.to_string());
-    names
-}
-
-fn ai_name(mode: AiMode) -> String {
-    match mode {
-        AiMode::Off => AI_OFF.to_string(),
-        AiMode::Opponent(difficulty) => format!("vs {}", difficulty.name()),
-        AiMode::Demo => AI_DEMO.to_string(),
-    }
-}
+const VS_AI_PREFIX: &str = "vs ";
+const VS_AI_SUFFIX: &str = " ai";
+const AI_DEMO: &str = "ai demo";
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Options {
@@ -50,6 +35,58 @@ impl Options {
     pub fn set_players(&mut self, players: u32) {
         self.config.players = players;
         self.config.rules = MatchRules::default_by_players(players);
+    }
+
+    /// the title screen's players list: humans, then (with the ai feature) the ai opponents
+    /// and the ai demo
+    pub fn players_list(&self, max_players: u32) -> (Vec<String>, usize) {
+        let mut players = (1..=max_players).map(|i| i.to_string()).collect::<Vec<String>>();
+        #[cfg(feature = "ai")]
+        {
+            if max_players > 1 {
+                players.extend(
+                    AiDifficulty::ALL
+                        .iter()
+                        .map(|d| format!("{}{}{}", VS_AI_PREFIX, d.name(), VS_AI_SUFFIX)),
+                );
+            }
+            players.push(AI_DEMO.to_string());
+        }
+        let current = match self.config.ai {
+            AiMode::Off => (self.config.players as usize).clamp(1, max_players as usize) - 1,
+            AiMode::Opponent(difficulty) => players
+                .iter()
+                .position(|p| *p == format!("{}{}{}", VS_AI_PREFIX, difficulty.name(), VS_AI_SUFFIX))
+                .unwrap_or(0),
+            AiMode::Demo => players.len() - 1,
+        };
+        (players, current)
+    }
+
+    /// a pick from [`Self::players_list`]
+    pub fn select_players(&mut self, value: &str) {
+        let ai_difficulty = value
+            .strip_prefix(VS_AI_PREFIX)
+            .and_then(|s| s.strip_suffix(VS_AI_SUFFIX))
+            .and_then(AiDifficulty::from_name);
+        if value == AI_DEMO {
+            self.set_players(1);
+            self.config.ai = AiMode::Demo;
+        } else if let Some(difficulty) = ai_difficulty {
+            self.set_players(2);
+            self.config.ai = AiMode::Opponent(difficulty);
+        } else {
+            self.set_players(value.parse::<u32>().unwrap_or(1));
+            self.config.ai = AiMode::Off;
+        }
+    }
+
+    pub fn players(&self) -> u32 {
+        self.config.players
+    }
+
+    pub fn is_single_player(&self) -> bool {
+        self.config.players == 1
     }
 
     /// `compact` leaves out the mode and randomiser, for a mixed match's second game
@@ -85,19 +122,11 @@ impl Options {
                     .collect(),
                 self.config.random as usize,
             ),
-            MenuItem::select_list(
-                AI,
-                ai_names(),
-                ai_names()
-                    .iter()
-                    .position(|n| *n == ai_name(self.config.ai))
-                    .unwrap_or(0),
-            ),
         ];
         if compact {
             items
                 .into_iter()
-                .filter(|item| item.name() != MODE && item.name() != RANDOM && item.name() != AI)
+                .filter(|item| item.name() != MODE && item.name() != RANDOM)
                 .collect()
         } else {
             items
@@ -116,19 +145,6 @@ impl Options {
             }
             LEVEL => self.config.level = value.parse::<u32>().unwrap(),
             RANDOM => self.config.random = RandomMode::from_str(value).unwrap(),
-            AI => {
-                self.config.ai = if value == AI_DEMO {
-                    AiMode::Demo
-                } else {
-                    match value
-                        .strip_prefix("vs ")
-                        .and_then(AiDifficulty::from_name)
-                    {
-                        Some(difficulty) => AiMode::Opponent(difficulty),
-                        None => AiMode::Off,
-                    }
-                };
-            }
             _ => return false,
         }
         true
@@ -158,18 +174,8 @@ impl Options {
         self.config.ai
     }
 
-    /// the players the AI plays for and how fast, given the match's player count
-    pub fn ai_players(&self, players: u32) -> Vec<(u32, std::time::Duration)> {
-        match self.config.ai {
-            AiMode::Off => vec![],
-            AiMode::Demo => vec![(0, std::time::Duration::ZERO)],
-            AiMode::Opponent(difficulty) => {
-                if players > 1 {
-                    vec![(players - 1, difficulty.key_delay())]
-                } else {
-                    vec![]
-                }
-            }
-        }
+    /// the players the AI plays for and how fast
+    pub fn ai_players(&self) -> Vec<(u32, std::time::Duration)> {
+        self.config.ai_players()
     }
 }

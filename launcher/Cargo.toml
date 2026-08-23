@@ -10,7 +10,7 @@ name = "dr-rustario-vs-rustris"
 path = "src/main.rs"
 
 [features]
-default = ["pkgconfig"]
+default = ["pkgconfig", "ai"]
 vcpkg = ["engine/vcpkg"]
 pkgconfig = ["engine/pkgconfig"]
 retro_handheld = ["engine/retro_handheld"]

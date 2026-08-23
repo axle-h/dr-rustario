@@ -4,7 +4,8 @@ use std::time::Duration;
 const FRAME_DURATION: f64 = 0.004; // 4 millis
 const MAX_ALPHA: u8 = 100;
 const MAX_TRAIL_FRAMES: u32 = 5;
-const STEP_SIZE: f64 = 0.2;
+/// rows the trail falls per frame unless the theme says otherwise
+pub const DEFAULT_ROWS_PER_FRAME: f64 = 0.2;
 
 /// A fading trail of the piece falls from where it was to where it landed.
 #[derive(Clone, Debug)]
@@ -13,16 +14,18 @@ pub struct State {
     duration: f64,
     frame: u32,
     max_frames: u32,
+    step: f64,
 }
 
 impl State {
-    fn new(cells: Vec<PlacedCell>, dropped_rows: u32) -> Self {
-        let max_frames = dropped_rows as f64 / STEP_SIZE;
+    fn new(cells: Vec<PlacedCell>, dropped_rows: u32, step: f64) -> Self {
+        let max_frames = dropped_rows as f64 / step;
         Self {
             cells,
-            max_frames: max_frames.round() as u32,
+            max_frames: max_frames.round().max(1.0) as u32,
             duration: 0.0,
             frame: 0,
+            step,
         }
     }
 
@@ -32,7 +35,7 @@ impl State {
         for j in 1..=trail_frames {
             let alpha_mod =
                 MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / trail_frames as f64).round() as u8;
-            let offset_y = -1.0 * STEP_SIZE * j as f64;
+            let offset_y = -1.0 * self.step * j as f64;
             result.push(HardDropAnimationFrame::new(offset_y, alpha_mod));
         }
 
@@ -40,7 +43,7 @@ impl State {
         for j in 1..=self.frame {
             let alpha_mod =
                 MAX_ALPHA - (MAX_ALPHA as f64 * j as f64 / self.max_frames as f64).round() as u8;
-            let offset_y = STEP_SIZE * j as f64;
+            let offset_y = self.step * j as f64;
             result.push(HardDropAnimationFrame::new(offset_y, alpha_mod));
         }
 
@@ -70,11 +73,15 @@ impl HardDropAnimationFrame {
 #[derive(Debug, Clone)]
 pub struct HardDropAnimation {
     state: Option<State>,
+    rows_per_frame: f64,
 }
 
 impl HardDropAnimation {
-    pub fn new() -> Self {
-        Self { state: None }
+    pub fn new(rows_per_frame: f64) -> Self {
+        Self {
+            state: None,
+            rows_per_frame: rows_per_frame.max(0.01),
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {
@@ -101,7 +108,7 @@ impl HardDropAnimation {
 
     pub fn hard_drop(&mut self, cells: &[PlacedCell], dropped_rows: u32) {
         if dropped_rows > 0 {
-            self.state = Some(State::new(cells.to_vec(), dropped_rows));
+            self.state = Some(State::new(cells.to_vec(), dropped_rows, self.rows_per_frame));
         }
     }
 
