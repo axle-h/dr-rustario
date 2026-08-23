@@ -242,7 +242,52 @@ impl<'a> Themes<'a> {
     }
 }
 
+/// the computer players of a match: the rustris AI, for players on rustris
+#[allow(unused_mut, unused_variables)]
+fn controllers<'a>(
+    selection: &Selection,
+) -> Vec<(u32, Box<dyn FnMut(&mut AnyGame, std::time::Duration) + 'a>)> {
+    let mut controllers: Vec<(u32, Box<dyn FnMut(&mut AnyGame, std::time::Duration) + 'a>)> =
+        vec![];
+    #[cfg(feature = "ai")]
+    for (player, key_delay) in selection.rustris.ai_players(selection.players) {
+        if selection.game(player) != GameKind::Rustris {
+            continue;
+        }
+        let mut agent = rustris::game::ai::agent::AiAgent::default().with_key_delay(key_delay);
+        controllers.push((
+            player,
+            Box::new(move |game: &mut AnyGame, delta| {
+                if let AnyGame::Rustris(game) = game {
+                    agent.act(game, delta);
+                }
+            }),
+        ));
+    }
+    controllers
+}
+
 fn main() -> Result<(), String> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("ga") {
+        #[cfg(feature = "ai")]
+        {
+            use rustris::game::ai::genetic;
+            return match args.get(1).map(String::as_str) {
+                None | Some("auto") => genetic::ga_main_auto(),
+                Some("survival") => genetic::ga_main_survival(),
+                Some("score") => genetic::ga_main_score(),
+                Some("diagnose") => genetic::ga_diagnose(),
+                Some(other) => Err(format!(
+                    "unknown ga mode '{}', expected: auto, survival, score or diagnose",
+                    other
+                )),
+            };
+        }
+        #[cfg(not(feature = "ai"))]
+        return Err("built without the ai feature".to_string());
+    }
+
     engine::app_info::init(engine::app_info::AppInfo {
         name: build_info::PKG_NAME,
         version: build_info::PKG_VERSION,
@@ -377,6 +422,7 @@ fn main() -> Result<(), String> {
                 let game = selection.stage_game(kind).ok()?;
                 Some((game, selection.player_settings(&themes, kind)))
             };
+            let ai = controllers(&selection);
             match app.run_match(
                 &themes.all,
                 games,
@@ -384,6 +430,7 @@ fn main() -> Result<(), String> {
                 &mut fg_particles,
                 &mut bg_particles,
                 next_stage,
+                ai,
             )? {
                 PostGameAction::NewHighScore(high_score) => {
                     app.new_high_score(&key, high_score, &mut bg_particles)?;

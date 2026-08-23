@@ -10,7 +10,7 @@ use crate::game::ai::linear::LinearCoefficients;
 use crate::game::ai::neural::{NeuralGenome, TetrisNeuralNetwork};
 use crate::game::board::Board;
 use crate::game::tetromino::TetrominoShape;
-use crate::game::recording::{GameRecording, GamePlayback};
+use crate::game::ai::recording::{GamePlayback, GameRecording};
 use std::path::Path;
 use std::collections::VecDeque;
 use std::time::Duration;
@@ -188,7 +188,7 @@ impl AiAgent {
                 let best_result = self.best_move(game, shape, &game.random.peek_buffer());
 
                 let (alt_next_shape, alt_next_peek) = game.hold
-                    .map(|state| (state.shape, 0..))
+                    .map(|state| (state.piece, 0..))
                     .unwrap_or_else(|| (game.random.peek(), 1..));
 
                 let alt_best_move = self.best_move(game, alt_next_shape, &game.random.peek_buffer()[alt_next_peek]);
@@ -211,7 +211,7 @@ impl AiAgent {
             // Execute the decision (same code path for both playback and AI)
             if is_alt {
                 let alt_next_shape = game.hold
-                    .map(|state| state.shape)
+                    .map(|state| state.piece)
                     .unwrap_or_else(|| game.random.peek());
 
                 // hold the current and wait for the alt shape to fall
@@ -300,7 +300,7 @@ mod tests {
     use crate::game::random::{RandomMode, RandomTetromino};
 
     fn falling_game() -> Game {
-        let mut game = Game::new(1, 0, RandomTetromino::new(RandomMode::Bag, 10, 100.into()));
+        let mut game = Game::new(0, RandomTetromino::new(RandomMode::Bag, 10, 100.into()));
         for _ in 0..1000 {
             if matches!(game.state, GameState::Fall(_)) {
                 return game;
@@ -360,21 +360,23 @@ mod tests {
     #[test]
     fn paced_agent_plays_a_game() {
         // simulate a "challenging" ai for a minute of game time at 60hz
-        let mut game = Game::new(1, 0, RandomTetromino::new(RandomMode::Bag, 10, 7.into()));
-        let mut agent = agent(crate::config::AiDifficulty::CHALLENGING_KEY_DELAY);
+        let mut game = Game::new(0, RandomTetromino::new(RandomMode::Bag, 10, 7.into()));
+        let mut agent = agent(crate::game::rules::AiDifficulty::CHALLENGING_KEY_DELAY);
         let step = Duration::from_millis(16);
         let mut pieces = 0;
-        for _ in 0..(60 * 1000 / 16) {
+        'play: for _ in 0..(60 * 1000 / 16) {
             agent.act(&mut game, step);
-            match game.update(step) {
-                Some(crate::event::GameEvent::GameOver { .. }) => break,
-                Some(crate::event::GameEvent::Spawn { .. }) => pieces += 1,
-                _ => {}
+            game.update(step);
+            for event in engine::game::Game::drain_events(&mut game) {
+                match event {
+                    engine::game::GameEvent::GameOver => break 'play,
+                    engine::game::GameEvent::Spawn { .. } => pieces += 1,
+                    _ => {}
+                }
             }
-            game.empty_event_buffer();
         }
         assert!(pieces > 10, "the agent should have placed pieces, placed {}", pieces);
-        assert!(game.metrics().lines > 0, "the agent should have cleared lines");
+        assert!(game.lines() > 0, "the agent should have cleared lines");
     }
 
     #[test]

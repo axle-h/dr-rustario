@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use rayon::prelude::*;
-use crate::config::Config;
+use crate::game::random::RandomMode;
 use crate::game::ai::action_evaluator::ActionEvaluator;
 use crate::game::ai::game_result::GameResult;
 use crate::game::ai::generation_stats::GenerationStatistics;
@@ -259,7 +259,7 @@ where F : Fn(&Genome<N>) -> ActionEvaluator + Send + Sync
 
 fn neural_fixture() -> HeadlessGameFixture {
     HeadlessGameFixture::new(
-        Config::default(),
+        RandomMode::Bag,
         rand::random(),
         HeadlessGameOptions::default(),
         EndGame::NONE
@@ -305,7 +305,7 @@ pub fn ga_diagnose() -> Result<(), String> {
     const SEEDS: usize = 4;
     let phase = Phase::score(DEFAULT_PIECE_CAP);
     let fixture = HeadlessGameFixture::new(
-        Config::default(),
+        RandomMode::Bag,
         1.into(),
         HeadlessGameOptions::default(),
         phase.end_game
@@ -332,7 +332,7 @@ pub fn ga_main() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::Config;
+    use crate::game::random::RandomMode;
     use crate::game::ai::action_evaluator::ActionEvaluator;
     use crate::game::ai::genetic::{GeneticAlgorithm, HyperParameters};
     use crate::game::ai::genome::{LinearGenome, LINEAR_GENOME_SIZE};
@@ -343,7 +343,7 @@ mod tests {
 
     fn fixture() -> HeadlessGameFixture {
         HeadlessGameFixture::new(
-            Config::default(),
+            RandomMode::Bag,
             100.into(),
             HeadlessGameOptions::default(),
             EndGame::NONE

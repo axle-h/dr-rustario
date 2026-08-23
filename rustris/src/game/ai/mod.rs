@@ -1,3 +1,4 @@
+pub mod recording;
 mod apply_inputs;
 mod input_search;
 pub mod input_sequence;

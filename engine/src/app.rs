@@ -423,6 +423,7 @@ impl App {
 
     /// Play one match to its end. `next_stage` is asked for a player's next game when they
     /// complete a stage; `None` means they carry on in the game they are playing.
+    /// `controllers` play for the players they name instead of the keyboard.
     pub fn run_match<G: Game + GameRender>(
         &mut self,
         all_themes: &[Theme],
@@ -431,6 +432,7 @@ impl App {
         fg_particles: &mut ParticleRender,
         bg_particles: &mut ParticleRender,
         mut next_stage: impl FnMut(u32, u32) -> Option<(G, PlayerSettings)>,
+        mut controllers: Vec<(u32, Box<dyn FnMut(&mut G, std::time::Duration) + '_>)>,
     ) -> Result<PostGameAction, String> {
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
@@ -441,7 +443,9 @@ impl App {
             .iter()
             .map(|p| p.themes.len() as u32)
             .collect::<Vec<u32>>();
-        let mut fixture = Match::new(games, settings.rules, &theme_counts, &settings.high_score_key);
+        let ai_players = controllers.iter().map(|(p, _)| *p).collect::<Vec<u32>>();
+        let mut fixture = Match::new(games, settings.rules, &theme_counts, &settings.high_score_key)
+            .with_ai_players(ai_players);
         let is_single_player = fixture.is_single_player();
         let window_size = self.canvas.window().size();
         let mut themes = ThemeContext::new(
@@ -505,6 +509,12 @@ impl App {
             let mut events: Vec<(Option<u32>, GameEvent)> = vec![];
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
                 if let Some(player) = key.player() {
+                    if controllers.iter().any(|(p, _)| *p == player)
+                        && !themes.is_pause_required_for_animation(player)
+                    {
+                        // a controller plays this player; keys only dismiss animations
+                        continue;
+                    }
                     if themes.is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_interstitial(player) {
                             let game = fixture.player_mut(player).game_mut();
@@ -598,6 +608,11 @@ impl App {
                     };
                 }
                 MatchState::Normal => {
+                    for (player, controller) in controllers.iter_mut() {
+                        if !themes.is_pause_required_for_animation(*player) {
+                            fixture.mut_game(*player, |g| controller(g, delta));
+                        }
+                    }
                     for player in fixture.players.iter_mut() {
                         let player_id = player.player();
                         if themes.is_pause_required_for_animation(player_id)

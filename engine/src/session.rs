@@ -128,6 +128,8 @@ pub struct Match<G: Game> {
     rules: MatchRules,
     /// stages in a theme sprint: the fewest themes any player has
     theme_count: u32,
+    /// players a computer plays for; they do not enter the high score table
+    ai_players: Vec<u32>,
     rng: ThreadRng,
 }
 
@@ -151,8 +153,18 @@ impl<G: Game> Match<G> {
             state: MatchState::Normal,
             rules,
             theme_count: theme_counts.iter().copied().min().unwrap_or(1).max(1),
+            ai_players: vec![],
             rng: rng(),
         }
+    }
+
+    pub fn with_ai_players(mut self, ai_players: Vec<u32>) -> Self {
+        self.ai_players = ai_players;
+        self
+    }
+
+    pub fn is_ai_player(&self, player: u32) -> bool {
+        self.ai_players.contains(&player)
     }
 
     pub fn rules(&self) -> MatchRules {
@@ -270,12 +282,14 @@ impl<G: Game> Match<G> {
             return false;
         }
 
-        let best = self.highest_score();
-        let high_score = if self.high_scores.is_high_score(best.game.score()) {
-            Some(NewHighScore::new(best.player, best.game.score()))
-        } else {
-            None
-        };
+        // only human players can enter the high score table
+        let high_score = self
+            .players
+            .iter()
+            .filter(|p| !self.is_ai_player(p.player))
+            .max_by_key(|p| p.game.score())
+            .filter(|best| self.high_scores.is_high_score(best.game.score()))
+            .map(|best| NewHighScore::new(best.player, best.game.score()));
 
         self.state = MatchState::GameOver { high_score };
         true
@@ -448,6 +462,7 @@ mod tests {
             state: MatchState::Normal,
             rules: MatchRules::Marathon,
             theme_count: 1,
+            ai_players: vec![],
             rng: rng(),
         };
         assert_eq!(fixture.leading_player(), Some(1));
@@ -465,6 +480,7 @@ mod tests {
             state: MatchState::Normal,
             rules: MatchRules::StageSprint { stages: 2 },
             theme_count: 1,
+            ai_players: vec![],
             rng: rng(),
         };
         assert!(fixture.next_stage_ends_match(0));

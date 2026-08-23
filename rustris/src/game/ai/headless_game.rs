@@ -1,14 +1,14 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use crate::animation::destroy::SWEEP_DURATION;
-use crate::config::Config;
-use crate::event::GameEvent;
-use crate::game::ai::agent::AiAgent;
 use crate::game::ai::action_evaluator::ActionEvaluator;
+use crate::game::ai::agent::AiAgent;
 use crate::game::ai::game_result::GameResult;
 use crate::game::ai::linear::LinearCoefficients;
+use crate::game::random::{RandomMode, RandomTetromino, Seed, MIN_GARBAGE_PER_HOLE};
 use crate::game::Game;
-use crate::game::board::compact_destroy_lines;
-use crate::game::random::{RandomTetromino, Seed};
+use engine::game::{Game as _, GameEvent};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// how long a line clear animation holds the game for, matched to the sweep style
+const LINE_CLEAR_DURATION: Duration = Duration::from_millis(750);
 
 pub struct HeadlessGame {
     agent: AiAgent,
@@ -30,7 +30,7 @@ impl HeadlessGame {
     ) -> Self {
         Self {
             agent,
-            game: Game::new(1, 0, rng),
+            game: Game::new(0, rng),
             duration: Duration::ZERO,
             game_over: false,
             pieces: 0,
@@ -57,32 +57,27 @@ impl HeadlessGame {
         }
 
         self.agent.act(&mut self.game, self.options.step);
-        let mut events = self.game.empty_event_buffer();
-
-        if let Some(event) = self.game.update(self.options.step) {
-            events.push(event);
-        }
+        let mut events = self.game.drain_events();
+        self.game.update(self.options.step);
+        events.extend(self.game.drain_events());
 
         for event in events {
             match event {
-                GameEvent::GameOver { .. } => {
+                GameEvent::GameOver => {
                     self.game_over = true;
                     return Some(self.result());
-                },
-                GameEvent::Destroy(_) => {
+                }
+                GameEvent::Clear { count, .. } => {
                     // simulate line clear animation
                     self.duration += self.options.line_clear_delay;
-                }
-                GameEvent::Destroyed { lines, .. } => {
-                    let cleared = compact_destroy_lines(lines).len() as u32;
-                    if cleared == 4 {
-                        self.tetris_lines += cleared;
+                    if count == 4 {
+                        self.tetris_lines += count;
                     }
                 }
                 GameEvent::Spawn { .. } => {
                     self.pieces += 1;
                 }
-                _ => ()
+                _ => (),
             }
         }
 
@@ -90,7 +85,13 @@ impl HeadlessGame {
     }
 
     fn result(&self) -> GameResult {
-        GameResult::new(self.game.score, self.game.lines, self.game.level, self.game_over, self.duration)
+        GameResult::new(
+            self.game.score(),
+            self.game.lines(),
+            self.game.level(),
+            self.game_over,
+            self.duration,
+        )
             .with_pieces(self.pieces, self.tetris_lines)
     }
 }
@@ -109,7 +110,7 @@ impl Default for HeadlessGameOptions {
     fn default() -> Self {
         Self {
             step: Duration::from_millis(16), // 60hz
-            line_clear_delay: SWEEP_DURATION,
+            line_clear_delay: LINE_CLEAR_DURATION,
             look_ahead: DEFAULT_LOOKAHEAD,
             record: false
         }   
@@ -117,7 +118,7 @@ impl Default for HeadlessGameOptions {
 }
 
 pub struct HeadlessGameFixture {
-    config: Config,
+    random_mode: RandomMode,
     seed: Seed,
     seeds_per_game: usize,
     game_options: HeadlessGameOptions,
@@ -125,8 +126,19 @@ pub struct HeadlessGameFixture {
 }
 
 impl HeadlessGameFixture {
-    pub fn new(config: Config, seed: Seed, game_options: HeadlessGameOptions, end_game: EndGame) -> Self {
-        Self { config, seed, seeds_per_game: 1, game_options, end_game }
+    pub fn new(
+        random_mode: RandomMode,
+        seed: Seed,
+        game_options: HeadlessGameOptions,
+        end_game: EndGame,
+    ) -> Self {
+        Self {
+            random_mode,
+            seed,
+            seeds_per_game: 1,
+            game_options,
+            end_game,
+        }
     }
 
     /// evaluate each genome over this many consecutive seeds and average the results
@@ -170,11 +182,7 @@ impl HeadlessGameFixture {
     }
 
     pub fn play_seed(&self, action_evaluate: ActionEvaluator, seed: Seed) -> GameResult {
-        let rng = RandomTetromino::new(
-            self.config.game.random_mode,
-            self.config.game.min_garbage_per_hole,
-            seed
-        );
+        let rng = RandomTetromino::new(self.random_mode, MIN_GARBAGE_PER_HOLE, seed);
         let mut agent = AiAgent::new(action_evaluate, self.game_options.look_ahead);
         if self.game_options.record {
             agent.start_recording().expect("Failed to start recording");
@@ -260,7 +268,7 @@ mod tests {
 
     fn test_fixture() -> HeadlessGameFixture {
         HeadlessGameFixture::new(
-            Config::default(),
+            RandomMode::Bag,
             100.into(),
             HeadlessGameOptions::default(),
             EndGame::of_seconds(5)
@@ -278,7 +286,7 @@ mod tests {
     #[test]
     fn piece_cap_ends_the_game() {
         let fixture = HeadlessGameFixture::new(
-            Config::default(),
+            RandomMode::Bag,
             100.into(),
             HeadlessGameOptions::default(),
             EndGame::of_pieces(100)
@@ -293,7 +301,7 @@ mod tests {
     #[test]
     fn multi_seed_is_the_average_of_single_seeds() {
         let fixture = HeadlessGameFixture::new(
-            Config::default(),
+            RandomMode::Bag,
             100.into(),
             HeadlessGameOptions::default(),
             EndGame::of_pieces(50)
