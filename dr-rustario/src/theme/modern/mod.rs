@@ -187,6 +187,7 @@ pub fn modern_dr_theme<'a>(
         rows: BOTTLE_HEIGHT,
         visible_rows: BOTTLE_HEIGHT,
         metrics: HUD_MAX.to_vec(),
+        metrics_left: vec![],
         mascot: Some((mascot_types, DR_SCALE_OF_BLOCK)),
         spawn_cell: spawn_cell(),
         cell_idle_type: FrameAnimationType::Linear { fps: 30 },

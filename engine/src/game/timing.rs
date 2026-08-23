@@ -9,7 +9,10 @@ pub struct Timing {
     pub soft_drop_lock: Duration,
     /// how many moves/rotations may reset the lock delay before the piece is forced to lock
     pub max_lock_placements: u32,
-    pub min_spawn_delay: Duration,
+    /// the spawn delay never drops below this (Dr. Mario)
+    pub min_spawn_delay: Option<Duration>,
+    /// the spawn delay never exceeds this (Tetris)
+    pub max_spawn_delay: Option<Duration>,
     /// soft drop divides the fall step by this
     pub soft_drop_step_factor: u32,
     /// soft drop divides the spawn delay by this
@@ -22,9 +25,19 @@ impl Timing {
             lock,
             soft_drop_lock,
             max_lock_placements: 15,
-            min_spawn_delay: Duration::from_millis(500),
+            min_spawn_delay: Some(Duration::from_millis(500)),
+            max_spawn_delay: None,
             soft_drop_step_factor: 20,
             soft_drop_spawn_factor: 10,
+        }
+    }
+
+    /// cap the spawn delay instead of flooring it
+    pub const fn with_spawn_delay_cap(self, cap: Duration) -> Self {
+        Self {
+            min_spawn_delay: None,
+            max_spawn_delay: Some(cap),
+            ..self
         }
     }
 
@@ -46,12 +59,18 @@ impl Timing {
     }
 
     pub fn spawn_delay(&self, base: Duration, soft_drop: bool, min_step: Duration) -> Duration {
-        let delay = if soft_drop {
+        let mut delay = if soft_drop {
             (base / self.soft_drop_spawn_factor).max(min_step)
         } else {
             base
         };
-        delay.max(self.min_spawn_delay)
+        if let Some(min) = self.min_spawn_delay {
+            delay = delay.max(min);
+        }
+        if let Some(max) = self.max_spawn_delay {
+            delay = delay.min(max);
+        }
+        delay
     }
 }
 
@@ -162,5 +181,8 @@ mod tests {
         assert_eq!(TIMING.step_delay(base, true, Duration::from_millis(16)), Duration::from_millis(50));
         assert_eq!(TIMING.step_delay(base, true, Duration::from_millis(100)), Duration::from_millis(100));
         assert_eq!(TIMING.spawn_delay(base, true, Duration::ZERO), Duration::from_millis(500));
+        let capped = TIMING.with_spawn_delay_cap(Duration::from_millis(500));
+        assert_eq!(capped.spawn_delay(base, false, Duration::ZERO), Duration::from_millis(500));
+        assert_eq!(capped.spawn_delay(base, true, Duration::ZERO), Duration::from_millis(100));
     }
 }

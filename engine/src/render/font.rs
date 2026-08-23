@@ -21,6 +21,8 @@ impl FontAlign {
     }
 }
 
+/// Where a HUD number goes and how wide it may get. Values beyond `max_value` are shown in
+/// hex if that fits the width, otherwise clamped.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct MetricSnips {
     point: Point,
@@ -33,22 +35,44 @@ fn char_length(value: u32) -> u32 {
     format!("{}", value).len() as u32
 }
 
+/// the largest value `max_chars` digits of `base` can show
+fn max_value(base: u32, max_chars: u32) -> u32 {
+    (base as u64)
+        .checked_pow(max_chars)
+        .map(|v| (v - 1).min(u32::MAX as u64) as u32)
+        .unwrap_or(u32::MAX)
+}
+
 impl MetricSnips {
-    pub fn zero_fill<P: Into<Point>>(point: P, max_value: u32) -> Self {
+    pub fn new<P: Into<Point>>(align: FontAlign, point: P, max_value: u32) -> Self {
         Self {
             point: point.into(),
             max_value,
             max_chars: char_length(max_value),
-            align: FontAlign::Left { zero_fill: true },
+            align,
         }
     }
 
+    pub fn zero_fill<P: Into<Point>>(point: P, max_value: u32) -> Self {
+        Self::new(FontAlign::Left { zero_fill: true }, point, max_value)
+    }
+
     pub fn left<P: Into<Point>>(point: P, max_value: u32) -> Self {
+        Self::new(FontAlign::Left { zero_fill: false }, point, max_value)
+    }
+
+    /// right-aligned at `point`
+    pub fn right<P: Into<Point>>(point: P, max_value: u32) -> Self {
+        Self::new(FontAlign::Right, point, max_value)
+    }
+
+    /// sized by digit count rather than value
+    pub fn chars<P: Into<Point>>(align: FontAlign, point: P, max_chars: u32) -> Self {
         Self {
             point: point.into(),
-            max_value,
-            max_chars: char_length(max_value),
-            align: FontAlign::Left { zero_fill: false },
+            max_value: max_value(10, max_chars),
+            max_chars,
+            align,
         }
     }
 
@@ -59,6 +83,18 @@ impl MetricSnips {
             max_chars: self.max_chars,
             align: self.align,
         }
+    }
+
+    pub fn point(&self) -> Point {
+        self.point
+    }
+
+    pub fn max_decimal_value(&self) -> u32 {
+        self.max_value
+    }
+
+    pub fn max_hex_value(&self) -> u32 {
+        max_value(16, self.max_chars)
     }
 
     fn zero_fill_chars(&self) -> Option<u32> {
@@ -266,7 +302,7 @@ impl<'a> FontRender<'a> {
         value: u32,
         meta: MetricSnips,
     ) -> Result<(), String> {
-        let chars = self.format_number(value, meta.max_value, meta.zero_fill_chars());
+        let chars = self.format_number(value, meta, meta.zero_fill_chars());
         self.render_string(canvas, meta.point, &chars)
     }
 
@@ -276,7 +312,7 @@ impl<'a> FontRender<'a> {
         value: u32,
         meta: MetricSnips,
     ) -> Result<(), String> {
-        let chars = self.format_number(value, meta.max_value, None);
+        let chars = self.format_number(value, meta, None);
         let mut dest = meta.point;
         for ch in chars.chars().rev() {
             let snip = self.sprite(ch);
@@ -289,7 +325,7 @@ impl<'a> FontRender<'a> {
     }
 
     pub fn number_size(&self, value: u32) -> (u32, u32) {
-        let chars = self.format_number(value, u32::MAX, None);
+        let chars = self.format_number(value, MetricSnips::left((0, 0), u32::MAX), None);
         self.string_size(&chars)
     }
 
@@ -314,15 +350,20 @@ impl<'a> FontRender<'a> {
             .unwrap_or_else(|| panic!("{} is not supported by this font render", ch))
     }
 
-    fn format_number(&self, value: u32, max_value: u32, zero_fill: Option<u32>) -> String {
-        let value = value.min(max_value);
-        let chars = if self.sprites.contains_key(&',') {
-            value.to_formatted_string(&Locale::en)
+    fn format_number(&self, value: u32, meta: MetricSnips, zero_fill: Option<u32>) -> String {
+        let chars = if value > meta.max_decimal_value() && self.sprites.contains_key(&'A') {
+            // render in hex when the value breaches what the width can show in decimal
+            format!("{:X}", value.min(meta.max_hex_value()))
         } else {
-            format!("{}", value)
+            let clamped = value.min(meta.max_decimal_value());
+            if self.sprites.contains_key(&',') {
+                clamped.to_formatted_string(&Locale::en)
+            } else {
+                format!("{}", clamped)
+            }
         };
         if let Some(max_chars) = zero_fill {
-            let fill_len = max_chars - chars.len() as u32;
+            let fill_len = max_chars.saturating_sub(chars.len() as u32);
             let mut result: String = (0..fill_len).map(|_| '0').collect();
             result.push_str(&chars);
             result
@@ -396,5 +437,22 @@ impl<'a> FontTheme<'a> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::max_value;
+
+    #[test]
+    fn max_value_for_small_widths() {
+        assert_eq!(max_value(10, 3), 999);
+        assert_eq!(max_value(16, 2), 0xFF);
+    }
+
+    #[test]
+    fn max_value_saturates_instead_of_overflowing() {
+        assert_eq!(max_value(10, 10), u32::MAX);
+        assert_eq!(max_value(16, 8), u32::MAX);
     }
 }

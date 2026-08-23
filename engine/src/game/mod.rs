@@ -91,6 +91,15 @@ pub enum StageState {
     GameOver,
 }
 
+/// What happens at a stage boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StageTransition {
+    /// play stops on a "stage clear" card until the player dismisses it; the board resets
+    Interstitial,
+    /// play continues straight into the next stage
+    Seamless,
+}
+
 /// A number a game wants shown on the HUD.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MetricKind {
@@ -184,6 +193,7 @@ pub trait Game {
     fn set_speed_index(&mut self, index: u32);
 
     fn stage_state(&self) -> StageState;
+    fn stage_transition(&self) -> StageTransition;
     /// how many stages this game has completed
     fn completed_stages(&self) -> u32;
     /// start the next stage after `StageComplete`, keeping score and speed

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["engine", "dr-rustario"]
-default-members = ["dr-rustario"]
+members = ["engine", "dr-rustario", "rustris", "launcher"]
+default-members = ["launcher"]
 
 [workspace.package]
 authors = ["Alex Haslehurst"]

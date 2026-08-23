@@ -10,7 +10,7 @@ use std::ops::Range;
 pub const BOARD_WIDTH: u32 = 10;
 pub const BOARD_HEIGHT: u32 = 20;
 const BUFFER_HEIGHT: u32 = 20;
-const TOTAL_HEIGHT: u32 = BOARD_HEIGHT + BUFFER_HEIGHT;
+pub const TOTAL_HEIGHT: u32 = BOARD_HEIGHT + BUFFER_HEIGHT;
 const TOTAL_BLOCKS: u32 = BOARD_WIDTH * TOTAL_HEIGHT;
 
 pub const MAX_DESTROYED_LINES: usize = 4;
@@ -355,6 +355,13 @@ impl Board {
             }
         }
         result
+    }
+
+    /// empty the completed lines without dropping the stack above them yet
+    pub fn clear_lines(&mut self, pattern: DestroyLines) {
+        for y in compact_destroy_lines(pattern) {
+            self.clear_row(y);
+        }
     }
 
     pub fn destroy(&mut self, pattern: DestroyLines) -> bool {

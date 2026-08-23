@@ -266,7 +266,6 @@ impl TetrominoMeta {
         self.outside_corners
     }
 
-    #[cfg(test)]
     pub fn spawn_point(&self) -> Point {
         self.spawn_point
     }

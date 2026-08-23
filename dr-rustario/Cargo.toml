@@ -4,16 +4,6 @@ version = "1.0.0"
 authors.workspace = true
 edition.workspace = true
 
-[features]
-default = ["pkgconfig"]
-vcpkg = ["engine/vcpkg"]
-pkgconfig = ["engine/pkgconfig"]
-retro_handheld = ["engine/retro_handheld"]
-
-[build-dependencies]
-built = { version = "0.8.1", default-features = false, features = [] }
-embed-resource = "3.0.11"
-
 [dev-dependencies]
 mockall = "0.15.0"
 
@@ -25,5 +15,4 @@ serde.workspace = true
 sdl2.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-titlecase.workspace = true
 num-format.workspace = true

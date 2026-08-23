@@ -75,6 +75,12 @@ impl AudioTheme {
         Ok(self)
     }
 
+    /// one track that loops from the start
+    pub fn with_looping_game_music(mut self, music: &'static [u8]) -> Result<Self, String> {
+        self.game_music = Some(StructuredMusic::repeat(music)?.into_rc());
+        Ok(self)
+    }
+
     pub fn with_game_over_music<R: Into<Option<&'static [u8]>>>(
         mut self,
         music: &'static [u8],

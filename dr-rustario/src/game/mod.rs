@@ -11,7 +11,9 @@ use strum::IntoEnumIterator;
 use crate::game::geometry::BottlePoint;
 use engine::game::hold::HoldState;
 use engine::game::timing::{lock_move, LockMove, LockPlacements, Timing};
-use engine::game::{Attack, Cell, GameEvent, GameId, MetricKind, PieceId, StageState};
+use engine::game::{
+    Attack, Cell, GameEvent, GameId, MetricKind, PieceId, StageState, StageTransition,
+};
 
 #[cfg(not(test))]
 use crate::game::bottle::Bottle;
@@ -690,6 +692,10 @@ impl engine::game::Game for Game {
             GameState::LevelComplete => StageState::StageComplete,
             _ => StageState::Playing,
         }
+    }
+
+    fn stage_transition(&self) -> StageTransition {
+        StageTransition::Interstitial
     }
 
     fn completed_stages(&self) -> u32 {

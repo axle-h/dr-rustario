@@ -748,6 +748,7 @@ impl<'a> BlockSpriteSheet<'a> {
                         }
                     }
                 }
+                DestroyStyle::Vanish { .. } => {}
                 DestroyStyle::Sweep => {
                     let progress = destroy.sweep_progress().unwrap_or(1.0);
                     let sweep_x = geometry.offset().x()

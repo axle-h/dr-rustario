@@ -1,24 +1,11 @@
-#![windows_subsystem = "windows"]
+//! The application shell: window, audio, menus and the match loop. Generic over the game
+//! being played; a launcher decides which games and themes to run.
 
-use engine::animate::event::{AnimationEvent, AnimationType};
+use crate::animate::event::{AnimationEvent, AnimationType};
+use crate::audio;
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
-use crate::game::event::GameEvent;
-use crate::game::random::{random, RandomMode};
-use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
-use crate::game::{Game, GameSpeed};
-use crate::theme::{all_themes, race_themes};
-use engine::game::{Game as _, PlacedCell};
-use engine::particles::prescribed::{
-    prescribed_fireworks, prescribed_orbit, prescribed_piece_race, PlayerTargetedParticles,
-};
-use engine::particles::render::ParticleRender;
-use engine::particles::source::ParticleSource;
-use engine::particles::Particles;
-use engine::render::context::{PlayerTextures, TextureMode, ThemeContext};
-use engine::render::pause::PausedScreen;
-use engine::render::{GameRender, Theme};
-use engine::session::{Match, MatchState};
+use crate::game::{Game, GameEvent, StageTransition};
 use crate::game_input::{GameInputContext, GameInputKey};
 use crate::high_score::event::HighScoreEntryEvent;
 use crate::high_score::render::HighScoreRender;
@@ -28,65 +15,88 @@ use crate::icon::app_icon;
 use crate::menu::sound::MenuSound;
 use crate::menu::{Menu, MenuItem};
 use crate::menu_input::{MenuInputContext, MenuInputKey};
+use crate::particles::prescribed::{
+    prescribed_fireworks, prescribed_orbit, prescribed_piece_race, PlayerTargetedParticles,
+    RaceTheme,
+};
+use crate::particles::render::ParticleRender;
+use crate::particles::scale::Scale as ParticleScale;
+use crate::particles::source::ParticleSource;
+use crate::particles::Particles;
+use crate::render::context::{PlayerTextures, TextureMode, ThemeContext};
+use crate::render::pause::PausedScreen;
+use crate::render::{GameRender, Theme};
+use crate::session::{Match, MatchRules, MatchState};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Texture, WindowCanvas};
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
 use sdl2::{EventPump, Sdl};
-use std::str::FromStr;
-
-mod build_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-
-    pub fn nice_app_name() -> String {
-        titlecase::titlecase(&PKG_NAME.replace("-", ". "))
-    }
-}
-mod game;
-mod render;
-mod theme;
-
-use engine::{audio, config, frame_rate, game_input, high_score, icon, menu, menu_input};
-
-#[cfg(not(feature = "retro_handheld"))]
-const MAX_PLAYERS: u32 = 2;
-
-#[cfg(feature = "retro_handheld")]
-const MAX_PLAYERS: u32 = 1;
 
 /// Simultaneous sound effects per player (SDL_mixer's default channel count).
 const EFFECT_CHANNELS_PER_PLAYER: u32 = 8;
 
-const MAX_PARTICLES_PER_PLAYER: usize = 100000;
-const MAX_BACKGROUND_PARTICLES: usize = 100000;
+pub const MAX_PARTICLES_PER_PLAYER: usize = 100000;
+pub const MAX_BACKGROUND_PARTICLES: usize = 100000;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum MainMenuAction {
+/// How a menu loop ended.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MenuExit<R> {
     Start,
-    ViewHighScores,
     Back,
     Quit,
+    Custom(R),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PostGameAction {
+pub enum MenuMusic {
+    Title,
+    Menu,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PostGameAction {
     NewHighScore(NewHighScore),
     ReturnToMenu,
     Quit,
 }
 
-struct DrRustario {
+/// Which theme a match plays on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThemeMode {
+    /// every theme in order, advancing at each stage
+    All,
+    Fixed(usize),
+}
+
+impl ThemeMode {
+    pub fn initial(&self) -> usize {
+        match self {
+            ThemeMode::All => 0,
+            ThemeMode::Fixed(index) => *index,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchSettings {
+    pub rules: MatchRules,
+    pub themes: ThemeMode,
+}
+
+pub struct App {
     config: Config,
     _sdl: Sdl,
     canvas: WindowCanvas,
     event_pump: EventPump,
     _audio: audio::Audio,
     menu_sound: MenuSound,
-    game_config: GameConfig,
-    particle_scale: engine::particles::scale::Scale,
+    particle_scale: ParticleScale,
+    max_players: u32,
 }
 
-impl DrRustario {
-    pub fn new() -> Result<Self, String> {
+impl App {
+    pub fn new(max_players: u32, icon: &[u8]) -> Result<Self, String> {
         let config = Config::load()?;
         let sdl = sdl2::init()?;
         let video = sdl.video()?;
@@ -107,7 +117,7 @@ impl DrRustario {
             _ => (1, 1),
         };
 
-        let mut window_builder = video.window(build_info::PKG_NAME, width, height);
+        let mut window_builder = video.window(crate::app_info::get().name, width, height);
         match config.video.mode {
             VideoMode::FullScreen { .. } => {
                 window_builder.fullscreen();
@@ -124,7 +134,7 @@ impl DrRustario {
             .build()
             .map_err(|e| e.to_string())?;
 
-        window.set_icon(app_icon(include_bytes!("../icon.png"))?);
+        window.set_icon(app_icon(icon)?);
 
         let canvas_builder = window.into_canvas().target_texture().accelerated();
 
@@ -140,7 +150,7 @@ impl DrRustario {
 
         let audio = audio::Audio::open(
             &sdl.audio()?,
-            MAX_PLAYERS * EFFECT_CHANNELS_PER_PLAYER,
+            max_players * EFFECT_CHANNELS_PER_PLAYER,
             config.audio.music_volume(),
         )?;
         let menu_sound = MenuSound::new(config.audio)?;
@@ -152,17 +162,44 @@ impl DrRustario {
             event_pump,
             _audio: audio,
             menu_sound,
-            game_config: Default::default(),
-            particle_scale: engine::particles::scale::Scale::new((width, height)),
+            particle_scale: ParticleScale::new((width, height)),
+            max_players,
         })
     }
 
-    fn vitamin_race_particle_source(&self, themes: &[Theme]) -> Box<dyn ParticleSource> {
+    pub fn config(&self) -> Config {
+        self.config
+    }
+
+    pub fn canvas(&mut self) -> &mut WindowCanvas {
+        &mut self.canvas
+    }
+
+    pub fn max_players(&self) -> u32 {
+        self.max_players
+    }
+
+    pub fn particle_render<'a>(
+        &mut self,
+        texture_creator: &'a TextureCreator<WindowContext>,
+        max_particles: usize,
+        themes: Vec<&Theme<'a>>,
+    ) -> Result<ParticleRender<'a>, String> {
+        ParticleRender::new(
+            &mut self.canvas,
+            Particles::new(max_particles),
+            texture_creator,
+            self.particle_scale,
+            themes,
+        )
+    }
+
+    fn race_particle_source(&self, race: &[RaceTheme]) -> Box<dyn ParticleSource> {
         let (window_width, window_height) = self.canvas.window().size();
         prescribed_piece_race(
             Rect::new(0, 0, window_width, window_height),
             &self.particle_scale,
-            &race_themes(themes),
+            race,
         )
     }
 
@@ -182,225 +219,55 @@ impl DrRustario {
         )
     }
 
-    pub fn title_menu(
+    /// Run a menu until the player starts, backs out or quits. `on_select` sees every change
+    /// of a list item and every selected item by name and may end the menu with a value.
+    pub fn run_menu<R>(
         &mut self,
-        all_themes: &[Theme],
+        items: Vec<MenuItem>,
+        title: String,
+        subtitle: Option<String>,
+        music: MenuMusic,
         particles: &mut ParticleRender,
-    ) -> Result<MainMenuAction, String> {
-        const PLAYERS: &str = "players";
-        const HIGH_SCORES: &str = "high scores";
-        const START: &str = "start";
-        const QUIT: &str = "quit";
-
+        race: &[RaceTheme],
+        mut on_select: impl FnMut(&str, &str) -> Option<MenuExit<R>>,
+    ) -> Result<MenuExit<R>, String> {
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
-
-        let mut menu_items = vec![
-            MenuItem::select(HIGH_SCORES),
-            MenuItem::select(START),
-            MenuItem::select(QUIT),
-        ];
-
-        if MAX_PLAYERS > 1 {
-            menu_items.insert(
-                0,
-                MenuItem::select_list(
-                    PLAYERS,
-                    (1..=MAX_PLAYERS)
-                        .into_iter()
-                        .map(|i| i.to_string())
-                        .collect::<Vec<String>>(),
-                    self.game_config.players() as usize - 1,
-                )
-            )
-        }
-
-        let mut menu = Menu::new(
-            menu_items,
-            &mut self.canvas,
-            &texture_creator,
-            build_info::nice_app_name(),
-            None,
-        )?;
+        let mut menu = Menu::new(items, &mut self.canvas, &texture_creator, title, subtitle)?;
 
         particles.clear();
-        particles.add_source(self.vitamin_race_particle_source(all_themes));
+        particles.add_source(self.race_particle_source(race));
 
         let mut frame_rate = FrameRate::new();
-        self.menu_sound.play_title_music()?;
+        match music {
+            MenuMusic::Title => self.menu_sound.play_title_music()?,
+            MenuMusic::Menu => self.menu_sound.play_menu_music()?,
+        }
         loop {
             let delta = frame_rate.update()?;
             for key in inputs.parse(self.event_pump.poll_iter()).into_iter() {
                 if key == MenuInputKey::Quit {
-                    return Ok(MainMenuAction::Quit);
+                    return Ok(MenuExit::Quit);
                 }
 
                 match menu.read_key(key) {
                     None => match key {
                         MenuInputKey::Start => {
                             self.menu_sound.play_select()?;
-                            return Ok(MainMenuAction::Start);
+                            return Ok(MenuExit::Start);
                         }
-                        MenuInputKey::Back => return Ok(MainMenuAction::Back),
+                        MenuInputKey::Back => return Ok(MenuExit::Back),
                         _ => {}
                     },
-                    Some((name, action)) => match name {
-                        PLAYERS => {
-                            let players = action.parse::<u32>().unwrap();
-                            self.game_config.set_players(players);
-                            self.game_config
-                                .set_rules(MatchRules::default_by_players(players));
+                    Some((name, action)) => {
+                        if let Some(exit) = on_select(name, action) {
+                            if !matches!(exit, MenuExit::Back) {
+                                self.menu_sound.play_select()?;
+                            }
+                            return Ok(exit);
                         }
-                        HIGH_SCORES => return Ok(MainMenuAction::ViewHighScores),
-                        START => {
-                            self.menu_sound.play_select()?;
-                            return Ok(MainMenuAction::Start);
-                        }
-                        QUIT => return Ok(MainMenuAction::Back),
-                        _ => {}
-                    },
+                    }
                 }
-                self.menu_sound.play_chime()?;
-            }
-
-            self.canvas.set_draw_color(Color::BLACK);
-            self.canvas.clear();
-
-            // particles
-            particles.update(delta);
-            particles.draw(&mut self.canvas)?;
-
-            // menu
-            menu.draw(&mut self.canvas)?;
-
-            self.canvas.present();
-        }
-    }
-
-    pub fn main_menu(
-        &mut self,
-        all_themes: &[Theme],
-        particles: &mut ParticleRender,
-    ) -> Result<MainMenuAction, String> {
-        const THEMES: &str = "themes";
-        const MODE: &str = "mode";
-        const LEVEL: &str = "level";
-        const SPEED: &str = "speed";
-        const RANDOM: &str = "random";
-        const START: &str = "start";
-        const BACK: &str = "back";
-
-        let modes = if self.game_config.is_single_player() {
-            MatchRules::SINGLE_PLAYER_MODES.to_vec()
-        } else {
-            MatchRules::VS_MODES.to_vec()
-        };
-
-        let texture_creator = self.canvas.texture_creator();
-        let inputs = MenuInputContext::new(self.config.input);
-
-        let menu_items = vec![
-            MenuItem::select_list(
-                THEMES,
-                MatchThemes::names()
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                self.game_config.themes() as usize,
-            ),
-            MenuItem::select_list(
-                MODE,
-                modes.iter().map(|m| m.name("level")).collect(),
-                modes
-                    .iter()
-                    .position(|&m| m == self.game_config.rules())
-                    .unwrap(),
-            ),
-            MenuItem::select_list(
-                LEVEL,
-                (0..=30).map(|i| i.to_string()).collect(),
-                self.game_config.virus_level() as usize,
-            ),
-            MenuItem::select_list(
-                SPEED,
-                GameSpeed::names()
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                self.game_config.speed() as usize,
-            ),
-            MenuItem::select_list(
-                RANDOM,
-                RandomMode::names()
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                self.game_config.random() as usize,
-            ),
-            MenuItem::select(START),
-            MenuItem::select(BACK),
-        ];
-        let subtitle = if self.game_config.is_single_player() {
-            "single player".to_string()
-        } else {
-            format!("{}-player vs.", self.game_config.players())
-        };
-        let mut menu = Menu::new(
-            menu_items,
-            &mut self.canvas,
-            &texture_creator,
-            build_info::nice_app_name(),
-            Some(subtitle),
-        )?;
-
-        particles.clear();
-        particles.add_source(self.vitamin_race_particle_source(all_themes));
-
-        let mut frame_rate = FrameRate::new();
-        self.menu_sound.play_menu_music()?;
-        loop {
-            let delta = frame_rate.update()?;
-
-            for key in inputs.parse(self.event_pump.poll_iter()).into_iter() {
-                if key == MenuInputKey::Quit {
-                    return Ok(MainMenuAction::Quit);
-                }
-                match menu.read_key(key) {
-                    None => match key {
-                        MenuInputKey::Start => {
-                            self.menu_sound.play_select()?;
-                            return Ok(MainMenuAction::Start);
-                        }
-                        MenuInputKey::Back => return Ok(MainMenuAction::Back),
-                        _ => {}
-                    },
-                    Some((name, action)) => match name {
-                        THEMES => self
-                            .game_config
-                            .set_themes(MatchThemes::from_str(action).unwrap()),
-                        MODE => {
-                            let mode_index =
-                                modes.iter().position(|&m| m.name("level") == action).unwrap();
-                            self.game_config.set_rules(modes[mode_index])
-                        }
-                        LEVEL => self
-                            .game_config
-                            .set_virus_level(action.parse::<u32>().unwrap()),
-                        SPEED => self
-                            .game_config
-                            .set_speed(GameSpeed::from_str(action).unwrap()),
-                        RANDOM => self
-                            .game_config
-                            .set_random(RandomMode::from_str(action).unwrap()),
-                        START => return Ok(MainMenuAction::Start),
-                        BACK => {
-                            self.menu_sound.play_select()?;
-                            return Ok(MainMenuAction::Back);
-                        }
-                        _ => {}
-                    },
-                }
-
                 self.menu_sound.play_chime()?;
             }
 
@@ -526,36 +393,30 @@ impl DrRustario {
         }
     }
 
-    pub fn game(
+    /// Play one match to its end.
+    pub fn run_match<G: Game + GameRender>(
         &mut self,
         all_themes: &[Theme],
+        games: Vec<G>,
+        settings: MatchSettings,
         fg_particles: &mut ParticleRender,
         bg_particles: &mut ParticleRender,
     ) -> Result<PostGameAction, String> {
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
-        let game_config = self.game_config;
-        let games = random(game_config.players() as usize, game_config.random())
-            .into_iter()
-            .map(|rand| Game::new(game_config.virus_level(), game_config.speed(), rand))
-            .collect::<Result<Vec<Game>, String>>()?;
-        let mut fixture = Match::new(games, game_config.rules(), all_themes.len() as u32);
+        let players = games.len() as u32;
+        let mut fixture = Match::new(games, settings.rules, all_themes.len() as u32);
+        let is_single_player = fixture.is_single_player();
         let window_size = self.canvas.window().size();
-        let initial_theme = match game_config.themes() {
-            MatchThemes::All | MatchThemes::Nes => 0,
-            MatchThemes::Snes => 1,
-            MatchThemes::N64 => 2,
-            MatchThemes::Particle => 3,
-        };
         let mut themes = ThemeContext::new(
             all_themes,
             &texture_creator,
-            game_config.players(),
-            initial_theme,
+            players,
+            settings.themes.initial(),
             window_size,
             self.config.video,
         )?;
-        let mut player_textures = (0..self.game_config.players())
+        let mut player_textures = (0..players)
             .map(|_| {
                 PlayerTextures::new(
                     &texture_creator,
@@ -584,15 +445,16 @@ impl DrRustario {
 
         let mut frame_rate = FrameRate::new();
 
-        for player in 0..self.game_config.players() {
-            themes.animate_next_stage(player, &virus_cells(fixture.player(player).game()));
+        for player in 0..players {
+            let cells = fixture.player(player).game().stage_intro_cells();
+            themes.animate_next_stage(player, &cells);
         }
 
         fg_particles.clear();
         bg_particles.clear();
         bg_particles.add_source(self.orbit_particle_source());
 
-        themes.sync_music(fixture.leading_player(), fixture.state(), self.game_config.is_single_player())?;
+        themes.sync_music(fixture.leading_player(), fixture.state(), is_single_player)?;
 
         loop {
             let delta = frame_rate.update()?;
@@ -611,18 +473,19 @@ impl DrRustario {
                     if themes.is_pause_required_for_animation(player) {
                         if themes.maybe_dismiss_interstitial(player) {
                             let game = fixture.player_mut(player).game_mut();
-                            game.next_level()?;
+                            game.next_stage()?;
                             stage_changed = true;
 
-                            if self.game_config.themes() == MatchThemes::All {
+                            if settings.themes == ThemeMode::All {
                                 // only this player advances to their next theme
                                 events.push((Some(player), GameEvent::NextTheme));
-                            } else if self.game_config.is_single_player() {
-                                // single player was playing next-level music; resume game music.
+                            } else if is_single_player {
+                                // single player was playing next-stage music; resume game music.
                                 // multiplayer game music never stopped (stage clear is a jingle).
                                 themes.music_audio().play_game_music()?;
                             }
-                            themes.animate_next_stage(player, &virus_cells(game));
+                            let cells = game.stage_intro_cells();
+                            themes.animate_next_stage(player, &cells);
                         } else {
                             themes.maybe_dismiss_game_over();
                         }
@@ -664,7 +527,7 @@ impl DrRustario {
                     GameInputKey::ReturnToMenu => return Ok(PostGameAction::ReturnToMenu),
                     GameInputKey::Quit => return Ok(PostGameAction::Quit),
                     GameInputKey::NextTheme => {
-                        if self.game_config.rules().allow_manual_theme_change() {
+                        if settings.rules.allow_manual_theme_change() {
                             events.push((None, GameEvent::NextTheme))
                         }
                     }
@@ -698,7 +561,7 @@ impl DrRustario {
                         let mut skip_update = false;
                         let game = player.game_mut();
                         let mut player_events = vec![];
-                        game.consume_events(&mut player_events);
+                        player_events.extend(game.drain_events());
                         // pre-update actions
                         for event in player_events.iter() {
                             if let GameEvent::HardDrop {
@@ -713,7 +576,7 @@ impl DrRustario {
 
                         if !skip_update {
                             game.update(delta);
-                            game.consume_events(&mut player_events);
+                            player_events.extend(game.drain_events());
                         }
                         events.extend(player_events.into_iter().map(|e| (Some(player_id), e)));
                     }
@@ -736,7 +599,8 @@ impl DrRustario {
                 }
             }
 
-            // post-update events
+            // post-update events; a seamless stage change may queue a theme change
+            let mut deferred_events: Vec<(Option<u32>, GameEvent)> = vec![];
             for (event_player, event) in events {
                 // sound effects play through the theme of the player that caused them;
                 // match-wide events (pause etc.) go through the theme whose music is playing
@@ -763,22 +627,33 @@ impl DrRustario {
                         if fixture.next_stage_ends_match(player) {
                             fixture.set_winner(player);
                         } else {
-                            if self.game_config.is_single_player() {
-                                themes.music_audio().play_next_stage_music()?;
-                            } else {
-                                themes.theme(player).audio().play_stage_complete_jingle()?;
+                            match fixture.player(player).game().stage_transition() {
+                                StageTransition::Interstitial => {
+                                    if is_single_player {
+                                        themes.music_audio().play_next_stage_music()?;
+                                    } else {
+                                        themes.theme(player).audio().play_stage_complete_jingle()?;
+                                    }
+                                    themes.animate_interstitial(player);
+                                }
+                                StageTransition::Seamless => {
+                                    fixture.player_mut(player).game_mut().next_stage()?;
+                                    stage_changed = true;
+                                    if settings.themes == ThemeMode::All {
+                                        deferred_events.push((Some(player), GameEvent::NextTheme));
+                                    }
+                                }
                             }
-                            themes.animate_interstitial(player);
                         }
                     }
                     (Some(player), GameEvent::GameOver) => {
-                        if self.game_config.is_single_player() {
+                        if is_single_player {
                             // single player is a simple game over
                             themes.animate_game_over(player);
                             fixture.maybe_set_game_over();
                             themes.music_audio().play_game_over_music()?;
                         } else {
-                            for maybe_winner in 0..self.game_config.players() {
+                            for maybe_winner in 0..players {
                                 if maybe_winner != player {
                                     fixture.set_winner(maybe_winner);
                                 }
@@ -809,6 +684,11 @@ impl DrRustario {
                     _ => {}
                 }
             }
+            for (player, _) in deferred_events {
+                if let Some(player) = player {
+                    themes.fade_into_next_theme(player, &mut self.canvas)?;
+                }
+            }
 
             // check for a match winner
             if let Some(winner) = fixture.check_for_winning_player() {
@@ -822,7 +702,7 @@ impl DrRustario {
                     {
                         to_emit_particles.push(emit);
                     }
-                    for pid in 0..self.game_config.players() {
+                    for pid in 0..players {
                         if pid != winner {
                             themes.animate_game_over(pid);
                         }
@@ -832,7 +712,7 @@ impl DrRustario {
                     if !themes.sync_music(
                         fixture.leading_player(),
                         fixture.state(),
-                        self.game_config.is_single_player(),
+                        is_single_player,
                     )? {
                         themes.music_audio().play_victory_music()?;
                     }
@@ -847,7 +727,7 @@ impl DrRustario {
                     None
                 },
                 fixture.state(),
-                self.game_config.is_single_player(),
+                is_single_player,
             )?;
 
             // update particles
@@ -867,7 +747,7 @@ impl DrRustario {
             self.canvas.clear();
 
             // draw scene
-            let games = fixture.players.iter().map(|p| p.game()).collect::<Vec<&Game>>();
+            let games = fixture.players.iter().map(|p| p.game()).collect::<Vec<&G>>();
             themes.draw_scene(&mut self.canvas, &games)?;
 
             // draw bg particles, clipped to the players on a particle scene
@@ -912,64 +792,3 @@ impl DrRustario {
     }
 }
 
-fn main() -> Result<(), String> {
-    engine::app_info::init(engine::app_info::AppInfo {
-        name: build_info::PKG_NAME,
-        version: build_info::PKG_VERSION,
-        authors: build_info::PKG_AUTHORS,
-    });
-
-    let mut dr_rustario = DrRustario::new()?;
-    let texture_creator = dr_rustario.canvas.texture_creator();
-    let all_themes = all_themes(
-        &mut dr_rustario.canvas,
-        &texture_creator,
-        dr_rustario.config,
-    )?;
-
-    let mut fg_particles = ParticleRender::new(
-        &mut dr_rustario.canvas,
-        Particles::new(MAX_PARTICLES_PER_PLAYER * MAX_PLAYERS as usize),
-        &texture_creator,
-        dr_rustario.particle_scale,
-        vec![],
-    )?;
-
-    let mut bg_particles = ParticleRender::new(
-        &mut dr_rustario.canvas,
-        Particles::new(MAX_BACKGROUND_PARTICLES),
-        &texture_creator,
-        dr_rustario.particle_scale,
-        all_themes.iter().collect(),
-    )?;
-
-    'title: loop {
-        match dr_rustario.title_menu(&all_themes, &mut bg_particles)? {
-            MainMenuAction::Start => 'select: loop {
-                match dr_rustario.main_menu(&all_themes, &mut bg_particles)? {
-                    MainMenuAction::Start => {
-                        match dr_rustario.game(&all_themes, &mut fg_particles, &mut bg_particles)? {
-                            PostGameAction::NewHighScore(high_score) => {
-                                dr_rustario.new_high_score(high_score, &mut bg_particles)?
-                            }
-                            PostGameAction::ReturnToMenu => (),
-                            PostGameAction::Quit => return Ok(()),
-                        }
-                    }
-                    MainMenuAction::Back => break 'select,
-                    MainMenuAction::Quit => return Ok(()),
-                    _ => unreachable!(),
-                }
-            },
-            MainMenuAction::ViewHighScores => dr_rustario.view_high_score(&mut bg_particles)?,
-            MainMenuAction::Back => break 'title,
-            MainMenuAction::Quit => return Ok(()),
-        }
-    }
-    Ok(())
-}
-
-/// the viruses of a fresh bottle, for the pop-in animation
-fn virus_cells(game: &Game) -> Vec<PlacedCell> {
-    game.viruses().into_iter().map(PlacedCell::from).collect()
-}

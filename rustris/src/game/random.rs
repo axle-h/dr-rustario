@@ -1,30 +1,21 @@
-use num_traits::Num;
 use super::tetromino::TetrominoShape;
 use crate::game::board::BOARD_WIDTH;
+pub use engine::game::random::RandomMode;
+use engine::game::random::BagRandom;
+#[cfg(feature = "ai")]
+use num_bigint::BigUint;
+#[cfg(feature = "ai")]
+use num_traits::Num;
+use rand::distr::StandardUniform;
 use rand::prelude::*;
 use rand::{Rng, RngExt};
-use rand_chacha::{ChaChaRng};
-use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use rand_chacha::ChaChaRng;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Deref, DerefMut};
-use num_bigint::BigUint;
-use rand::distr::StandardUniform;
 
 pub const PEEK_SIZE: usize = 7;
-const ALL_SHAPES: [TetrominoShape; 7] = [
-    TetrominoShape::I,
-    TetrominoShape::O,
-    TetrominoShape::T,
-    TetrominoShape::S,
-    TetrominoShape::Z,
-    TetrominoShape::J,
-    TetrominoShape::L,
-];
-
-fn rand_shape<R: Rng>(rng: &mut R) -> TetrominoShape {
-    ALL_SHAPES[rng.random_range(0..ALL_SHAPES.len())]
-}
+/// the garbage hole moves every n rows of garbage
+pub const MIN_GARBAGE_PER_HOLE: u32 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Seed(<ChaChaRng as SeedableRng>::Seed);
@@ -45,8 +36,15 @@ impl DerefMut for Seed {
 
 impl Display for Seed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let bigint: BigUint = (*self).into();
-        write!(f, "{}", bigint)
+        #[cfg(feature = "ai")]
+        {
+            let bigint: BigUint = (*self).into();
+            write!(f, "{}", bigint)
+        }
+        #[cfg(not(feature = "ai"))]
+        {
+            write!(f, "{}", engine::game::random::Seed::from(self.0))
+        }
     }
 }
 
@@ -105,6 +103,7 @@ impl From<u128> for Seed {
     }
 }
 
+#[cfg(feature = "ai")]
 impl From<BigUint> for Seed {
     fn from(value: BigUint) -> Self {
         let mut bytes = value.to_bytes_be();
@@ -116,6 +115,7 @@ impl From<BigUint> for Seed {
     }
 }
 
+#[cfg(feature = "ai")]
 impl Into<BigUint> for Seed {
     fn into(self) -> BigUint {
         BigUint::from_bytes_be(&*self)
@@ -130,6 +130,7 @@ impl From<i32> for Seed {
     }
 }
 
+#[cfg(feature = "ai")]
 impl From<String> for Seed {
     fn from(value: String) -> Self {
         BigUint::from_str_radix(&value, 10).expect("not a valid seed string").into()
@@ -142,63 +143,36 @@ impl Into<ChaChaRng> for Seed {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RandomMode {
-    /// Random tetromino every time
-    True,
-    /// All tetrominoes placed in a shuffled "bag" and drawn until the bag is empty, after which a new bag is shuffled
-    Bag,
+impl From<Seed> for engine::game::random::Seed {
+    fn from(seed: Seed) -> Self {
+        Self::from(seed.0)
+    }
 }
 
-impl RandomMode {
-    pub fn build(self, count: usize, min_garbage_per_hole: u32) -> Vec<RandomTetromino> {
-        let seed: Seed = rand::random();
-        (0..count)
-            .map(|_| RandomTetromino::new(self, min_garbage_per_hole, seed))
-            .collect()
-    }
+pub fn random_tetrominos(mode: RandomMode, count: usize) -> Vec<RandomTetromino> {
+    let seed: Seed = rand::random();
+    (0..count)
+        .map(|_| RandomTetromino::new(mode, MIN_GARBAGE_PER_HOLE, seed))
+        .collect()
 }
 
 #[derive(Clone, Debug)]
 pub struct RandomTetromino {
-    random_mode: RandomMode,
     min_garbage_per_hole: u32, // move the garbage hole every n garbage
     garbage_since_last_hole: u32,
     current_garbage_hole: u32,
-    rng: ChaChaRng,
-    queue: VecDeque<TetrominoShape>,
+    shapes: BagRandom<TetrominoShape>,
 }
 
 impl RandomTetromino {
     pub fn new(random_mode: RandomMode, min_garbage_per_hole: u32, seed: Seed) -> Self {
         let mut rng: ChaChaRng = seed.into();
         let current_garbage_hole = rng.random_range(0..BOARD_WIDTH);
-        match random_mode {
-            RandomMode::True => {
-                let queue = (0..PEEK_SIZE)
-                    .map(|_| rand_shape(&mut rng))
-                    .collect::<VecDeque<TetrominoShape>>();
-                Self {
-                    random_mode,
-                    min_garbage_per_hole,
-                    garbage_since_last_hole: 0,
-                    current_garbage_hole,
-                    rng,
-                    queue,
-                }
-            }
-            RandomMode::Bag => {
-                let mut result = Self {
-                    random_mode,
-                    min_garbage_per_hole,
-                    garbage_since_last_hole: 0,
-                    current_garbage_hole,
-                    rng,
-                    queue: VecDeque::new(),
-                };
-                result.assert_bags();
-                result
-            }
+        Self {
+            min_garbage_per_hole,
+            garbage_since_last_hole: 0,
+            current_garbage_hole,
+            shapes: BagRandom::new(rng, random_mode, &TetrominoShape::ALL, PEEK_SIZE),
         }
     }
 
@@ -207,53 +181,21 @@ impl RandomTetromino {
         self.garbage_since_last_hole += 1;
         if self.garbage_since_last_hole >= self.min_garbage_per_hole {
             self.garbage_since_last_hole = 0;
-            self.current_garbage_hole = self.rng.random_range(0..BOARD_WIDTH);
+            self.current_garbage_hole = self.shapes.rng().random_range(0..BOARD_WIDTH);
         }
         result
     }
 
     pub fn next(&mut self) -> TetrominoShape {
-        match self.random_mode {
-            RandomMode::True => self.next_true(),
-            RandomMode::Bag => self.next_bag(),
-        }
-    }
-
-    fn next_true(&mut self) -> TetrominoShape {
-        self.queue.push_back(rand_shape(&mut self.rng));
-        self.queue.pop_front().unwrap()
-    }
-
-    fn next_bag(&mut self) -> TetrominoShape {
-        let result = self.queue.pop_front().unwrap();
-        self.assert_bags();
-        result
+        self.shapes.next()
     }
 
     pub fn peek_buffer(&self) -> [TetrominoShape; PEEK_SIZE] {
-        self.queue
-            .iter()
-            .take(PEEK_SIZE)
-            .copied()
-            .collect::<Vec<TetrominoShape>>()
-            .try_into()
-            .unwrap()
-    }
-    
-    pub fn peek(&self) -> TetrominoShape {
-        *self.queue.front().unwrap()
+        self.shapes.peek().try_into().unwrap()
     }
 
-    fn assert_bags(&mut self) {
-        while self.queue.len() <= PEEK_SIZE {
-            let bag = ALL_SHAPES
-                .choose_multiple(&mut self.rng, ALL_SHAPES.len())
-                .cloned()
-                .collect::<Vec<TetrominoShape>>();
-            for shape in bag {
-                self.queue.push_back(shape);
-            }
-        }
+    pub fn peek(&self) -> TetrominoShape {
+        self.shapes.peek_next()
     }
 }
 
@@ -272,7 +214,7 @@ mod tests {
 
     #[test]
     fn bag_random() {
-        let mut random = RandomMode::Bag.build(1, 10).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::Bag, 10, rand::random());
 
         // chunk into 3 bags of 7 shapes (arrays make it easier for creating the sets)
         let bags: Vec<[TetrominoShape; 7]> = next_n(&mut random, 21)
@@ -285,7 +227,7 @@ mod tests {
         assert_ne!(bags[1], bags[2]);
 
         // but should all contain all the shapes
-        let all_shapes = HashSet::from(ALL_SHAPES);
+        let all_shapes = HashSet::from(TetrominoShape::ALL);
         assert_eq!(HashSet::from(bags[0]), all_shapes);
         assert_eq!(HashSet::from(bags[1]), all_shapes);
         assert_eq!(HashSet::from(bags[2]), all_shapes);
@@ -293,7 +235,7 @@ mod tests {
 
     #[test]
     fn bag_random_peek() {
-        let mut random = RandomMode::Bag.build(1, 10).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::Bag, 10, rand::random());
         let peek = random.peek_buffer();
         let observed: [TetrominoShape; PEEK_SIZE] =
             next_n(&mut random, PEEK_SIZE).try_into().unwrap();
@@ -302,15 +244,15 @@ mod tests {
 
     #[test]
     fn true_random() {
-        let mut random = RandomMode::True.build(1, 10).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::True, 10, rand::random());
         let observed: [TetrominoShape; 1000] = next_n(&mut random, 1000).try_into().unwrap();
         // should generate all shapes in 1000 tries
-        assert_eq!(HashSet::from(observed), HashSet::from(ALL_SHAPES));
+        assert_eq!(HashSet::from(observed), HashSet::from(TetrominoShape::ALL));
     }
 
     #[test]
     fn true_random_peek() {
-        let mut random = RandomMode::True.build(1, 10).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::True, 10, rand::random());
         let peek = random.peek_buffer();
         let observed: [TetrominoShape; PEEK_SIZE] =
             next_n(&mut random, PEEK_SIZE).try_into().unwrap();
@@ -319,14 +261,14 @@ mod tests {
 
     #[test]
     fn static_garbage_hole() {
-        let mut random = RandomMode::True.build(1, 100).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::True, 100, rand::random());
         let observed: [u32; 100] = next_n_holes(&mut random, 100).try_into().unwrap();
         assert_eq!(HashSet::from(observed).len(), 1);
     }
 
     #[test]
     fn dynamic_garbage_hole() {
-        let mut random = RandomMode::True.build(1, 1).pop().unwrap();
+        let mut random = RandomTetromino::new(RandomMode::True, 1, rand::random());
         let observed: [u32; 100] = next_n_holes(&mut random, 100).try_into().unwrap();
         assert!(HashSet::from(observed).len() > 1);
     }
@@ -339,6 +281,7 @@ mod tests {
         assert_eq!(seed3, Seed::from(1000000000000000000000000000u128));
     }
     
+    #[cfg(feature = "ai")]
     #[test]
     fn serialize_seed() {
         let bigint = BigUint::parse_bytes(b"111000000000000000000000000000000000000222", 10).unwrap();
@@ -346,6 +289,7 @@ mod tests {
         assert_eq!(result, bigint);
     }
 
+    #[cfg(feature = "ai")]
     #[test]
     fn display_seed() {
         let bigint = BigUint::parse_bytes(b"34028236692093846346337460743176821145500000000000000000000000000000000000000", 10).unwrap();
@@ -353,6 +297,7 @@ mod tests {
         assert_eq!(result, "34028236692093846346337460743176821145500000000000000000000000000000000000000");
     }
 
+    #[cfg(feature = "ai")]
     #[test]
     fn parse_seed() {
         let seed: Seed = rand::random();

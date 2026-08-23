@@ -17,6 +17,8 @@ pub enum SceneType {
     Particles {
         base_color: Color,
     },
+    /// a flat colour
+    Solid(Color),
     Checkerboard {
         width: u32,
         height: u32,
@@ -80,6 +82,9 @@ impl<'a> SceneRender<'a> {
                 texture
             }
             SceneType::Tile { texture } => texture_creator.load_texture_bytes(texture)?,
+            SceneType::Solid(_) => texture_creator
+                .create_texture_target(None, 1, 1)
+                .map_err(|e| e.to_string())?,
             // TODO this is dirty
             SceneType::Particles { .. } => texture_creator
                 .create_texture_target(None, 1, 1)
@@ -156,6 +161,11 @@ impl<'a> SceneRender<'a> {
     pub fn draw(&self, canvas: &mut WindowCanvas, scale: &Scale) -> Result<(), String> {
         if self.is_particles() {
             return Ok(());
+        }
+        if let SceneType::Solid(color) = self.scene_type {
+            let (window_width, window_height) = scale.window_size();
+            canvas.set_draw_color(color);
+            return canvas.fill_rect(Rect::new(0, 0, window_width, window_height));
         }
 
         let (window_width, window_height) = scale.window_size();

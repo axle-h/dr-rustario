@@ -14,10 +14,10 @@ use crate::render::helper::{TextureFactory, TextureQuery};
 use crate::render::scene::SceneType;
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, BlockSpriteSheetData, GhostStyle, MascotKind};
-use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, PeekLayout, Theme};
+use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, OverlayFit, PeekLayout, Theme};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
-use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 
 pub struct RetroThemeOptions {
@@ -29,8 +29,11 @@ pub struct RetroThemeOptions {
     pub audio: AudioTheme,
     pub font: FontThemeOptions,
     pub board_file: &'static [u8],
-    /// the board frame per speed band within `board_file`
+    /// the board frame per speed band within `board_file`; empty for the whole file
     pub board_snips: Vec<Rect>,
+    /// transparent rows added above the board and background art, for a visible buffer
+    /// above the skyline
+    pub top_padding: u32,
     /// where the board frame sits in the background
     pub board_point: Point,
     pub background_file: &'static [u8],
@@ -39,6 +42,8 @@ pub struct RetroThemeOptions {
     pub match_end_file: Option<&'static [u8]>,
     pub game_over_points: Vec<Point>,
     pub interstitial_points: Vec<Point>,
+    /// overlays either the size of the board or drawn centred at this size
+    pub overlay_size: Option<(u32, u32)>,
     pub hold: Option<HoldLayout>,
     pub peek: PeekLayout,
     pub mascot: Option<MascotLayout>,
@@ -60,34 +65,42 @@ pub fn retro_theme<'a>(
     options: RetroThemeOptions,
 ) -> Result<Theme<'a>, String> {
     let sprites = BlockSpriteSheet::new(canvas, texture_creator, &options.sprites, None)?;
-    let board_texture = texture_creator.load_texture_bytes_blended(options.board_file)?;
+    let board_texture =
+        padded_texture(canvas, texture_creator, options.board_file, options.top_padding)?;
 
-    let background_texture =
-        texture_creator.load_texture_bytes_blended(options.background_file)?;
+    let background_texture = padded_texture(
+        canvas,
+        texture_creator,
+        options.background_file,
+        options.top_padding,
+    )?;
     let background_size = background_texture.size();
 
     let font = options.font.build(texture_creator)?;
 
-    let board_size = options
-        .board_snips
-        .first()
-        .map(|r| (r.width(), r.height()))
-        .unwrap_or((0, 0));
+    let board_snips = if options.board_snips.is_empty() {
+        let (w, h) = board_texture.size();
+        vec![Rect::new(0, 0, w, h)]
+    } else {
+        options.board_snips
+    };
+    let board_size = (board_snips[0].width(), board_snips[0].height());
 
     let match_end = match options.match_end_file {
         Some(file) => {
-            let overlay = |p: &Point| {
-                Rect::new(
-                    p.x,
-                    p.y,
-                    options.geometry.width(),
-                    options.geometry.height(),
-                )
-            };
+            let (w, h) = options
+                .overlay_size
+                .unwrap_or((options.geometry.width(), options.geometry.height()));
+            let overlay = |p: &Point| Rect::new(p.x, p.y, w, h);
             Some(MatchEndSprites {
                 texture: texture_creator.load_texture_bytes_blended(file)?,
                 game_over_snips: options.game_over_points.iter().map(overlay).collect(),
                 interstitial_snips: options.interstitial_points.iter().map(overlay).collect(),
+                fit: if options.overlay_size.is_some() {
+                    OverlayFit::Center
+                } else {
+                    OverlayFit::Stretch
+                },
             })
         }
         None => None,
@@ -135,7 +148,7 @@ pub fn retro_theme<'a>(
         audio: options.audio,
         font,
         board_texture,
-        board_snips: options.board_snips,
+        board_snips,
         background_texture,
         board_bg_snip: Rect::new(
             options.board_point.x(),
@@ -155,4 +168,28 @@ pub fn retro_theme<'a>(
         particle_color: None,
         integer_scale: false,
     })
+}
+
+/// load a PNG with `padding` transparent pixels added above it
+fn padded_texture<'a>(
+    canvas: &mut WindowCanvas,
+    texture_creator: &'a TextureCreator<WindowContext>,
+    file: &'static [u8],
+    padding: u32,
+) -> Result<Texture<'a>, String> {
+    let raw = texture_creator.load_texture_bytes_blended(file)?;
+    if padding == 0 {
+        return Ok(raw);
+    }
+    let (width, height) = raw.size();
+    let mut texture = texture_creator.create_texture_target_blended(width, height + padding)?;
+    canvas
+        .with_texture_canvas(&mut texture, |c| {
+            c.set_draw_color(Color::RGBA(0, 0, 0, 0));
+            c.clear();
+            c.copy(&raw, None, Rect::new(0, padding as i32, width, height))
+                .unwrap();
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(texture)
 }

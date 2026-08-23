@@ -17,7 +17,7 @@ use crate::render::metrics_table::{metric_label, GameMetricsTable};
 use crate::render::scene::SceneType;
 use crate::render::sound::AudioTheme;
 use crate::render::sprite_sheet::{BlockSpriteSheet, BlockSpriteSheetData, GhostStyle, MascotKind};
-use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, PeekLayout, Theme};
+use crate::render::{HoldLayout, MascotLayout, MatchEndSprites, OverlayFit, PeekLayout, Theme};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{TextureCreator, WindowCanvas};
@@ -29,6 +29,12 @@ const BOARD_BORDER_PCT_OF_BLOCK: f64 = 0.5;
 const BOARD_BORDER_SHADOW: u8 = 0x99;
 const VERTICAL_GUTTER_PCT_OF_BLOCK: f64 = 0.2;
 const PEEK_SCALE: f64 = 0.8;
+/// without a mascot the queue is a column of slots this many blocks square, the first bigger
+const SLOT_BLOCKS: f64 = 1.5;
+const BIG_SLOT_BLOCKS: f64 = 2.5;
+// most pieces are 3 blocks wide: fill the slot with them and let I and O meet in the middle
+const SLOT_MAX_SCALE: f64 = SLOT_BLOCKS / 3.0;
+const BIG_SLOT_MAX_SCALE: f64 = BIG_SLOT_BLOCKS / 3.0;
 
 pub struct ModernThemeOptions {
     pub name: &'static str,
@@ -38,8 +44,10 @@ pub struct ModernThemeOptions {
     pub columns: u32,
     pub rows: u32,
     pub visible_rows: u32,
-    /// HUD rows, top to bottom, with the largest value each can show
+    /// HUD rows under the side column, top to bottom, with the largest value each can show
     pub metrics: Vec<(MetricKind, u32)>,
+    /// HUD rows under the hold box on the left
+    pub metrics_left: Vec<(MetricKind, u32)>,
     /// the mascot's animation types and its height in blocks
     pub mascot: Option<(MascotAnimationTypes, f64)>,
     /// where the spawning piece lands, for the throw arc
@@ -66,7 +74,13 @@ pub fn modern_theme<'a>(
         / options.visible_rows as f64;
     let border_weight = (block_size * BOARD_BORDER_PCT_OF_BLOCK).round() as u32;
     let vertical_gutter = (VERTICAL_GUTTER_PCT_OF_BLOCK * block_size).round() as u32;
-    let peek_width = (2.0 * PEEK_SCALE * block_size).round() as u32;
+    let slot_size = (SLOT_BLOCKS * block_size).round() as u32;
+    let big_slot_size = (BIG_SLOT_BLOCKS * block_size).round() as u32;
+    let peek_width = if options.mascot.is_some() {
+        (2.0 * PEEK_SCALE * block_size).round() as u32
+    } else {
+        slot_size
+    };
     let block_size = block_size.round() as u32;
 
     let geometry = BoardGeometry::new(
@@ -120,6 +134,12 @@ pub fn modern_theme<'a>(
         &options.metrics,
     );
     metrics_right.offset_x(board_bg_snip.right() + vertical_gutter as i32);
+    let metrics_left = GameMetricsTable::new(
+        geometry.height() + board_top_buffer,
+        &font,
+        &font_bold,
+        &options.metrics_left,
+    );
 
     let mut sprite_data = options.sprites;
     if let (Some(mascot), Some((_, height_in_blocks))) = (sprite_data.mascot.as_mut(), options.mascot)
@@ -169,7 +189,7 @@ pub fn modern_theme<'a>(
             );
             (Some(layout), Some(meta), width, hand_point)
         }
-        _ => (None, None, peek_width, Point::new(side_x, side_y)),
+        _ => (None, None, big_slot_size, Point::new(side_x, side_y)),
     };
 
     let mut borders = vec![];
@@ -213,22 +233,25 @@ pub fn modern_theme<'a>(
         })
         .map_err(|e| e.to_string())?;
 
+    let left_width = peek_width.max(metrics_left.width());
     let mut bg_texture = texture_creator.create_texture_target_blended(
         board_bg_snip.right() as u32 + vertical_gutter + side_width.max(metrics_right.width()),
         board_bg_snip.height(),
     )?;
     let background_size = bg_texture.size();
+    let left_metrics = metrics_left.rows();
     canvas
         .with_texture_canvas(&mut bg_texture, |c| {
             c.set_draw_color(Color::RGBA(0, 0, 0, 0));
             c.clear();
-            for row in all_metrics.iter() {
+            for row in all_metrics.iter().chain(left_metrics.iter()) {
                 font_bold
                     .render_string(c, row.label(), metric_label(row.metric()))
                     .unwrap();
             }
         })
         .map_err(|e| e.to_string())?;
+    let _ = left_width;
 
     let spawn_arc = mascot_layout.map(|layout| SpawnArc {
         start: layout.hand_point,
@@ -278,6 +301,7 @@ pub fn modern_theme<'a>(
         vec![font],
         all_metrics
             .iter()
+            .chain(left_metrics.iter())
             .map(|row| (row.metric(), ThemedNumeric::new(0, row.value())))
             .collect(),
     );
@@ -286,10 +310,37 @@ pub fn modern_theme<'a>(
         base_color: options.particle_color,
     };
 
-    let peek_point = if mascot_layout.is_some() {
-        hand_point + Point::new(0, (1.5 * block_size as f64).round() as i32)
+    let (hold, peek) = if mascot_layout.is_some() {
+        (
+            HoldLayout::Point {
+                point: Point::new(0, board_top_buffer as i32),
+                scale: Some(PEEK_SCALE),
+            },
+            PeekLayout::Column {
+                point: hand_point + Point::new(0, (1.5 * block_size as f64).round() as i32),
+                offset: block_size as i32,
+                max: options.queue_max,
+                scale: Some(PEEK_SCALE),
+            },
+        )
     } else {
-        hand_point
+        // a column of slots beside the board, the next piece largest
+        let mut slots = vec![Rect::new(side_x, side_y, big_slot_size, big_slot_size)];
+        let mut y = side_y + big_slot_size as i32 + vertical_gutter as i32;
+        for _ in 1..options.queue_max.max(1) {
+            slots.push(Rect::new(side_x, y, slot_size, slot_size));
+            y += slot_size as i32 + vertical_gutter as i32;
+        }
+        (
+            HoldLayout::Slot {
+                slot: Rect::new(0, board_top_buffer as i32, slot_size, slot_size),
+                max_scale: SLOT_MAX_SCALE,
+            },
+            PeekLayout::Slots {
+                slots,
+                max_scale: BIG_SLOT_MAX_SCALE,
+            },
+        )
     };
 
     Ok(Theme {
@@ -311,18 +362,11 @@ pub fn modern_theme<'a>(
             texture: match_end_texture,
             game_over_snips: vec![game_over_snip],
             interstitial_snips: vec![next_stage_snip],
+            fit: OverlayFit::Stretch,
         }),
         curtain_cell: None,
-        hold: Some(HoldLayout::Point {
-            point: Point::new(0, board_top_buffer as i32),
-            scale: Some(PEEK_SCALE),
-        }),
-        peek: PeekLayout::Column {
-            point: peek_point,
-            offset: block_size as i32,
-            max: options.queue_max,
-            scale: Some(PEEK_SCALE),
-        },
+        hold: Some(hold),
+        peek,
         ghost_style: options.ghost_style,
         particle_color: Some(options.particle_color),
         integer_scale: true,

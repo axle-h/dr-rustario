@@ -23,6 +23,13 @@ pub enum GameOverStyle {
     Curtain { from_top: bool, rows: u32 },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CurtainPhase {
+    Closing,
+    Closed,
+    Opening,
+}
+
 #[derive(Clone, Debug)]
 pub struct State {
     duration: Duration,
@@ -110,26 +117,41 @@ impl GameOverAnimation {
         self.state.as_ref()
     }
 
-    /// the rows currently covered by the curtain (`Curtain` style)
-    pub fn curtain_rows(&self) -> Option<Range<u32>> {
+    fn curtain(&self) -> Option<(CurtainPhase, Range<u32>)> {
         let GameOverStyle::Curtain { from_top, rows } = self.style else {
             return None;
         };
         let state = self.state.as_ref()?;
         let closing = CURTAIN_LINE_DELAY * rows;
-        let covered = if state.duration < closing {
-            (state.duration.as_millis() / CURTAIN_LINE_DELAY.as_millis()) as u32
+        let (phase, covered) = if state.duration < closing {
+            (
+                CurtainPhase::Closing,
+                (state.duration.as_millis() / CURTAIN_LINE_DELAY.as_millis()) as u32,
+            )
         } else if state.duration < closing + CURTAIN_CLOSED_FOR {
-            rows
+            (CurtainPhase::Closed, rows)
         } else {
             let opening = state.duration - closing - CURTAIN_CLOSED_FOR;
-            rows.saturating_sub((opening.as_millis() / CURTAIN_LINE_DELAY.as_millis()) as u32)
+            (
+                CurtainPhase::Opening,
+                rows.saturating_sub((opening.as_millis() / CURTAIN_LINE_DELAY.as_millis()) as u32),
+            )
         };
-        Some(if from_top {
+        let range = if from_top {
             0..covered
         } else {
             (rows - covered)..rows
-        })
+        };
+        Some((phase, range))
+    }
+
+    /// the rows currently covered by the curtain (`Curtain` style)
+    pub fn curtain_rows(&self) -> Option<Range<u32>> {
+        self.curtain().map(|(_, rows)| rows)
+    }
+
+    pub fn curtain_phase(&self) -> Option<CurtainPhase> {
+        self.curtain().map(|(phase, _)| phase)
     }
 
     /// dismiss the game over screen, but only once it has been shown: keys still held from

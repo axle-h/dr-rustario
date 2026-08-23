@@ -19,6 +19,8 @@ pub enum DestroyStyle {
     Flash,
     /// a wipe sweeps across the cleared cells
     Sweep,
+    /// the cells just disappear (particles do the work); the game holds for `hold`
+    Vanish { hold: Duration },
 }
 
 impl DestroyStyle {
@@ -41,6 +43,7 @@ impl DestroyStyle {
             DestroyStyle::Pop { .. } => POP_DURATION,
             DestroyStyle::Flash => FLASH_DURATION * MAX_FLASHES,
             DestroyStyle::Sweep => SWEEP_DURATION,
+            DestroyStyle::Vanish { hold } => *hold,
         }
     }
 

@@ -3,7 +3,7 @@ use crate::game::pill::VITAMIN_SPAWN_POINTS;
 use crate::game::Game;
 use crate::theme::data::{CLEAR_VIRUS, CLEAR_VIRUS_COMBO, CLEAR_VITAMIN, CLEAR_VITAMIN_COMBO};
 use engine::game::geometry::Point;
-use engine::game::GameEvent;
+use engine::game::{GameEvent, PlacedCell};
 use engine::render::GameRender;
 
 impl GameRender for Game {
@@ -26,5 +26,9 @@ impl GameRender for Game {
 
     fn spawn_cells(&self) -> Vec<Point> {
         VITAMIN_SPAWN_POINTS.to_vec()
+    }
+
+    fn stage_intro_cells(&self) -> Vec<PlacedCell> {
+        self.viruses().into_iter().map(PlacedCell::from).collect()
     }
 }

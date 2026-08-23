@@ -82,7 +82,7 @@ impl GameMetricsTable {
     }
 
     pub fn width(&self) -> u32 {
-        self.rows.iter().map(|r| r.width()).max().unwrap()
+        self.rows.iter().map(|r| r.width()).max().unwrap_or(0)
     }
 
     pub fn rows(&self) -> &Vec<GameMetricsRow> {

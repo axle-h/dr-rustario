@@ -15,9 +15,9 @@ pub mod scene;
 pub mod sound;
 pub mod sprite_sheet;
 
-use crate::animate::game_over::GameOverStyle;
+use crate::animate::game_over::{CurtainPhase, GameOverStyle};
 use crate::animate::{AnimationMeta, PlayerAnimations};
-use crate::game::{CellId, Game, GameEvent, PieceId};
+use crate::game::{CellId, Game, GameEvent, PieceId, PlacedCell};
 use crate::particles::particle::ParticleAnimationType;
 use crate::particles::prescribed::RaceTheme;
 use crate::render::font::FontTheme;
@@ -40,6 +40,11 @@ pub trait GameRender {
 
     /// the cells a freshly spawned piece occupies, for spawn particles
     fn spawn_cells(&self) -> Vec<crate::game::geometry::Point>;
+
+    /// cells already on the board when a stage starts (Dr. Mario's viruses); they pop in
+    fn stage_intro_cells(&self) -> Vec<PlacedCell> {
+        vec![]
+    }
 }
 
 /// Where the mascot sits and the piece it holds.
@@ -75,11 +80,30 @@ pub enum HoldLayout {
     Slot { slot: Rect, max_scale: f64 },
 }
 
+/// How a match-end overlay is placed on the board.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlayFit {
+    /// stretched over the whole board
+    Stretch,
+    /// drawn at its own size in the middle of the board
+    Center,
+}
+
 /// Full-board overlays for the end of a match or stage.
 pub struct MatchEndSprites<'a> {
     pub texture: Texture<'a>,
     pub game_over_snips: Vec<Rect>,
     pub interstitial_snips: Vec<Rect>,
+    pub fit: OverlayFit,
+}
+
+impl<'a> MatchEndSprites<'a> {
+    fn dest(&self, snip: Rect, game_snip: Rect) -> Rect {
+        match self.fit {
+            OverlayFit::Stretch => game_snip,
+            OverlayFit::Center => Rect::from_center(game_snip.center(), snip.width(), snip.height()),
+        }
+    }
 }
 
 pub struct Theme<'a> {
@@ -243,10 +267,13 @@ impl<'a> Theme<'a> {
                 Ok(())
             }
             PeekLayout::Slots { slots, max_scale } => {
+                let first = slots.first().map(|s| s.width()).unwrap_or(1).max(1) as f64;
                 for (slot, piece) in slots.iter().zip(queue.iter()) {
+                    // smaller slots scale their pieces down in proportion
+                    let scale = max_scale * slot.width() as f64 / first;
                     self.sprites
                         .previews()
-                        .draw_piece_fill(canvas, *piece, *slot, *max_scale)?;
+                        .draw_piece_fill(canvas, *piece, *slot, scale)?;
                 }
                 Ok(())
             }
@@ -351,8 +378,22 @@ impl<'a> Theme<'a> {
         let board_dest = Rect::new(0, 0, board_snip.width(), board_snip.height());
         canvas.copy(&self.board_texture, board_snip, board_dest)?;
 
-        self.sprites
-            .draw_board(canvas, game, &self.geometry, animations, self.ghost_style)?;
+        let curtain_phase = animations.game_over().curtain_phase();
+        if curtain_phase == Some(CurtainPhase::Opening) {
+            // the board is gone behind the curtain, the game over card takes its place
+            if let Some(match_end) = &self.match_end {
+                if let Some(snip) = match_end.game_over_snips.first() {
+                    canvas.copy(
+                        &match_end.texture,
+                        *snip,
+                        match_end.dest(*snip, self.geometry.game_snip()),
+                    )?;
+                }
+            }
+        } else {
+            self.sprites
+                .draw_board(canvas, game, &self.geometry, animations, self.ghost_style)?;
+        }
 
         if let Some(rows) = animations.game_over().curtain_rows() {
             if let Some(cell) = self.curtain_cell {
@@ -383,7 +424,8 @@ impl<'a> Theme<'a> {
             {
                 if let GameOverStyle::Screen { .. } = animations.game_over().style() {
                     if let Some(snip) = match_end.game_over_snips.get(frame) {
-                        canvas.copy(&match_end.texture, *snip, self.geometry.game_snip())?;
+                        let dest = match_end.dest(*snip, self.geometry.game_snip());
+                        canvas.copy(&match_end.texture, *snip, dest)?;
                     }
                 }
             } else if let Some(frame) = animations
@@ -392,7 +434,8 @@ impl<'a> Theme<'a> {
                 .map(|s| s.interstitial_frame())
             {
                 if let Some(snip) = match_end.interstitial_snips.get(frame) {
-                    canvas.copy(&match_end.texture, *snip, self.geometry.game_snip())?;
+                    let dest = match_end.dest(*snip, self.geometry.game_snip());
+                    canvas.copy(&match_end.texture, *snip, dest)?;
                 }
             }
         }

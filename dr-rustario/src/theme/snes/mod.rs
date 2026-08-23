@@ -164,6 +164,7 @@ pub fn snes_theme<'a>(
         ),
         board_file: sprites::BOTTLES,
         board_snips: vec![Rect::new(0, 0, 79, 175)],
+        top_padding: 0,
         board_point: Point::new(0, 0),
         background_file: sprites::BACKGROUND,
         background_color: Color::BLACK,
@@ -179,6 +180,7 @@ pub fn snes_theme<'a>(
             match_end(3, 1),
             match_end(4, 1),
         ],
+        overlay_size: None,
         hold: Some(HoldLayout::Point {
             point: Point::new(125, 18),
             scale: Some(0.82),
