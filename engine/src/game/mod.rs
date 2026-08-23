@@ -196,6 +196,8 @@ pub trait Game {
     fn stage_transition(&self) -> StageTransition;
     /// how many stages this game has completed
     fn completed_stages(&self) -> u32;
+    /// continue counting from a previous game's stages (a playlist)
+    fn set_completed_stages(&mut self, stages: u32);
     /// start the next stage after `StageComplete`, keeping score and speed
     fn next_stage(&mut self) -> Result<(), String>;
 

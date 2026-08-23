@@ -672,6 +672,10 @@ impl engine::game::Game for Game {
         self.completed_stages
     }
 
+    fn set_completed_stages(&mut self, stages: u32) {
+        self.completed_stages = stages;
+    }
+
     fn next_stage(&mut self) -> Result<(), String> {
         if self.stage_complete {
             self.stage_complete = false;

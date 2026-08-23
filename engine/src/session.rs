@@ -87,6 +87,14 @@ impl<G: Game> Player<G> {
         &mut self.game
     }
 
+    /// swap in the next stage's game, keeping score, speed and stage count
+    pub fn replace_game(&mut self, mut game: G) {
+        game.set_score(self.game.score());
+        game.set_speed_index(self.game.speed_index());
+        game.set_completed_stages(self.game.completed_stages());
+        self.game = game;
+    }
+
     pub fn is_winner(&self) -> bool {
         self.winner
     }
@@ -329,5 +337,137 @@ impl<G: Game> Match<G> {
             .iter()
             .max_by_key(|p| (p.game.completed_stages(), p.game.score()))
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::geometry::Point;
+    use crate::game::{Cell, GameEvent, GameId, MetricKind, PieceId, StageTransition};
+    use std::time::Duration;
+
+    /// a game that only keeps the numbers a playlist carries between stages
+    struct Counter {
+        score: u32,
+        speed: u32,
+        stages: u32,
+    }
+
+    impl Game for Counter {
+        fn game_id(&self) -> GameId {
+            GameId(0)
+        }
+        fn update(&mut self, _: Duration) {}
+        fn left(&mut self) {}
+        fn right(&mut self) {}
+        fn rotate(&mut self, _: bool) {}
+        fn set_soft_drop(&mut self, _: bool) {}
+        fn hard_drop(&mut self) {}
+        fn hold(&mut self) {}
+        fn drain_events(&mut self) -> Vec<GameEvent> {
+            vec![]
+        }
+        fn board_width(&self) -> u32 {
+            1
+        }
+        fn board_height(&self) -> u32 {
+            1
+        }
+        fn visible_height(&self) -> u32 {
+            1
+        }
+        fn cell(&self, _: Point) -> Cell {
+            Cell::Empty
+        }
+        fn queue(&self) -> Vec<PieceId> {
+            vec![]
+        }
+        fn held(&self) -> Option<PieceId> {
+            None
+        }
+        fn metric(&self, _: MetricKind) -> Option<u32> {
+            None
+        }
+        fn score(&self) -> u32 {
+            self.score
+        }
+        fn set_score(&mut self, score: u32) {
+            self.score = score;
+        }
+        fn speed_index(&self) -> u32 {
+            self.speed
+        }
+        fn set_speed_index(&mut self, index: u32) {
+            self.speed = index;
+        }
+        fn stage_state(&self) -> StageState {
+            StageState::Playing
+        }
+        fn stage_transition(&self) -> StageTransition {
+            StageTransition::Seamless
+        }
+        fn completed_stages(&self) -> u32 {
+            self.stages
+        }
+        fn set_completed_stages(&mut self, stages: u32) {
+            self.stages = stages;
+        }
+        fn next_stage(&mut self) -> Result<(), String> {
+            self.stages += 1;
+            Ok(())
+        }
+        fn receive_attack(&mut self, _: Attack) {}
+    }
+
+    fn counter(score: u32, speed: u32, stages: u32) -> Counter {
+        Counter {
+            score,
+            speed,
+            stages,
+        }
+    }
+
+    #[test]
+    fn replacing_a_game_carries_score_speed_and_stages() {
+        let mut player = Player::new(0, counter(1234, 3, 2));
+        player.replace_game(counter(0, 0, 0));
+        assert_eq!(player.game().score(), 1234);
+        assert_eq!(player.game().speed_index(), 3);
+        assert_eq!(player.game().completed_stages(), 2);
+    }
+
+    #[test]
+    fn leader_is_most_stages_then_score() {
+        let mut fixture = Match {
+            players: vec![
+                Player::new(0, counter(500, 0, 1)),
+                Player::new(1, counter(100, 0, 2)),
+            ],
+            high_scores: HighScoreTable::default(),
+            state: MatchState::Normal,
+            rules: MatchRules::Marathon,
+            theme_count: 1,
+            rng: rng(),
+        };
+        assert_eq!(fixture.leading_player(), Some(1));
+        fixture.players[0].game.stages = 2;
+        assert_eq!(fixture.leading_player(), Some(0));
+        fixture.players[0].game.score = 100;
+        assert_eq!(fixture.leading_player(), None);
+    }
+
+    #[test]
+    fn stage_sprint_ends_with_the_last_stage() {
+        let fixture = Match {
+            players: vec![Player::new(0, counter(0, 0, 1))],
+            high_scores: HighScoreTable::default(),
+            state: MatchState::Normal,
+            rules: MatchRules::StageSprint { stages: 2 },
+            theme_count: 1,
+            rng: rng(),
+        };
+        assert!(fixture.next_stage_ends_match(0));
+        assert_eq!(fixture.check_for_winning_player(), None);
     }
 }

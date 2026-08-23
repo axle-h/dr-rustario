@@ -418,6 +418,23 @@ impl<'a> ThemeContext<'a> {
         self.start_fade(player, canvas)
     }
 
+    /// move a player onto a different set of themes (the next game of a playlist), fading
+    /// their side of the screen
+    pub fn switch_player_themes(
+        &mut self,
+        player: u32,
+        themes: PlayerThemes,
+        canvas: &mut WindowCanvas,
+    ) -> Result<(), String> {
+        for theme in self.themes.iter_mut() {
+            theme.animations_mut(player).reset();
+        }
+        let index = player as usize;
+        self.ranges[index] = themes.range;
+        self.current[index] = themes.initial;
+        self.start_fade(player, canvas)
+    }
+
     pub fn fade_all_into_next_theme(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
         for player in 0..self.players() {
             self.fade_into_next_theme(player, canvas)?;

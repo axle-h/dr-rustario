@@ -89,7 +89,7 @@ pub struct PlayerSettings {
 }
 
 impl PlayerSettings {
-    fn player_themes(&self) -> PlayerThemes {
+    pub fn player_themes(&self) -> PlayerThemes {
         PlayerThemes::new(
             self.themes.clone(),
             self.themes.start + self.theme_mode.initial(),
@@ -103,6 +103,8 @@ pub struct MatchSettings {
     pub players: Vec<PlayerSettings>,
     /// which high score table the match competes for
     pub high_score_key: String,
+    /// stages may switch games, so every stage boundary shows the stage card
+    pub playlist: bool,
 }
 
 pub struct App {
@@ -419,14 +421,16 @@ impl App {
         }
     }
 
-    /// Play one match to its end.
+    /// Play one match to its end. `next_stage` is asked for a player's next game when they
+    /// complete a stage; `None` means they carry on in the game they are playing.
     pub fn run_match<G: Game + GameRender>(
         &mut self,
         all_themes: &[Theme],
         games: Vec<G>,
-        settings: MatchSettings,
+        mut settings: MatchSettings,
         fg_particles: &mut ParticleRender,
         bg_particles: &mut ParticleRender,
+        mut next_stage: impl FnMut(u32, u32) -> Option<(G, PlayerSettings)>,
     ) -> Result<PostGameAction, String> {
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
@@ -507,7 +511,20 @@ impl App {
                             game.next_stage()?;
                             stage_changed = true;
 
-                            if settings.players[player as usize].theme_mode == ThemeMode::All {
+                            let completed = game.completed_stages();
+                            if let Some((next_game, next_settings)) = next_stage(player, completed) {
+                                // the playlist moves this player to another game
+                                fixture.player_mut(player).replace_game(next_game);
+                                themes.switch_player_themes(
+                                    player,
+                                    next_settings.player_themes(),
+                                    &mut self.canvas,
+                                )?;
+                                settings.players[player as usize] = next_settings;
+                                if is_single_player {
+                                    themes.music_audio().play_game_music()?;
+                                }
+                            } else if settings.players[player as usize].theme_mode == ThemeMode::All {
                                 // only this player advances to their next theme
                                 events.push((Some(player), GameEvent::NextTheme));
                             } else if is_single_player {
@@ -515,7 +532,7 @@ impl App {
                                 // multiplayer game music never stopped (stage clear is a jingle).
                                 themes.music_audio().play_game_music()?;
                             }
-                            let cells = game.stage_intro_cells();
+                            let cells = fixture.player(player).game().stage_intro_cells();
                             themes.animate_next_stage(player, &cells);
                         } else {
                             themes.maybe_dismiss_game_over();
@@ -658,7 +675,12 @@ impl App {
                         if fixture.next_stage_ends_match(player) {
                             fixture.set_winner(player);
                         } else {
-                            match fixture.player(player).game().stage_transition() {
+                            let transition = if settings.playlist {
+                                StageTransition::Interstitial
+                            } else {
+                                fixture.player(player).game().stage_transition()
+                            };
+                            match transition {
                                 StageTransition::Interstitial => {
                                     if is_single_player {
                                         themes.music_audio().play_next_stage_music()?;

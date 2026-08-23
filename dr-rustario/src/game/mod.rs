@@ -680,10 +680,13 @@ impl engine::game::Game for Game {
         self.speed as u32
     }
 
+    /// a shared difficulty index: 0 is low, a few is medium, anything higher is high
     fn set_speed_index(&mut self, index: u32) {
-        self.speed = GameSpeed::iter()
-            .nth(index as usize)
-            .unwrap_or(GameSpeed::High);
+        self.speed = match index {
+            0 => GameSpeed::Low,
+            1..=3 => GameSpeed::Medium,
+            _ => GameSpeed::High,
+        };
     }
 
     fn stage_state(&self) -> StageState {
@@ -700,6 +703,10 @@ impl engine::game::Game for Game {
 
     fn completed_stages(&self) -> u32 {
         self.level_count
+    }
+
+    fn set_completed_stages(&mut self, stages: u32) {
+        self.level_count = stages;
     }
 
     fn next_stage(&mut self) -> Result<(), String> {

@@ -2,7 +2,7 @@
 
 mod games;
 
-use crate::games::{AnyGame, GameKind};
+use crate::games::{AnyGame, Choice, GameKind};
 use engine::app::{
     App, MatchSettings, MenuExit, MenuMusic, PlayerSettings, PostGameAction,
     MAX_BACKGROUND_PARTICLES, MAX_PARTICLES_PER_PLAYER,
@@ -44,7 +44,7 @@ enum TitleAction {
 /// What the player has picked so far.
 struct Selection {
     players: u32,
-    games: Vec<GameKind>,
+    games: Vec<Choice>,
     dr_rustario: dr_rustario::options::Options,
     rustris: rustris::options::Options,
 }
@@ -56,17 +56,23 @@ impl Selection {
         self.rustris.set_players(players);
     }
 
-    fn game(&self, player: u32) -> GameKind {
+    fn choice(&self, player: u32) -> Choice {
         self.games[player as usize]
+    }
+
+    /// the game a player starts on
+    fn game(&self, player: u32) -> GameKind {
+        self.choice(player).stage(0)
     }
 
     /// the games in play, first player's first
     fn kinds(&self) -> Vec<GameKind> {
         let mut kinds = vec![];
         for player in 0..self.players {
-            let kind = self.game(player);
-            if !kinds.contains(&kind) {
-                kinds.push(kind);
+            for kind in self.choice(player).kinds() {
+                if !kinds.contains(&kind) {
+                    kinds.push(kind);
+                }
             }
         }
         kinds
@@ -74,6 +80,32 @@ impl Selection {
 
     fn is_mixed(&self) -> bool {
         self.kinds().len() > 1
+    }
+
+    fn is_playlist(&self) -> bool {
+        (0..self.players).any(|p| self.choice(p).is_playlist())
+    }
+
+    fn theme_mode(&self, kind: GameKind) -> engine::app::ThemeMode {
+        match kind {
+            GameKind::DrRustario => self.dr_rustario.theme_mode(),
+            GameKind::Rustris => self.rustris.theme_mode(),
+        }
+    }
+
+    fn player_settings(&self, themes: &Themes, kind: GameKind) -> PlayerSettings {
+        PlayerSettings {
+            themes: themes.range(kind),
+            theme_mode: self.theme_mode(kind),
+        }
+    }
+
+    /// a fresh game of `kind` for one player of a playlist
+    fn stage_game(&self, kind: GameKind) -> Result<AnyGame, String> {
+        Ok(match kind {
+            GameKind::DrRustario => AnyGame::DrRustario(self.dr_rustario.games(1)?.remove(0)),
+            GameKind::Rustris => AnyGame::Rustris(self.rustris.games(1).remove(0)),
+        })
     }
 
     /// option names are prefixed with the game in a mixed match
@@ -122,26 +154,20 @@ impl Selection {
             GameKind::Rustris => self.rustris.rules(),
         };
         let players = (0..self.players)
-            .map(|player| {
-                let kind = self.game(player);
-                PlayerSettings {
-                    themes: themes.range(kind),
-                    theme_mode: match kind {
-                        GameKind::DrRustario => self.dr_rustario.theme_mode(),
-                        GameKind::Rustris => self.rustris.theme_mode(),
-                    },
-                }
-            })
+            .map(|player| self.player_settings(themes, self.game(player)))
             .collect();
         MatchSettings {
             rules,
             players,
             high_score_key: self.high_score_key(),
+            playlist: self.is_playlist(),
         }
     }
 
     fn high_score_key(&self) -> String {
-        if self.is_mixed() {
+        if self.is_playlist() {
+            "playlist".to_string()
+        } else if self.is_mixed() {
             "mixed".to_string()
         } else {
             self.game(0).key().to_string()
@@ -249,7 +275,7 @@ fn main() -> Result<(), String> {
 
     let mut selection = Selection {
         players: 1,
-        games: vec![GameKind::DrRustario; MAX_PLAYERS as usize],
+        games: vec![Choice::Game(GameKind::DrRustario); MAX_PLAYERS as usize],
         dr_rustario: Default::default(),
         rustris: Default::default(),
     };
@@ -267,10 +293,10 @@ fn main() -> Result<(), String> {
         for player in 0..MAX_PLAYERS {
             items.push(MenuItem::select_list(
                 &game_item(player),
-                GameKind::ALL.iter().map(|k| k.name().to_string()).collect(),
-                GameKind::ALL
+                Choice::ALL.iter().map(|c| c.name()).collect(),
+                Choice::ALL
                     .iter()
-                    .position(|k| *k == selection.game(player))
+                    .position(|c| *c == selection.choice(player))
                     .unwrap(),
             ));
         }
@@ -296,7 +322,7 @@ fn main() -> Result<(), String> {
                 _ => {
                     for player in 0..MAX_PLAYERS {
                         if name == game_item(player) {
-                            selection.games[player as usize] = GameKind::from_name(value).unwrap();
+                            selection.games[player as usize] = Choice::from_name(value).unwrap();
                         }
                     }
                     None
@@ -342,12 +368,22 @@ fn main() -> Result<(), String> {
             let games = selection.games()?;
             let settings = selection.settings(&themes);
             let key = settings.high_score_key.clone();
+            let next_stage = |player: u32, completed: u32| {
+                let choice = selection.choice(player);
+                if !choice.is_playlist() {
+                    return None;
+                }
+                let kind = choice.stage(completed);
+                let game = selection.stage_game(kind).ok()?;
+                Some((game, selection.player_settings(&themes, kind)))
+            };
             match app.run_match(
                 &themes.all,
                 games,
                 settings,
                 &mut fg_particles,
                 &mut bg_particles,
+                next_stage,
             )? {
                 PostGameAction::NewHighScore(high_score) => {
                     app.new_high_score(&key, high_score, &mut bg_particles)?;
