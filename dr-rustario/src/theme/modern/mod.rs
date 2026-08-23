@@ -183,7 +183,7 @@ pub fn modern_dr_theme<'a>(
             sound::FEVER_NEXT_LEVEL_INTRO,
             sound::FEVER_NEXT_LEVEL_REPEAT,
         )?
-        .with_victory_music(sound::VICTORY, None)?,
+        .with_looping_victory_music(sound::VICTORY)?,
         columns: BOTTLE_WIDTH,
         rows: BOTTLE_HEIGHT,
         visible_rows: BOTTLE_HEIGHT,

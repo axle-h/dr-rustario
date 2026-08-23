@@ -53,14 +53,14 @@ impl AudioTheme {
         })
     }
 
+    /// `repeating` is the looping part after a one-shot `music` intro; without it `music` plays
+    /// through once.
     fn music<R: Into<Option<&'static [u8]>>>(
         music: &'static [u8],
         repeating: R,
-        loop_single: bool,
     ) -> Result<Rc<StructuredMusic>, String> {
         Ok(match repeating.into() {
             Some(repeating) => StructuredMusic::new(music, repeating)?,
-            None if loop_single => StructuredMusic::repeat(music)?,
             None => StructuredMusic::once(music)?,
         }
         .into_rc())
@@ -86,7 +86,7 @@ impl AudioTheme {
         music: &'static [u8],
         repeating: R,
     ) -> Result<Self, String> {
-        self.game_over_music = Some(Self::music(music, repeating, false)?);
+        self.game_over_music = Some(Self::music(music, repeating)?);
         Ok(self)
     }
 
@@ -95,7 +95,7 @@ impl AudioTheme {
         music: &'static [u8],
         repeating: R,
     ) -> Result<Self, String> {
-        self.next_stage_music = Some(Self::music(music, repeating, false)?);
+        self.next_stage_music = Some(Self::music(music, repeating)?);
         Ok(self)
     }
 
@@ -104,7 +104,13 @@ impl AudioTheme {
         music: &'static [u8],
         repeating: R,
     ) -> Result<Self, String> {
-        self.victory_music = Some(Self::music(music, repeating, true)?);
+        self.victory_music = Some(Self::music(music, repeating)?);
+        Ok(self)
+    }
+
+    /// one track that loops from the start
+    pub fn with_looping_victory_music(mut self, music: &'static [u8]) -> Result<Self, String> {
+        self.victory_music = Some(StructuredMusic::repeat(music)?.into_rc());
         Ok(self)
     }
 

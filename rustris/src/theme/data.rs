@@ -209,7 +209,7 @@ pub fn audio(config: AudioConfig, sounds: Sounds) -> Result<AudioTheme, String> 
         (SfxKey::Move, sounds.move_piece),
         (SfxKey::Rotate, sounds.rotate),
         (SfxKey::Lock, sounds.lock),
-        (SfxKey::AttackSent, sounds.send_garbage),
+        (SfxKey::AttackReceived, sounds.send_garbage),
         (SfxKey::Clear(0), sounds.clear[0]),
         (SfxKey::Clear(1), sounds.clear[1]),
         (SfxKey::Clear(2), sounds.clear[2]),
