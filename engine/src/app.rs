@@ -23,7 +23,7 @@ use crate::particles::render::ParticleRender;
 use crate::particles::scale::Scale as ParticleScale;
 use crate::particles::source::ParticleSource;
 use crate::particles::Particles;
-use crate::render::context::{PlayerTextures, TextureMode, ThemeContext};
+use crate::render::context::{PlayerTextures, PlayerThemes, TextureMode, ThemeContext};
 use crate::render::pause::PausedScreen;
 use crate::render::{GameRender, Theme};
 use crate::session::{Match, MatchRules, MatchState};
@@ -32,6 +32,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use sdl2::{EventPump, Sdl};
+use std::ops::Range;
 
 /// Simultaneous sound effects per player (SDL_mixer's default channel count).
 const EFFECT_CHANNELS_PER_PLAYER: u32 = 8;
@@ -61,11 +62,12 @@ pub enum PostGameAction {
     Quit,
 }
 
-/// Which theme a match plays on.
+/// Which theme a player plays on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeMode {
     /// every theme in order, advancing at each stage
     All,
+    /// one theme, by index within the player's set
     Fixed(usize),
 }
 
@@ -78,10 +80,29 @@ impl ThemeMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One player's game setup within a match.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerSettings {
+    /// the player's themes: a range of indices into the match's theme list
+    pub themes: Range<usize>,
+    pub theme_mode: ThemeMode,
+}
+
+impl PlayerSettings {
+    fn player_themes(&self) -> PlayerThemes {
+        PlayerThemes::new(
+            self.themes.clone(),
+            self.themes.start + self.theme_mode.initial(),
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchSettings {
     pub rules: MatchRules,
-    pub themes: ThemeMode,
+    pub players: Vec<PlayerSettings>,
+    /// which high score table the match competes for
+    pub high_score_key: String,
 }
 
 pub struct App {
@@ -285,10 +306,14 @@ impl App {
         }
     }
 
-    pub fn view_high_score(&mut self, particles: &mut ParticleRender) -> Result<(), String> {
+    pub fn view_high_score(
+        &mut self,
+        key: &str,
+        particles: &mut ParticleRender,
+    ) -> Result<(), String> {
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
-        let high_scores = HighScoreTable::load()?;
+        let high_scores = HighScoreTable::load(key)?;
         if high_scores.entries().is_empty() {
             return Ok(());
         }
@@ -328,12 +353,13 @@ impl App {
 
     pub fn new_high_score(
         &mut self,
+        key: &str,
         new_high_score: NewHighScore,
         particles: &mut ParticleRender,
     ) -> Result<(), String> {
         let texture_creator = self.canvas.texture_creator();
         let inputs = MenuInputContext::new(self.config.input);
-        let high_scores = HighScoreTable::load()?;
+        let high_scores = HighScoreTable::load(key)?;
         if high_scores.entries().is_empty() {
             return Ok(());
         }
@@ -385,9 +411,9 @@ impl App {
         }
 
         if let Some(new_entry) = table.new_entry() {
-            let mut high_scores = HighScoreTable::load().unwrap();
+            let mut high_scores = HighScoreTable::load(key).unwrap();
             high_scores.add_high_score(new_entry);
-            high_scores.save()
+            high_scores.save(key)
         } else {
             Ok(())
         }
@@ -405,14 +431,19 @@ impl App {
         let texture_creator = self.canvas.texture_creator();
         let mut inputs = GameInputContext::new(self.config.input);
         let players = games.len() as u32;
-        let mut fixture = Match::new(games, settings.rules, all_themes.len() as u32);
+        assert_eq!(settings.players.len(), games.len());
+        let theme_counts = settings
+            .players
+            .iter()
+            .map(|p| p.themes.len() as u32)
+            .collect::<Vec<u32>>();
+        let mut fixture = Match::new(games, settings.rules, &theme_counts, &settings.high_score_key);
         let is_single_player = fixture.is_single_player();
         let window_size = self.canvas.window().size();
         let mut themes = ThemeContext::new(
             all_themes,
             &texture_creator,
-            players,
-            settings.themes.initial(),
+            settings.players.iter().map(|p| p.player_themes()).collect(),
             window_size,
             self.config.video,
         )?;
@@ -476,7 +507,7 @@ impl App {
                             game.next_stage()?;
                             stage_changed = true;
 
-                            if settings.themes == ThemeMode::All {
+                            if settings.players[player as usize].theme_mode == ThemeMode::All {
                                 // only this player advances to their next theme
                                 events.push((Some(player), GameEvent::NextTheme));
                             } else if is_single_player {
@@ -639,7 +670,7 @@ impl App {
                                 StageTransition::Seamless => {
                                     fixture.player_mut(player).game_mut().next_stage()?;
                                     stage_changed = true;
-                                    if settings.themes == ThemeMode::All {
+                                    if settings.players[player as usize].theme_mode == ThemeMode::All {
                                         deferred_events.push((Some(player), GameEvent::NextTheme));
                                     }
                                 }

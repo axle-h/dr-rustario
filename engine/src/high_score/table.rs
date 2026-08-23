@@ -43,16 +43,25 @@ impl Default for HighScoreTable {
 }
 
 impl HighScoreTable {
-    pub fn load() -> Result<Self, String> {
-        let config_path = config_path(CONFIG_NAME)?;
+    /// the file a table is kept in; `key` separates the tables of different games and modes
+    fn file_name(key: &str) -> String {
+        if key.is_empty() {
+            CONFIG_NAME.to_string()
+        } else {
+            format!("{}.{}", CONFIG_NAME, key)
+        }
+    }
+
+    pub fn load(key: &str) -> Result<Self, String> {
+        let config_path = config_path(&Self::file_name(key))?;
         let mut result: Self = confy::load_path(config_path).map_err(|e| e.to_string())?;
         result.sorted();
         result.scores = result.scores.into_iter().take(MAX_HIGH_SCORES).collect();
         Ok(result)
     }
 
-    pub fn save(&self) -> Result<(), String> {
-        let config_path = config_path(CONFIG_NAME)?;
+    pub fn save(&self, key: &str) -> Result<(), String> {
+        let config_path = config_path(&Self::file_name(key))?;
         confy::store_path(config_path, self).map_err(|e| e.to_string())
     }
 

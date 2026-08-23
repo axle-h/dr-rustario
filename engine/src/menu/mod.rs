@@ -44,6 +44,17 @@ impl MenuItem {
             action: MenuAction::SelectList { items, current },
         }
     }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn with_prefix(self, prefix: &str) -> Self {
+        Self {
+            name: format!("{}{}", prefix, self.name),
+            action: self.action,
+        }
+    }
 }
 
 struct MenuRow<'a> {

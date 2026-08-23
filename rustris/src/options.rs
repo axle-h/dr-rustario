@@ -3,7 +3,7 @@
 use crate::game::random::{random_tetrominos, RandomMode};
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes};
 use crate::game::Game;
-use engine::app::{MatchSettings, ThemeMode};
+use engine::app::ThemeMode;
 use engine::menu::MenuItem;
 use std::str::FromStr;
 
@@ -34,9 +34,10 @@ impl Options {
         self.config.rules = MatchRules::default_by_players(players);
     }
 
-    pub fn menu_items(&self) -> Vec<MenuItem> {
+    /// `compact` leaves out the mode and randomiser, for a mixed match's second game
+    pub fn menu_items(&self, compact: bool) -> Vec<MenuItem> {
         let modes = Self::modes(self.config.players);
-        vec![
+        let items = vec![
             MenuItem::select_list(
                 THEMES,
                 MatchThemes::names()
@@ -66,7 +67,15 @@ impl Options {
                     .collect(),
                 self.config.random as usize,
             ),
-        ]
+        ];
+        if compact {
+            items
+                .into_iter()
+                .filter(|item| item.name() != MODE && item.name() != RANDOM)
+                .collect()
+        } else {
+            items
+        }
     }
 
     /// returns true if the selection was one of these options
@@ -86,20 +95,23 @@ impl Options {
         true
     }
 
-    pub fn settings(&self) -> MatchSettings {
-        MatchSettings {
-            rules: self.config.rules,
-            themes: match self.config.themes {
-                MatchThemes::All => ThemeMode::All,
-                themes => ThemeMode::Fixed(themes.initial_index()),
-            },
-        }
-    }
 
-    pub fn games(&self) -> Vec<Game> {
-        random_tetrominos(self.config.random, self.config.players as usize)
+    /// `count` games sharing one seed, so players face the same pieces
+    pub fn games(&self, count: usize) -> Vec<Game> {
+        random_tetrominos(self.config.random, count)
             .into_iter()
             .map(|rand| Game::new(self.config.level, rand))
             .collect()
+    }
+
+    pub fn theme_mode(&self) -> ThemeMode {
+        match self.config.themes {
+            MatchThemes::All => ThemeMode::All,
+            themes => ThemeMode::Fixed(themes.initial_index()),
+        }
+    }
+
+    pub fn rules(&self) -> MatchRules {
+        self.config.rules
     }
 }

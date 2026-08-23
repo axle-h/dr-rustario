@@ -27,6 +27,14 @@ impl GameKind {
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|k| k.name() == name)
     }
+
+    /// the high score table key
+    pub fn key(&self) -> &'static str {
+        match self {
+            GameKind::DrRustario => "dr-rustario",
+            GameKind::Rustris => "rustris",
+        }
+    }
 }
 
 pub enum AnyGame {

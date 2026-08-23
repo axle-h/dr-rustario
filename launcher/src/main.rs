@@ -4,18 +4,19 @@ mod games;
 
 use crate::games::{AnyGame, GameKind};
 use engine::app::{
-    App, MatchSettings, MenuExit, MenuMusic, PostGameAction, MAX_BACKGROUND_PARTICLES,
-    MAX_PARTICLES_PER_PLAYER,
+    App, MatchSettings, MenuExit, MenuMusic, PlayerSettings, PostGameAction,
+    MAX_BACKGROUND_PARTICLES, MAX_PARTICLES_PER_PLAYER,
 };
 use engine::menu::MenuItem;
 use engine::particles::prescribed::RaceTheme;
 use engine::render::Theme;
+use std::ops::Range;
 
 mod build_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 
     pub fn nice_app_name() -> String {
-        titlecase::titlecase(&PKG_NAME.replace("-", ". "))
+        titlecase::titlecase(&PKG_NAME.replace("-", " "))
     }
 }
 
@@ -26,11 +27,14 @@ const MAX_PLAYERS: u32 = 2;
 const MAX_PLAYERS: u32 = 1;
 
 const PLAYERS: &str = "players";
-const GAME: &str = "game";
 const HIGH_SCORES: &str = "high scores";
 const START: &str = "start";
 const BACK: &str = "back";
 const QUIT: &str = "quit";
+
+fn game_item(player: u32) -> String {
+    format!("p{} game", player + 1)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TitleAction {
@@ -40,7 +44,7 @@ enum TitleAction {
 /// What the player has picked so far.
 struct Selection {
     players: u32,
-    game: GameKind,
+    games: Vec<GameKind>,
     dr_rustario: dr_rustario::options::Options,
     rustris: rustris::options::Options,
 }
@@ -52,76 +56,160 @@ impl Selection {
         self.rustris.set_players(players);
     }
 
+    fn game(&self, player: u32) -> GameKind {
+        self.games[player as usize]
+    }
+
+    /// the games in play, first player's first
+    fn kinds(&self) -> Vec<GameKind> {
+        let mut kinds = vec![];
+        for player in 0..self.players {
+            let kind = self.game(player);
+            if !kinds.contains(&kind) {
+                kinds.push(kind);
+            }
+        }
+        kinds
+    }
+
+    fn is_mixed(&self) -> bool {
+        self.kinds().len() > 1
+    }
+
+    /// option names are prefixed with the game in a mixed match
+    fn prefix(&self, kind: GameKind) -> String {
+        if self.is_mixed() {
+            format!("{} ", kind.name())
+        } else {
+            String::new()
+        }
+    }
+
     fn menu_items(&self) -> Vec<MenuItem> {
-        match self.game {
-            GameKind::DrRustario => self.dr_rustario.menu_items(),
-            GameKind::Rustris => self.rustris.menu_items(),
+        let mut items = vec![];
+        for (i, kind) in self.kinds().into_iter().enumerate() {
+            let prefix = self.prefix(kind);
+            // the first game's mode is the match's; the second game keeps its menu short
+            let compact = i > 0;
+            let game_items = match kind {
+                GameKind::DrRustario => self.dr_rustario.menu_items(compact),
+                GameKind::Rustris => self.rustris.menu_items(compact),
+            };
+            items.extend(game_items.into_iter().map(|item| item.with_prefix(&prefix)));
+        }
+        items
+    }
+
+    fn select(&mut self, name: &str, value: &str) {
+        for kind in self.kinds() {
+            let prefix = self.prefix(kind);
+            let Some(name) = name.strip_prefix(&prefix) else {
+                continue;
+            };
+            let handled = match kind {
+                GameKind::DrRustario => self.dr_rustario.select(name, value),
+                GameKind::Rustris => self.rustris.select(name, value),
+            };
+            if handled {
+                return;
+            }
         }
     }
 
-    fn select(&mut self, name: &str, value: &str) -> bool {
-        match self.game {
-            GameKind::DrRustario => self.dr_rustario.select(name, value),
-            GameKind::Rustris => self.rustris.select(name, value),
+    fn settings(&self, themes: &Themes) -> MatchSettings {
+        let rules = match self.game(0) {
+            GameKind::DrRustario => self.dr_rustario.rules(),
+            GameKind::Rustris => self.rustris.rules(),
+        };
+        let players = (0..self.players)
+            .map(|player| {
+                let kind = self.game(player);
+                PlayerSettings {
+                    themes: themes.range(kind),
+                    theme_mode: match kind {
+                        GameKind::DrRustario => self.dr_rustario.theme_mode(),
+                        GameKind::Rustris => self.rustris.theme_mode(),
+                    },
+                }
+            })
+            .collect();
+        MatchSettings {
+            rules,
+            players,
+            high_score_key: self.high_score_key(),
         }
     }
 
-    fn settings(&self) -> MatchSettings {
-        match self.game {
-            GameKind::DrRustario => self.dr_rustario.settings(),
-            GameKind::Rustris => self.rustris.settings(),
+    fn high_score_key(&self) -> String {
+        if self.is_mixed() {
+            "mixed".to_string()
+        } else {
+            self.game(0).key().to_string()
         }
     }
 
+    /// one game per player; players on the same game share a seed
     fn games(&self) -> Result<Vec<AnyGame>, String> {
-        Ok(match self.game {
-            GameKind::DrRustario => self
-                .dr_rustario
-                .games()?
-                .into_iter()
-                .map(AnyGame::DrRustario)
-                .collect(),
-            GameKind::Rustris => self
-                .rustris
-                .games()
-                .into_iter()
-                .map(AnyGame::Rustris)
-                .collect(),
-        })
+        let mut games: Vec<Option<AnyGame>> = (0..self.players).map(|_| None).collect();
+        for kind in self.kinds() {
+            let players = (0..self.players)
+                .filter(|p| self.game(*p) == kind)
+                .collect::<Vec<u32>>();
+            let mut kind_games: Vec<AnyGame> = match kind {
+                GameKind::DrRustario => self
+                    .dr_rustario
+                    .games(players.len())?
+                    .into_iter()
+                    .map(AnyGame::DrRustario)
+                    .collect(),
+                GameKind::Rustris => self
+                    .rustris
+                    .games(players.len())
+                    .into_iter()
+                    .map(AnyGame::Rustris)
+                    .collect(),
+            };
+            for player in players.into_iter().rev() {
+                games[player as usize] = kind_games.pop();
+            }
+        }
+        Ok(games.into_iter().map(|g| g.unwrap()).collect())
     }
 
     fn subtitle(&self) -> String {
+        let names = self
+            .kinds()
+            .iter()
+            .map(|k| k.name())
+            .collect::<Vec<&str>>()
+            .join(" vs. ");
         if self.players == 1 {
-            format!("{} single player", self.game.name())
+            format!("{} single player", names)
         } else {
-            format!("{} {}-player vs.", self.game.name(), self.players)
+            format!("{} {}-player vs.", names, self.players)
         }
     }
 }
 
-/// Every theme of every game, as one list for the particle renderer's race sprites.
+/// Every theme of every game in one list, with each game's slice of it.
 struct Themes<'a> {
-    dr_rustario: Vec<Theme<'a>>,
-    rustris: Vec<Theme<'a>>,
+    all: Vec<Theme<'a>>,
+    dr_rustario: Range<usize>,
+    rustris: Range<usize>,
 }
 
 impl<'a> Themes<'a> {
-    fn all(&self) -> Vec<&Theme<'a>> {
-        self.dr_rustario.iter().chain(self.rustris.iter()).collect()
-    }
-
-    fn of(&self, game: GameKind) -> &[Theme<'a>] {
+    fn range(&self, game: GameKind) -> Range<usize> {
         match game {
-            GameKind::DrRustario => &self.dr_rustario,
-            GameKind::Rustris => &self.rustris,
+            GameKind::DrRustario => self.dr_rustario.clone(),
+            GameKind::Rustris => self.rustris.clone(),
         }
     }
 
     fn race(&self) -> Vec<RaceTheme> {
-        let mut race = dr_rustario::theme::race_themes(&self.dr_rustario);
-        let offset = self.dr_rustario.len();
-        for mut theme in rustris::theme::race_themes(&self.rustris) {
-            theme.theme += offset;
+        let mut race = dr_rustario::theme::race_themes(&self.all[self.dr_rustario.clone()]);
+        for mut theme in rustris::theme::race_themes(&self.all[self.rustris.clone()]) {
+            theme.theme += self.rustris.start;
             race.push(theme);
         }
         race
@@ -138,9 +226,13 @@ fn main() -> Result<(), String> {
     let mut app = App::new(MAX_PLAYERS, include_bytes!("../icon.png"))?;
     let texture_creator = app.canvas().texture_creator();
     let config = app.config();
+    let mut all = dr_rustario::theme::all_themes(app.canvas(), &texture_creator, config)?;
+    let dr_range = 0..all.len();
+    all.extend(rustris::theme::all_themes(app.canvas(), &texture_creator, config)?);
     let themes = Themes {
-        dr_rustario: dr_rustario::theme::all_themes(app.canvas(), &texture_creator, config)?,
-        rustris: rustris::theme::all_themes(app.canvas(), &texture_creator, config)?,
+        rustris: dr_range.end..all.len(),
+        dr_rustario: dr_range,
+        all,
     };
     let race = themes.race();
 
@@ -149,41 +241,43 @@ fn main() -> Result<(), String> {
         MAX_PARTICLES_PER_PLAYER * MAX_PLAYERS as usize,
         vec![],
     )?;
-    let mut bg_particles =
-        app.particle_render(&texture_creator, MAX_BACKGROUND_PARTICLES, themes.all())?;
+    let mut bg_particles = app.particle_render(
+        &texture_creator,
+        MAX_BACKGROUND_PARTICLES,
+        themes.all.iter().collect(),
+    )?;
 
     let mut selection = Selection {
         players: 1,
-        game: GameKind::DrRustario,
+        games: vec![GameKind::DrRustario; MAX_PLAYERS as usize],
         dr_rustario: Default::default(),
         rustris: Default::default(),
     };
     selection.set_players(1);
 
     'title: loop {
-        let mut items = vec![
-            MenuItem::select_list(
-                GAME,
+        let mut items = vec![];
+        if MAX_PLAYERS > 1 {
+            items.push(MenuItem::select_list(
+                PLAYERS,
+                (1..=MAX_PLAYERS).map(|i| i.to_string()).collect(),
+                selection.players as usize - 1,
+            ));
+        }
+        for player in 0..MAX_PLAYERS {
+            items.push(MenuItem::select_list(
+                &game_item(player),
                 GameKind::ALL.iter().map(|k| k.name().to_string()).collect(),
                 GameKind::ALL
                     .iter()
-                    .position(|k| *k == selection.game)
+                    .position(|k| *k == selection.game(player))
                     .unwrap(),
-            ),
-            MenuItem::select(HIGH_SCORES),
-            MenuItem::select(START),
-            MenuItem::select(QUIT),
-        ];
-        if MAX_PLAYERS > 1 {
-            items.insert(
-                0,
-                MenuItem::select_list(
-                    PLAYERS,
-                    (1..=MAX_PLAYERS).map(|i| i.to_string()).collect(),
-                    selection.players as usize - 1,
-                ),
-            );
+            ));
         }
+        items.push(MenuItem::select(HIGH_SCORES));
+        items.push(MenuItem::select(START));
+        items.push(MenuItem::select(QUIT));
+
         let exit = app.run_menu(
             items,
             build_info::nice_app_name(),
@@ -196,21 +290,24 @@ fn main() -> Result<(), String> {
                     selection.set_players(value.parse::<u32>().unwrap());
                     None
                 }
-                GAME => {
-                    selection.game = GameKind::from_name(value).unwrap();
-                    None
-                }
                 HIGH_SCORES => Some(MenuExit::Custom(TitleAction::ViewHighScores)),
                 START => Some(MenuExit::Start),
                 QUIT => Some(MenuExit::Back),
-                _ => None,
+                _ => {
+                    for player in 0..MAX_PLAYERS {
+                        if name == game_item(player) {
+                            selection.games[player as usize] = GameKind::from_name(value).unwrap();
+                        }
+                    }
+                    None
+                }
             },
         )?;
         match exit {
             MenuExit::Start => {}
             MenuExit::Back | MenuExit::Quit => break 'title,
             MenuExit::Custom(TitleAction::ViewHighScores) => {
-                app.view_high_score(&mut bg_particles)?;
+                app.view_high_score(&selection.high_score_key(), &mut bg_particles)?;
                 continue 'title;
             }
         }
@@ -243,15 +340,17 @@ fn main() -> Result<(), String> {
             }
 
             let games = selection.games()?;
+            let settings = selection.settings(&themes);
+            let key = settings.high_score_key.clone();
             match app.run_match(
-                themes.of(selection.game),
+                &themes.all,
                 games,
-                selection.settings(),
+                settings,
                 &mut fg_particles,
                 &mut bg_particles,
             )? {
                 PostGameAction::NewHighScore(high_score) => {
-                    app.new_high_score(high_score, &mut bg_particles)?;
+                    app.new_high_score(&key, high_score, &mut bg_particles)?;
                     continue 'menu;
                 }
                 PostGameAction::ReturnToMenu => continue 'menu,

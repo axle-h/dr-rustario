@@ -118,13 +118,20 @@ pub struct Match<G: Game> {
     high_scores: HighScoreTable,
     state: MatchState,
     rules: MatchRules,
-    /// stages in a theme sprint
+    /// stages in a theme sprint: the fewest themes any player has
     theme_count: u32,
     rng: ThreadRng,
 }
 
 impl<G: Game> Match<G> {
-    pub fn new(games: Vec<G>, rules: MatchRules, theme_count: u32) -> Self {
+    /// `theme_counts` is how many themes each player cycles through; `high_score_key` picks
+    /// the high score table this match competes for
+    pub fn new(
+        games: Vec<G>,
+        rules: MatchRules,
+        theme_counts: &[u32],
+        high_score_key: &str,
+    ) -> Self {
         assert!(!games.is_empty());
         Self {
             players: games
@@ -132,10 +139,10 @@ impl<G: Game> Match<G> {
                 .enumerate()
                 .map(|(pid, game)| Player::new(pid as u32, game))
                 .collect(),
-            high_scores: HighScoreTable::load().unwrap(),
+            high_scores: HighScoreTable::load(high_score_key).unwrap(),
             state: MatchState::Normal,
             rules,
-            theme_count,
+            theme_count: theme_counts.iter().copied().min().unwrap_or(1).max(1),
             rng: rng(),
         }
     }

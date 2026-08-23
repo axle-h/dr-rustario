@@ -3,7 +3,7 @@
 use crate::game::random::{random, RandomMode};
 use crate::game::rules::{GameConfig, MatchRules, MatchThemes, MAX_VIRUS_LEVEL};
 use crate::game::{Game, GameSpeed};
-use engine::app::{MatchSettings, ThemeMode};
+use engine::app::ThemeMode;
 use engine::menu::MenuItem;
 use std::str::FromStr;
 
@@ -35,9 +35,10 @@ impl Options {
             .set_rules(MatchRules::default_by_players(players));
     }
 
-    pub fn menu_items(&self) -> Vec<MenuItem> {
+    /// `compact` leaves out the mode and randomiser, for a mixed match's second game
+    pub fn menu_items(&self, compact: bool) -> Vec<MenuItem> {
         let modes = Self::modes(self.config.players());
-        vec![
+        let items = vec![
             MenuItem::select_list(
                 THEMES,
                 MatchThemes::names()
@@ -75,7 +76,15 @@ impl Options {
                     .collect(),
                 self.config.random() as usize,
             ),
-        ]
+        ];
+        if compact {
+            items
+                .into_iter()
+                .filter(|item| item.name() != MODE && item.name() != RANDOM)
+                .collect()
+        } else {
+            items
+        }
     }
 
     /// returns true if the selection was one of these options
@@ -98,23 +107,26 @@ impl Options {
         true
     }
 
-    pub fn settings(&self) -> MatchSettings {
-        MatchSettings {
-            rules: self.config.rules(),
-            themes: match self.config.themes() {
-                MatchThemes::All => ThemeMode::All,
-                MatchThemes::Nes => ThemeMode::Fixed(0),
-                MatchThemes::Snes => ThemeMode::Fixed(1),
-                MatchThemes::N64 => ThemeMode::Fixed(2),
-                MatchThemes::Particle => ThemeMode::Fixed(3),
-            },
-        }
-    }
 
-    pub fn games(&self) -> Result<Vec<Game>, String> {
-        random(self.config.players() as usize, self.config.random())
+    /// `count` games sharing one seed, so players face the same bottles and pills
+    pub fn games(&self, count: usize) -> Result<Vec<Game>, String> {
+        random(count, self.config.random())
             .into_iter()
             .map(|rand| Game::new(self.config.virus_level(), self.config.speed(), rand))
             .collect()
+    }
+
+    pub fn theme_mode(&self) -> ThemeMode {
+        match self.config.themes() {
+            MatchThemes::All => ThemeMode::All,
+            MatchThemes::Nes => ThemeMode::Fixed(0),
+            MatchThemes::Snes => ThemeMode::Fixed(1),
+            MatchThemes::N64 => ThemeMode::Fixed(2),
+            MatchThemes::Particle => ThemeMode::Fixed(3),
+        }
+    }
+
+    pub fn rules(&self) -> MatchRules {
+        self.config.rules()
     }
 }

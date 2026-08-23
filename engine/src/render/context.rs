@@ -16,6 +16,7 @@ use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
+use std::ops::Range;
 use std::time::Duration;
 
 const THEME_FADE_DURATION: Duration = Duration::from_millis(1000);
@@ -141,9 +142,26 @@ impl<'a> ScaledTheme<'a> {
 
 }
 
+/// The themes one player may use: a range of indices into the context's theme list, so a
+/// player on Dr. Rustario cycles Dr. Rustario themes while another cycles Tetris themes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerThemes {
+    pub range: Range<usize>,
+    pub initial: usize,
+}
+
+impl PlayerThemes {
+    pub fn new(range: Range<usize>, initial: usize) -> Self {
+        assert!(range.contains(&initial), "initial theme is outside the player's range");
+        Self { range, initial }
+    }
+}
+
 pub struct ThemeContext<'a> {
     /// the current theme index of each player
     current: Vec<usize>,
+    /// the themes each player may use
+    ranges: Vec<Range<usize>>,
     themes: Vec<ScaledTheme<'a>>,
     fade_buffer: Texture<'a>,
     /// per-player theme fade timer
@@ -155,12 +173,11 @@ pub struct ThemeContext<'a> {
 }
 
 impl<'a> ThemeContext<'a> {
-    /// `initial` is the theme index every player starts on
+    /// one [`PlayerThemes`] per player, indexing into `all_themes`
     pub fn new(
         all_themes: &'a [Theme<'a>],
         texture_creator: &'a TextureCreator<WindowContext>,
-        players: u32,
-        initial: usize,
+        player_themes: Vec<PlayerThemes>,
         window_size: (u32, u32),
         video_config: VideoConfig,
     ) -> Result<Self, String> {
@@ -170,10 +187,11 @@ impl<'a> ThemeContext<'a> {
             .create_texture_target(RGBA8888, window_width, window_height)
             .map_err(|e| e.to_string())?;
         fade_buffer.set_blend_mode(BlendMode::Blend);
-        let players = players as usize;
+        let players = player_themes.len();
 
         Ok(Self {
-            current: vec![initial; players],
+            current: player_themes.iter().map(|p| p.initial).collect(),
+            ranges: player_themes.into_iter().map(|p| p.range).collect(),
             themes: all_themes
                 .iter()
                 .map(|theme| ScaledTheme::new(theme, players as u32, window_size, video_config))
@@ -195,8 +213,9 @@ impl<'a> ThemeContext<'a> {
         (width, height)
     }
 
-    pub fn theme_count(&self) -> usize {
-        self.themes.len()
+    /// how many themes a player cycles through
+    pub fn theme_count(&self, player: u32) -> usize {
+        self.ranges[player as usize].len()
     }
 
     pub fn max_board_size(&self) -> (u32, u32) {
@@ -389,7 +408,13 @@ impl<'a> ThemeContext<'a> {
             theme.animations_mut(player).reset();
         }
         let index = player as usize;
-        self.current[index] = (self.current[index] + 1) % self.themes.len();
+        let range = &self.ranges[index];
+        let next = self.current[index] + 1;
+        self.current[index] = if range.contains(&next) {
+            next
+        } else {
+            range.start
+        };
         self.start_fade(player, canvas)
     }
 
