@@ -37,21 +37,17 @@ impl Options {
         self.config.rules = MatchRules::default_by_players(players);
     }
 
-    /// the title screen's players list: humans, then (with the ai feature) the ai opponents
-    /// and the ai demo
+    /// the title screen's players list: humans, then the ai opponents and the ai demo
     pub fn players_list(&self, max_players: u32) -> (Vec<String>, usize) {
         let mut players = (1..=max_players).map(|i| i.to_string()).collect::<Vec<String>>();
-        #[cfg(feature = "ai")]
-        {
-            if max_players > 1 {
-                players.extend(
-                    AiDifficulty::ALL
-                        .iter()
-                        .map(|d| format!("{}{}{}", VS_AI_PREFIX, d.name(), VS_AI_SUFFIX)),
-                );
-            }
-            players.push(AI_DEMO.to_string());
+        if max_players > 1 {
+            players.extend(
+                AiDifficulty::ALL
+                    .iter()
+                    .map(|d| format!("{}{}{}", VS_AI_PREFIX, d.name(), VS_AI_SUFFIX)),
+            );
         }
+        players.push(AI_DEMO.to_string());
         let current = match self.config.ai {
             AiMode::Off => (self.config.players as usize).clamp(1, max_players as usize) - 1,
             AiMode::Opponent(difficulty) => players

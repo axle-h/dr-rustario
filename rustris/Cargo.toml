@@ -4,9 +4,6 @@ version = "1.2.0"
 authors.workspace = true
 edition.workspace = true
 
-[features]
-ai = ["rayon", "itertools", "num-bigint", "num-traits", "serde_json", "approx"]
-
 [dependencies]
 engine = { path = "../engine" }
 rand.workspace = true
@@ -16,9 +13,9 @@ sdl2.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 bitflags = "2.13"
-rayon = { version = "1.12", optional = true }
-itertools = { version = "0.15", optional = true }
-num-bigint = { version = "0.5", optional = true }
-num-traits = { version = "0.2", optional = true }
-serde_json = { version = "1.0", optional = true }
-approx = { version = "0.5", optional = true }
+rayon = "1.12"
+itertools = "0.15"
+num-bigint = "0.5"
+num-traits = "0.2"
+serde_json = "1.0"
+approx = "0.5"

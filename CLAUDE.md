@@ -6,7 +6,7 @@
 |---|---|
 | `engine/` | everything that is not game rules: SDL app shell, menus, high scores, config, input, rendering (sprite sheets, themes, fonts, particles, animations), audio mixer, the match session |
 | `dr-rustario/` | Dr. Rustario's rules (bottle, pills, viruses) and theme data |
-| `rustris/` | Rustris's rules (board, SRS, scoring, garbage), theme data and, behind the `ai` feature, its genetic/neural AI |
+| `rustris/` | Rustris's rules (board, SRS, scoring, garbage), theme data and its genetic/neural AI |
 | `launcher/` | the `dr-rustario-vs-rustris` binary: picks games and options and runs a match |
 
 A game implements `engine::game::Game` (a headless board of `Cell`s with game-private

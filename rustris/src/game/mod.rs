@@ -12,7 +12,6 @@ use engine::game::{
 use std::cmp::max;
 use std::time::Duration;
 
-#[cfg(feature = "ai")]
 pub mod ai;
 pub mod block;
 pub mod board;

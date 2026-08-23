@@ -16,8 +16,8 @@ cargo vcpkg build
 cargo build --release --no-default-features --features vcpkg
 ```
 
-All resources are embedded into the binary. Add `--features ai` for the Rustris AI opponent,
-demo mode and the `ga` training subcommand (`dr-rustario-vs-rustris ga [auto|survival|score|diagnose]`).
+All resources are embedded into the binary, including the Rustris AI opponent, demo mode and
+the `ga` training subcommand (`dr-rustario-vs-rustris ga [auto|survival|score|diagnose]`).
 
 ### macOS
 
@@ -55,8 +55,8 @@ DEPLOY_HOST=root@rocknix ./build-portmaster.sh # ... and copy it to the device
 ```
 
 This cross-compiles in Docker (`Dockerfile.aarch64`: Ubuntu 20.04 / glibc 2.31, the PortMaster
-baseline) with the `retro_handheld` and `ai` features, then zips the binary up with the launcher
-script and metadata from [portmaster/](portmaster). SDL2 is not bundled: like other native PortMaster ports
+baseline) with the `retro_handheld` feature, then zips the binary up with the launcher script
+and metadata from [portmaster/](portmaster). SDL2 is not bundled: like other native PortMaster ports
 the binary links the firmware's own `libSDL2-2.0.so.0`.
 
 To install without PortMaster's catalogue drop the zip into the device's
@@ -148,8 +148,6 @@ All key names are defined in [engine/src/config.rs](engine/src/config.rs).
 There are no default player 2 controls.
 
 ## Rustris AI
-
-Built with `--features ai`.
 
 The **ai** option on a Rustris main menu selects who plays:
 

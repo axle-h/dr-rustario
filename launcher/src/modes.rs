@@ -265,10 +265,8 @@ impl Mode for RustrisMode {
         None
     }
 
-    #[allow(unused_mut, unused_variables)]
     fn controllers(&self) -> Vec<Controller<'_>> {
         let mut controllers: Vec<Controller<'_>> = vec![];
-        #[cfg(feature = "ai")]
         for (player, key_delay) in self.options.ai_players() {
             let mut agent = rustris::game::ai::agent::AiAgent::default().with_key_delay(key_delay);
             controllers.push((

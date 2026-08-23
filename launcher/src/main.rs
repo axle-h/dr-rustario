@@ -153,22 +153,17 @@ fn run_mode<M: Mode>(
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("ga") {
-        #[cfg(feature = "ai")]
-        {
-            use rustris::game::ai::genetic;
-            return match args.get(1).map(String::as_str) {
-                None | Some("auto") => genetic::ga_main_auto(),
-                Some("survival") => genetic::ga_main_survival(),
-                Some("score") => genetic::ga_main_score(),
-                Some("diagnose") => genetic::ga_diagnose(),
-                Some(other) => Err(format!(
-                    "unknown ga mode '{}', expected: auto, survival, score or diagnose",
-                    other
-                )),
-            };
-        }
-        #[cfg(not(feature = "ai"))]
-        return Err("built without the ai feature".to_string());
+        use rustris::game::ai::genetic;
+        return match args.get(1).map(String::as_str) {
+            None | Some("auto") => genetic::ga_main_auto(),
+            Some("survival") => genetic::ga_main_survival(),
+            Some("score") => genetic::ga_main_score(),
+            Some("diagnose") => genetic::ga_diagnose(),
+            Some(other) => Err(format!(
+                "unknown ga mode '{}', expected: auto, survival, score or diagnose",
+                other
+            )),
+        };
     }
 
     engine::app_info::init(engine::app_info::AppInfo {

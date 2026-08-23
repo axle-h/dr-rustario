@@ -2,9 +2,7 @@ use super::tetromino::TetrominoShape;
 use crate::game::board::BOARD_WIDTH;
 pub use engine::game::random::RandomMode;
 use engine::game::random::BagRandom;
-#[cfg(feature = "ai")]
 use num_bigint::BigUint;
-#[cfg(feature = "ai")]
 use num_traits::Num;
 use rand::distr::StandardUniform;
 use rand::prelude::*;
@@ -36,15 +34,8 @@ impl DerefMut for Seed {
 
 impl Display for Seed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        #[cfg(feature = "ai")]
-        {
-            let bigint: BigUint = (*self).into();
-            write!(f, "{}", bigint)
-        }
-        #[cfg(not(feature = "ai"))]
-        {
-            write!(f, "{}", engine::game::random::Seed::from(self.0))
-        }
+        let bigint: BigUint = (*self).into();
+        write!(f, "{}", bigint)
     }
 }
 
@@ -103,7 +94,6 @@ impl From<u128> for Seed {
     }
 }
 
-#[cfg(feature = "ai")]
 impl From<BigUint> for Seed {
     fn from(value: BigUint) -> Self {
         let mut bytes = value.to_bytes_be();
@@ -115,7 +105,6 @@ impl From<BigUint> for Seed {
     }
 }
 
-#[cfg(feature = "ai")]
 impl Into<BigUint> for Seed {
     fn into(self) -> BigUint {
         BigUint::from_bytes_be(&*self)
@@ -130,7 +119,6 @@ impl From<i32> for Seed {
     }
 }
 
-#[cfg(feature = "ai")]
 impl From<String> for Seed {
     fn from(value: String) -> Self {
         BigUint::from_str_radix(&value, 10).expect("not a valid seed string").into()
@@ -281,7 +269,6 @@ mod tests {
         assert_eq!(seed3, Seed::from(1000000000000000000000000000u128));
     }
     
-    #[cfg(feature = "ai")]
     #[test]
     fn serialize_seed() {
         let bigint = BigUint::parse_bytes(b"111000000000000000000000000000000000000222", 10).unwrap();
@@ -289,7 +276,6 @@ mod tests {
         assert_eq!(result, bigint);
     }
 
-    #[cfg(feature = "ai")]
     #[test]
     fn display_seed() {
         let bigint = BigUint::parse_bytes(b"34028236692093846346337460743176821145500000000000000000000000000000000000000", 10).unwrap();
@@ -297,7 +283,6 @@ mod tests {
         assert_eq!(result, "34028236692093846346337460743176821145500000000000000000000000000000000000000");
     }
 
-    #[cfg(feature = "ai")]
     #[test]
     fn parse_seed() {
         let seed: Seed = rand::random();
