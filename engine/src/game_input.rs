@@ -1,4 +1,5 @@
 use crate::config::InputConfig;
+use crate::controller::{InputEvent, PadButton};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::collections::HashMap;
@@ -77,7 +78,7 @@ impl GameInputContext {
 
     pub fn update<I>(&mut self, delta: Duration, sdl_events: I) -> Vec<GameInputKey>
     where
-        I: Iterator<Item = Event>,
+        I: IntoIterator<Item = InputEvent>,
     {
         let mut result: Vec<GameInputKey> = vec![];
 
@@ -86,8 +87,20 @@ impl GameInputContext {
             event.duration += delta;
         }
 
-        for sdl_event in sdl_events {
-            match self.map_from_sdl_event(sdl_event) {
+        for event in sdl_events {
+            let maybe_key = match event {
+                InputEvent::Sdl(sdl_event) => self.map_from_sdl_event(sdl_event),
+                InputEvent::Pad {
+                    player,
+                    button,
+                    pressed,
+                } => match Self::map_from_pad(player, button) {
+                    None => MaybeKey::None,
+                    Some(key) if pressed => MaybeKey::Down(key),
+                    Some(key) => MaybeKey::Up(key),
+                },
+            };
+            match maybe_key {
                 MaybeKey::None => {}
                 MaybeKey::Down(key) => {
                     let event = GameInput::new(key);
@@ -124,6 +137,26 @@ impl GameInputContext {
         }
 
         result
+    }
+
+    /// the fixed pad layout: d-pad/stick moves and drops, A/B rotate, shoulders hold,
+    /// start pauses, select/back returns to the menu and Y cycles the theme
+    fn map_from_pad(player: u32, button: PadButton) -> Option<GameInputKey> {
+        Some(match button {
+            PadButton::DPadLeft => GameInputKey::MoveLeft { player },
+            PadButton::DPadRight => GameInputKey::MoveRight { player },
+            PadButton::DPadDown => GameInputKey::SoftDrop { player },
+            PadButton::DPadUp => GameInputKey::HardDrop { player },
+            PadButton::A => GameInputKey::RotateClockwise { player },
+            PadButton::B => GameInputKey::RotateAnticlockwise { player },
+            PadButton::X | PadButton::LeftShoulder | PadButton::RightShoulder => {
+                GameInputKey::Hold { player }
+            }
+            PadButton::Y => GameInputKey::NextTheme,
+            PadButton::Start => GameInputKey::Pause,
+            PadButton::Back => GameInputKey::ReturnToMenu,
+            PadButton::Guide => return None,
+        })
     }
 
     fn map_from_sdl_event(&self, event: Event) -> MaybeKey {

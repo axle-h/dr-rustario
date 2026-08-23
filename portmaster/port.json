@@ -1,0 +1,36 @@
+{
+    "version": 2,
+    "name": "dr-rustario-vs-rustris.zip",
+    "items": [
+        "dr-rustario-vs-rustris/",
+        "Dr Rustario vs Rustris.sh"
+    ],
+    "items_opt": null,
+    "attr": {
+        "title": "Dr Rustario vs Rustris",
+        "desc": "Two falling-block puzzle games on one engine: a virus-busting pill dropper and a line-clearing tetromino game, each in NES, SNES, N64 and modern themes. Play either, mix them in a match, or alternate them stage by stage in a playlist.",
+        "desc_md": null,
+        "inst": "Ready to run. Config and high scores are saved in the port folder.",
+        "inst_md": null,
+        "genres": [
+            "puzzle",
+            "arcade"
+        ],
+        "porter": [
+            "Alex Haslehurst"
+        ],
+        "image": {
+            "screenshot": "screenshot.png"
+        },
+        "rtr": true,
+        "exp": false,
+        "runtime": null,
+        "reqs": [],
+        "arch": [
+            "aarch64"
+        ],
+        "min_glibc": "2.31",
+        "avail": [],
+        "store": []
+    }
+}

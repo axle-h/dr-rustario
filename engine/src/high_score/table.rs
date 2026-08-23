@@ -1,3 +1,4 @@
+use confy::ConfyError;
 use serde::{Deserialize, Serialize};
 use crate::config::config_path;
 
@@ -54,7 +55,18 @@ impl HighScoreTable {
 
     pub fn load(key: &str) -> Result<Self, String> {
         let config_path = config_path(&Self::file_name(key))?;
-        let mut result: Self = confy::load_path(config_path).map_err(|e| e.to_string())?;
+        let mut result: Self = match confy::load_path(&config_path) {
+            Ok(table) => table,
+            Err(ConfyError::BadYamlData(error)) => {
+                println!(
+                    "Bad high score table at {}, {}, starting empty",
+                    config_path.to_str().unwrap_or_default(),
+                    error
+                );
+                Self::default()
+            }
+            Err(error) => return Err(error.to_string()),
+        };
         result.sorted();
         result.scores = result.scores.into_iter().take(MAX_HIGH_SCORES).collect();
         Ok(result)

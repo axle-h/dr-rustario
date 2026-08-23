@@ -148,11 +148,10 @@ impl Default for Config {
                     width: 1280,
                     height: 720,
                 },
+                // handhelds: fill whatever the panel is (PortMaster runs ports under sway or
+                // KMSDRM, where a mode switch is the fragile option) and let the scaler fit it
                 #[cfg(feature = "retro_handheld")]
-                mode: VideoMode::FullScreen {
-                    width: 640,
-                    height: 480,
-                },
+                mode: VideoMode::FullScreenDesktop,
                 vsync: true,
                 disable_screensaver: true,
 
@@ -164,19 +163,7 @@ impl Default for Config {
                 music_volume: 0.5,
                 effects_volume: 1.0,
             },
-            /*
-              ArkOS Default Controls:
-              A= Keycode::X
-              B= Keycode::Z
-              X= Keycode::C
-              Y= Keycode::A
-              L1= Keycode::RShift
-              L2= Keycode::Home
-              R1= Keycode::LShift
-              R2= Keycode::End
-              Select= Keycode::Esc
-              Start= Keycode::Return
-            */
+            // keyboard only: game controllers use the fixed layout in `crate::controller`
             input: InputConfig {
                 menu: MenuInputConfig {
                     up: GameKey::Up,

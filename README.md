@@ -44,11 +44,28 @@ Build with pkgconfig:
 cargo build --release --no-default-features --features pkgconfig
 ```
 
-### Retro handhelds
+### Retro handhelds (PortMaster)
 
-Dr. Rustario was built for [ArkOS](https://github.com/christianhaitian/arkos) on the
-[Anberic rg353m](https://anbernic.com/products/rg353m) via `./build-aarch64-cross.sh`
-(Docker, glibc <2.30). The `retro_handheld` feature still compiles but is no longer maintained.
+The game is packaged as a [PortMaster](https://portmaster.games) port for aarch64 handhelds
+(ROCKNIX, ArkOS, muOS, Knulli ...):
+
+```shell
+./build-portmaster.sh                          # -> dist/dr-rustario-vs-rustris.zip
+DEPLOY_HOST=root@rocknix ./build-portmaster.sh # ... and copy it to the device
+```
+
+This cross-compiles in Docker (`Dockerfile.aarch64`: Ubuntu 20.04 / glibc 2.31, the PortMaster
+baseline) with the `retro_handheld` feature, then zips the binary up with the launcher script and
+metadata from [portmaster/](portmaster). SDL2 is not bundled: like other native PortMaster ports
+the binary links the firmware's own `libSDL2-2.0.so.0`.
+
+To install without PortMaster's catalogue drop the zip into the device's
+`PortMaster/autoinstall/` folder (`/storage/roms/ports/PortMaster/autoinstall/` on ROCKNIX) and
+open PortMaster, or unzip it straight into `/roms/ports/`. Config and high scores are then kept
+in `/roms/ports/dr-rustario-vs-rustris/`.
+
+The `retro_handheld` feature defaults to desktop fullscreen, single player, no integer scaling
+and stores config next to the binary.
 
 ## Config
 
@@ -87,7 +104,21 @@ Most of it you can ignore except:
 
 ### Controls
 
-Only keyboard controls are supported.
+Game controllers are supported out of the box through SDL's GameController API (set
+`SDL_GAMECONTROLLERCONFIG` for unrecognised pads). The pad layout is fixed; each pad takes
+the next free player slot:
+
+| Button | Menu | Game |
+|--|--|--|
+| D-pad / left stick | Navigate | Move, soft drop (down), hard drop (up) |
+| A | Select | Rotate clockwise |
+| B | Back | Rotate anticlockwise |
+| X / L1 / R1 | | Hold |
+| Y | | Next theme |
+| Start | Start | Pause |
+| Select / Back | | Return to menu |
+
+Keyboard controls are configurable:
 
 ```yaml
 input:

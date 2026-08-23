@@ -1,6 +1,4 @@
 /target
 .idea/
 desktop.ini
-
-# genetic algorithm output
-generation-record-*.csv
+/dist

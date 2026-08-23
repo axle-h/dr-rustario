@@ -1,36 +1,56 @@
-FROM debian:10
+# Cross-builds the PortMaster binary for aarch64 handhelds.
+#
+# Ubuntu 20.04 (glibc 2.31) is the PortMaster porters' baseline: a binary built here runs on
+# every supported CFW (ROCKNIX, ArkOS, muOS, Knulli ...). SDL2 is linked dynamically and comes
+# from the CFW at runtime - PortMaster does not ship one - so the SDL 2.28 built below is used
+# for headers and link-time symbols only (Ubuntu 20.04's own 2.0.10 is too old for the sdl2 crate).
+FROM ubuntu:20.04
 
-# Install dependencies
-RUN dpkg --add-architecture arm64 && apt update && apt upgrade -y \
-  && apt install -y build-essential crossbuild-essential-arm64 zip unzip cmake meson git wget curl unzip pkg-config autoconf \
-                    libsdl2-dev:arm64 libdrm-dev:arm64 libgbm-dev:arm64 \
-                    libasound2-dev:arm64 libsndio-dev:arm64 libudev-dev:arm64 libdbus-1-dev:arm64 \
-                    libsamplerate0-dev:arm64 libibus-1.0-dev:arm64 libgl1-mesa-dev:arm64 \
-  && ln -sf /usr/share/pkg-config-crosswrapper /usr/bin/aarch64-linux-gnu-pkg-config
+ARG SDL_VERSION=2.28.5
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install rust
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="${PATH}:/root/.cargo/bin"
-RUN rustup target add aarch64-unknown-linux-gnu \
-    && rustup toolchain install stable-aarch64-unknown-linux-gnu
+RUN dpkg --add-architecture arm64 \
+  && sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list \
+  && echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse" \
+     > /etc/apt/sources.list.d/arm64.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+       build-essential crossbuild-essential-arm64 cmake ninja-build pkg-config git curl ca-certificates zip \
+       libdrm-dev:arm64 libgbm-dev:arm64 libgl1-mesa-dev:arm64 libgles2-mesa-dev:arm64 libegl1-mesa-dev:arm64 \
+       libasound2-dev:arm64 libpulse-dev:arm64 libudev-dev:arm64 libdbus-1-dev:arm64 libibus-1.0-dev:arm64 \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install the patched SDL2 from arkos
-WORKDIR /arkos
-RUN wget https://github.com/christianhaitian/arkos/raw/main/02092023/arkosupdate02092023.zip \
-    && unzip -o arkosupdate02092023.zip \
-    && rm arkosupdate02092023.zip \
-    && cp -f -v home/ark/sdl2-64/libSDL2-2.0.so.0.2600.2.rk3566 /usr/lib/aarch64-linux-gnu/libSDL2-2.0.so.0.2600.2 \
-    && ln -sfv /usr/lib/aarch64-linux-gnu/libSDL2.so /usr/lib/aarch64-linux-gnu/libSDL2-2.0.so.0 \
-    && ln -sfv /usr/lib/aarch64-linux-gnu/libSDL2-2.0.so.0.2600.2 /usr/lib/aarch64-linux-gnu/libSDL2.so
+# SDL2 for the link step only (shared so the binary stays dynamically linked to libSDL2-2.0.so.0)
+WORKDIR /sdl
+RUN curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSION}/SDL2-${SDL_VERSION}.tar.gz | tar xz --strip-components=1 \
+  && cmake -S . -B build -G Ninja \
+       -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+       -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+       -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+       -DPKG_CONFIG_EXECUTABLE=/usr/bin/aarch64-linux-gnu-pkg-config \
+       -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/aarch64-linux-gnu \
+       -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF \
+       -DSDL_KMSDRM=ON -DSDL_WAYLAND=ON -DSDL_X11=ON \
+  && cmake --build build && cmake --install build \
+  && rm -rf /sdl
+
+# Rust, aarch64 target
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup target add aarch64-unknown-linux-gnu
 
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    PKG_CONFIG=/usr/bin/aarch64-linux-gnu-pkg-config
+    PKG_CONFIG=/usr/bin/aarch64-linux-gnu-pkg-config \
+    PKG_CONFIG_ALLOW_CROSS=1
 
 WORKDIR /app
+COPY . .
+RUN cargo build --release -p dr-rustario-vs-rustris --target aarch64-unknown-linux-gnu \
+      --no-default-features --features pkgconfig,retro_handheld \
+  && aarch64-linux-gnu-readelf -d target/aarch64-unknown-linux-gnu/release/dr-rustario-vs-rustris | grep NEEDED
 
-ADD . .
-RUN cargo build --release --target aarch64-unknown-linux-gnu --no-default-features --features pkgconfig,retro_handheld
-
-CMD tail -f /dev/null
+CMD ["true"]

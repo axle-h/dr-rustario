@@ -1,6 +1,9 @@
 target/
 .idea/
 build/
+dist/
 Dockerfile*
 README.md
-build-aarch64-cross.sh
+build-portmaster.sh
+portmaster/
+media/

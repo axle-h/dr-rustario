@@ -3,6 +3,7 @@ pub mod app;
 pub mod app_info;
 pub mod audio;
 pub mod config;
+pub mod controller;
 pub mod draw;
 pub mod font;
 pub mod frame_rate;

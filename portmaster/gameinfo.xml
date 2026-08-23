@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<gameList>
+  <game>
+    <path>./Dr Rustario vs Rustris.sh</path>
+    <name>Dr Rustario vs Rustris</name>
+    <desc>Two falling-block puzzle games on one engine, each in NES, SNES, N64 and modern themes. Play either, mix them in a match, or alternate them stage by stage in a playlist.</desc>
+    <image>./dr-rustario-vs-rustris/screenshot.png</image>
+    <developer>Alex Haslehurst</developer>
+    <publisher>Alex Haslehurst</publisher>
+    <genre>Puzzle</genre>
+    <players>1-2</players>
+  </game>
+</gameList>

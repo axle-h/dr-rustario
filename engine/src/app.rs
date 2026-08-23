@@ -4,6 +4,7 @@
 use crate::animate::event::{AnimationEvent, AnimationType};
 use crate::audio;
 use crate::config::{Config, VideoMode};
+use crate::controller::Controllers;
 use crate::frame_rate::FrameRate;
 use crate::game::{Game, GameEvent, StageState, StageTransition};
 use crate::game_input::{GameInputContext, GameInputKey};
@@ -123,6 +124,7 @@ pub struct App {
     _sdl: Sdl,
     canvas: WindowCanvas,
     event_pump: EventPump,
+    controllers: Controllers,
     _audio: audio::Audio,
     menu_sound: MenuSound,
     particle_scale: ParticleScale,
@@ -181,6 +183,9 @@ impl App {
         .map_err(|e| e.to_string())?;
 
         let event_pump = sdl.event_pump()?;
+        // SDL_GAMECONTROLLERCONFIG (set by e.g. PortMaster) is read by the subsystem on init;
+        // already-attached pads arrive as ControllerDeviceAdded events on the first poll
+        let controllers = Controllers::new(sdl.game_controller()?, max_players);
 
         let audio = audio::Audio::open(
             &sdl.audio()?,
@@ -194,6 +199,7 @@ impl App {
             _sdl: sdl,
             canvas,
             event_pump,
+            controllers,
             _audio: audio,
             menu_sound,
             particle_scale: ParticleScale::new((width, height)),
@@ -285,7 +291,7 @@ impl App {
         }
         loop {
             let delta = frame_rate.update()?;
-            for key in inputs.parse(self.event_pump.poll_iter()).into_iter() {
+            for key in inputs.parse(self.controllers.poll(&mut self.event_pump)).into_iter() {
                 if key == MenuInputKey::Quit {
                     return Ok(MenuExit::Quit);
                 }
@@ -351,7 +357,7 @@ impl App {
         self.menu_sound.play_high_score_music()?;
         'menu: loop {
             let delta = frame_rate.update()?;
-            let events = inputs.parse(self.event_pump.poll_iter());
+            let events = inputs.parse(self.controllers.poll(&mut self.event_pump));
             if !events.is_empty() {
                 // any button press
                 break 'menu;
@@ -398,7 +404,7 @@ impl App {
         'menu: loop {
             let delta = frame_rate.update()?;
 
-            for key in inputs.parse(self.event_pump.poll_iter()) {
+            for key in inputs.parse(self.controllers.poll(&mut self.event_pump)) {
                 let event = match key {
                     MenuInputKey::Up => table.up(),
                     MenuInputKey::Down => table.down(),
@@ -530,7 +536,7 @@ impl App {
             // events tagged with the player that caused them (None for match-wide events) so
             // sound effects are routed through that player's theme
             let mut events: Vec<(Option<u32>, GameEvent)> = vec![];
-            for key in inputs.update(delta, self.event_pump.poll_iter()) {
+            for key in inputs.update(delta, self.controllers.poll(&mut self.event_pump)) {
                 if let Some(player) = key.player() {
                     if pending_switches[player as usize].is_some() {
                         continue;
