@@ -1,40 +1,19 @@
 # Dr. Rustario vs. Rustris
 
-Two falling block games on one engine, written in SDL2 and Rust for fun:
+A multi-themed Tetris vs Dr.Mario clone. Written in SDL2 and Rust for fun:
 
-* **Dr. Rustario** — a Dr. Mario clone (NES, SNES, N64 and modern themes)
-* **Rustris** — Tetris with the guideline ruleset (Game Boy, NES, SNES and modern themes)
-
-Each player picks a game, so one player can clear viruses while the other stacks tetrominoes,
-trading garbage across games. A player can also pick a playlist — *rustris then dr. rustario* —
-and alternate between the games one stage (a level, a bottle) at a time, carrying their score.
-
-Only core SDL2 is required: images, fonts and audio mixing are handled in Rust
-(`image`, `ab_glyph`, `symphonia` + a small mixer on SDL's audio callback).
-
-## Layout
-
-| crate | what it is |
-|---|---|
-| `engine/` | everything that is not game rules: SDL app shell, menus, high scores, config, input, rendering (sprite sheets, themes, fonts, particles, animations), audio mixer, the match session |
-| `dr-rustario/` | Dr. Rustario's rules (bottle, pills, viruses) and theme data |
-| `rustris/` | Rustris's rules (board, SRS, scoring, garbage), theme data and, behind the `ai` feature, its genetic/neural AI |
-| `launcher/` | the `dr-rustario-vs-rustris` binary: picks games and options and runs a match |
-
-A game implements `engine::game::Game` (a headless board of `Cell`s with game-private
-`CellId`s, producing engine `GameEvent`s) and `engine::render::GameRender`; its themes are
-data handed to the engine's `retro_theme` and `modern_theme` builders. Attacks between players
-are a neutral strength plus game-private detail, so Dr. Rustario garbage keeps its colours
-between two Dr. Rustario players and becomes random colours when it comes from Rustris.
+* **Dr. Rustario** - a Dr. Mario clone (NES, SNES, N64 and modern themes)
+* **Rustris** - Tetris with the guideline ruleset (Game Boy, NES, SNES and modern themes)
+* **Dr. Rustario vs Rustris** - play a multi-player focussed playlist over both games.
 
 ## Building
 
-Requires vcpkg to build.
+Requires vcpkg to build on macos and Windows.
 
 ```bash
 cargo install cargo-vcpkg
 cargo vcpkg build
-cargo build --release
+cargo build --release --no-default-features --features vcpkg
 ```
 
 All resources are embedded into the binary. Add `--features ai` for the Rustris AI opponent,
@@ -143,45 +122,12 @@ Built with `--features ai`.
 
 The **ai** option on a Rustris main menu selects who plays:
 
-* `off` — human players.
-* `vs challenging` / `vs difficult` / `vs impossible` — in a 2-player match the AI plays as player 2 (who must be on
+* `off` - human players.
+* `vs challenging` / `vs difficult` / `vs impossible` - in a 2-player match the AI plays as player 2 (who must be on
   Rustris) and is speed limited by pressing one key every 250 ms / 80 ms / instantly (see `AiDifficulty` in
   `rustris/src/game/rules.rs`).
-* `demo` — the first player's board is played by the AI at full speed; their controls are disabled.
+* `demo` - the first player's board is played by the AI at full speed; their controls are disabled.
 
 Only human players can enter the high score table.
 
-For each piece, calculate all possible positions and calculate the cost of each, choose the position with the best cost.
-Cost parameters:
-* Closed holes (a gap that cannot be filled without clearing a line)
-* Open holes (a gap under a tetromino that can be filled)
-* Max height of the stack
-* bumpiness (the amount that the line height changes from left to right)
-* optimising for tetris:
-   * bad: blocks in the right most column
-   * bad: clearing less that 4 lines
-   * good: clearing a tetris
-
-Algorithm:
-
-1. wait until a frame where a tetromino is spawned
-2. calculate lowest cost for spawned tetromino
-3. if none held: calculate lowest cost for next tetromino
-   if one held: calculate lowest cost for held tetromino
-4. take the tetromino and position with lowest cost
-5. press hold if held or next tetromino was chosen
-6. apply input sequence of chosen position
-7. hard drop
-8. repeat
-
-TODO
-
-* compare recordings for the same seed with different scores to figure out what is hapenning
-* record seed in game recording
-* record tetromino sequence in game recording to validate seed in gameplay
-* genetic algorithm crossover should maybe also have a chance of averaging some weights of the parents as well as flat out crossover
-* genetic algorithm speciation
-   * define minimum distance between a species OR use k-means
-   * classify the population into species
-   * ensure we retain at least 2, 3, 4 of the best species per generation
-* AI upscale the retro themes
+Full write up: [https://ax-h.com/ai/machine-learning-from-scratch](https://ax-h.com/ai/machine-learning-from-scratch)
