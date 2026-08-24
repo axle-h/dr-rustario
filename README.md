@@ -1,3 +1,15 @@
+> [!IMPORTANT]
+> **This repository has moved.**
+>
+> Dr. Rustario and Rustris now live together in one repository:
+> **https://github.com/axle-h/dr-rustario-vs-rustris**
+>
+> This repository is archived and read-only. Its history was carried over in full, so
+> nothing here is lost — the new repository is a strict superset. Please file issues and
+> follow development at the new home.
+
+---
+
 # Dr. Rustario vs. Rustris
 
 A multi-themed Tetris vs Dr.Mario clone. Written in SDL2 and Rust for fun:
